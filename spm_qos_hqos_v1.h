@@ -56,21 +56,23 @@ typedef struct spm_hqos_lsp_cb
 
     NBB_ULONG lsp_id;
 
-    NBB_ULONG pw_id;/*默认的PW ID*/
+    NBB_ULONG pw_id;/*默认的PW ID */
 
     NBB_BYTE slot;
 
     NBB_USHORT port;
 
+    ATG_DCI_VPN_HQOS_POLICY data;
+
     /***************************************************************************/
     /* SDK resource    time sorted                                             */
     /***************************************************************************/
-    NBB_ULONG pw_id;//ARAD
-    NBB_LONG voq_id;//ARAD
-    NBB_LONG tm_vc;//ARAD
-    NBB_LONG vc_id[MAX_HQOS_SLOT_NUM];//ARAD
-    NBB_LONG np_flow_id;//c3
-    NBB_LONG posid;//c3
+    NBB_ULONG pw_id;//ARAD 出槽位非0
+    NBB_LONG voq_id;//ARAD 
+    NBB_LONG tm_vc;//ARAD 出槽位非0
+    NBB_LONG vc_id[MAX_HQOS_SLOT_NUM];//ARAD 出槽位非0
+    NBB_LONG np_flow_id;//c3 所有单盘都有
+    NBB_LONG posid;//c3 所有单盘都有
 
 
 }SPM_HQOS_LSP_CB;

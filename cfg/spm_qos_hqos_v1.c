@@ -909,6 +909,7 @@ NBB_VOID spm_hqos_arad_set_trafficsche_error_log(NBB_ULONG port,
 }
 
 
+
 /*****************************************************************************
    函 数 名  : spm_disconnect_usr_group_cnt
    功能描述  : usr group引用计数减1
@@ -922,7 +923,44 @@ NBB_VOID spm_hqos_arad_set_trafficsche_error_log(NBB_ULONG port,
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_VOID spm_hqos_arad_create_lsp_error_log(NBB_ULONG port,NBB_ULONG lsp_id,
+static NBB_VOID spm_hqos_arad_fresh_pw_to_lsp_error_log(NBB_LONG unit,NBB_LONG pw_id,
+    NBB_LONG lsp_id,NBB_USHORT port,
+    const NBB_CHAR *function,NBB_ULONG line,NBB_LONG ret)
+{
+    NBB_CHAR message[QOS_MSG_INFO_LEN];
+
+    if(NULL != function)
+    {
+        OS_PRINTF("%s %s,line=%ld ret=%ld fhdrv_fap_qos_refresh_pw_to_lsp\n"
+                "unit=%ld,pw_id=%ld,lsp=%ld,port=%d\n\n",
+                HQOS_LSP_ERROR,function,line,unit,pw_id,lsp_id,port);
+        OS_SPRINTF(message,"%s %s,line=%ld ret=%ld fhdrv_fap_qos_refresh_pw_to_lsp\n"
+                "unit=%ld,pw_id=%ld,lsp=%ld,port=%d\n\n",
+                HQOS_LSP_ERROR,function,line,unit,pw_id,lsp_id,port);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, message);
+        NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
+    			HQOS_ARAD_ERROR,ret,
+    			message,function,"line","",
+    			0,0,line,0));
+        
+    }
+    
+}
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : usr group引用计数减1
+   输入参数  : usr group的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+static NBB_VOID spm_hqos_arad_create_lsp_error_log(NBB_ULONG port,NBB_ULONG lsp_id,
     const NBB_CHAR *function,NBB_ULONG line,NBB_LONG ret)
 {
     NBB_CHAR message[QOS_MSG_INFO_LEN];
@@ -1086,6 +1124,45 @@ NBB_VOID spm_hqos_arad_voq_error_log(NBB_ULONG voq,
      
 }
 
+fhdrv_psn_common_set_txlsp_hqos
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : usr group引用计数减1
+   输入参数  : usr group的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID  spm_hqos_txlsp_error_log(NBB_LONG unit,NBB_ULONG posid,NBB_ULONG hqosEn,
+    NBB_ULONG voq,  const NBB_CHAR *function, NBB_ULONG line, NBB_LONG ret)
+{
+    NBB_CHAR message[QOS_MSG_INFO_LEN];
+
+    if(NULL != function)
+    {
+        OS_PRINTF("%s line=%ld  ret=%ld fhdrv_psn_common_set_txlsp_hqos\n"
+                  "unit=%ld,posid=%ld,hqosEn=%s,voq=%ld\n\n",
+                function,line,ret,unit,posid,
+                hqosEn?"使能":"不使能",voq);
+        OS_SPRINTF(message,"%s line=%ld  ret=%ld fhdrv_psn_common_set_txlsp_hqos\n"
+                  "unit=%ld,posid=%ld,hqosEn=%s,voq=%ld\n\n",
+                function,line,ret,unit,posid,
+                hqosEn?"使能":"不使能",voq);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, message);
+        NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
+    			HQOS_C3_ERROR,ret,
+    			message,function,"line","",
+    			0,0,line,0));  
+    }
+   
+}
+
 
 /*****************************************************************************
    函 数 名  : spm_disconnect_usr_group_cnt
@@ -1142,7 +1219,8 @@ NBB_VOID  spm_hqos_vp_error_log(
 *****************************************************************************/
 static NBB_LONG spm_hqos_create_voq_vc(NBB_BYTE slot, NBB_LONG port,
     NBB_ULONG pw_id,
-    NBB_LONG *voq_id,NBB_LONG *tm_vc,NBB_ULONG vc_id[MAX_HQOS_SLOT_NUM])
+    NBB_LONG voq_id,NBB_LONG tm_vc,NBB_ULONG vc_id[MAX_HQOS_SLOT_NUM],
+    NBB_LONG *p_voq,NBB_LONG *p_vc,NBB_ULONG p_vc_id[MAX_HQOS_SLOT_NUM])
 {
     NBB_LONG unit = 0;
     NBB_LONG ret = ATG_DCI_RC_OK;
@@ -1159,15 +1237,18 @@ static NBB_LONG spm_hqos_create_voq_vc(NBB_BYTE slot, NBB_LONG port,
     
 
 #if defined (SPU) || defined (SRC)
-    ret = ApiAradHqosVoqSet(unit, *voq_id, NUM_COS, slot, port, *tm_vc);
+    ret = ApiAradHqosVoqSet(unit, voq_id, NUM_COS, slot, port, tm_vc);
     if (ATG_DCI_RC_OK != ret)       
     {
-        spm_hqos_arad_voq_error_log(*voq_id,slot,port,
-            *tm_vc, __FUNCTION__,__LINE__,ret);
-        *voq_id = 0;
-        *tm_vc = 0;
+        spm_hqos_arad_voq_error_log(voq_id,slot,port,
+            tm_vc, __FUNCTION__,__LINE__,ret);
         goto EXIT_LABEL;
-    } 
+    }
+    if(NULL != p_voq && NULL != p_vc)
+    {
+        *p_voq = voq_id;
+        *p_vc = tm_vc;
+    }  
 #endif
 
     /*本槽位是出口盘进行VC的建立*/
@@ -1183,16 +1264,19 @@ static NBB_LONG spm_hqos_create_voq_vc(NBB_BYTE slot, NBB_LONG port,
 #if defined (SPU) || defined (SRC)
 
             /*在出口端创建VC并和开启了hqos开关的单盘入口端VOQ建立关联*/
-            ret = ApiAradHqosTrafficSet(unit, *voq_id, NUM_COS, g_hqos_port_index[i], 
+            ret = ApiAradHqosTrafficSet(unit, voq_id, NUM_COS, g_hqos_port_index[i], 
                         port, vc_id[i], pw_id);
             if (ATG_DCI_RC_OK != ret) 
             {
-                spm_hqos_arad_traffic_set_error_log(*voq_id,
+                spm_hqos_arad_traffic_set_error_log(voq_id,
                     g_hqos_port_index[i], port,vc_id[i],
                     pw_id,__FUNCTION__,__LINE__,ret);
-                vc_id[i] = 0;
                 goto EXIT_LABEL;
             }
+            if(NULL != p_vc_id)
+            {
+                p_vc_id[i] = vc_id[i];
+            }          
 #endif
         }
       
@@ -1322,6 +1406,7 @@ static NBB_LONG spm_hqos_set_lsp_pw_property(NBB_BYTE slot,NBB_USHORT port,
     NBB_LONG unit = 0;
     NBB_LONG ret = ATG_DCI_RC_OK;
     NBB_BYTE i = 0;
+    NBB_BYTE c3_num = v_spm_shared->c3_num;
 
     NBB_TRC_ENTRY(__FUNCTION__);
 
@@ -1393,6 +1478,21 @@ static NBB_LONG spm_hqos_set_lsp_pw_property(NBB_BYTE slot,NBB_USHORT port,
      
     }
 
+    /*入口盘和出口盘都会执行*/
+    /*最后设置C3的flow id hqos的业务通起来*/
+    for(unit = 0; unit < c3_num;unit++)
+    {
+#if defined (SPU) || defined (PTN690_CES)
+   
+        ret = fhdrv_psn_common_set_txlsp_hqos(unit, posid,1, base_queue);
+        if (ATG_DCI_RC_OK != ret)
+        {
+            spm_hqos_txlsp_error_log(unit, posid,1, base_queue,
+                __FUNCTION__,__LINE__,ret);
+            goto EXIT_LABEL;
+        }
+#endif
+    }
 
     /*异常跳出*/
     EXIT_LABEL: NBB_TRC_EXIT();
@@ -1594,6 +1694,9 @@ static NBB_LONG spm_hqos_del_lsp_node(SPM_HQOS_LSP_CB **plsp)
     NBB_BYTE slot = 0;
     NBB_USHORT port = 0;
     NBB_LONG lsp_id = 0;
+    NBB_BYTE i = 0;
+    NBB_LONG unit = 0;
+    NBB_BYTE c3_num = v_spm_shared->c3_num;
     
     NBB_TRC_ENTRY(__FUNCTION__);
 
@@ -1610,11 +1713,74 @@ static NBB_LONG spm_hqos_del_lsp_node(SPM_HQOS_LSP_CB **plsp)
     port = lsp->port;
     lsp_id = lsp->lsp_id;
 
-  
+     /*NP hqos 去使能*/
+    if(0 != lsp->np_flow_id || 0 != lsp->posid)
+    {
+        for(unit = 0; unit < c3_num;unit++)
+        {
+#if defined (SPU) || defined (PTN690_CES)
+       
+            ret = fhdrv_psn_common_set_txlsp_hqos(unit, lsp->posid,0, lsp->np_flow_id);
+            if (ATG_DCI_RC_OK != ret)
+            {
+                spm_hqos_txlsp_error_log(unit, lsp->posid,0, lsp->np_flow_id,
+                    __FUNCTION__,__LINE__,ret);
+                goto EXIT_LABEL;
+            }
+#endif
+        }
+    }
+
+
+    /*删除voq*/
+    if( 0 != lsp->voq_id)
+    {
+#if defined (SPU) || defined (SRC)
+        ret = ApiAradHqosVoqDelete(0, lsp->voq_id, NUM_COS, slot, port, lsp->tm_vc);
+        if (ATG_DCI_RC_OK != ret)       
+        {
+            spm_hqos_arad_voq_error_log(lsp->voq_id,slot,port,
+                lsp->tm_vc, __FUNCTION__,__LINE__,ret);
+            rv = ret;
+        } 
+#endif    
+     }
+
+    /*删除vc*/
+    for(i = 0; i < MAX_HQOS_SLOT_NUM;i++)
+    {
+        if(0 != lsp->vc_id[i])
+        {
+#if defined (SPU) || defined (SRC)
+            ret = ApiAradHqosTrafficDelete(0, lsp->voq_id, NUM_COS, g_hqos_port_index[i],
+                    port, lsp->vc_id[i],lsp->pw_id);
+            if (ATG_DCI_RC_OK != ret)       
+            {
+                spm_hqos_arad_traffic_del_error_log(lsp->voq_id,g_hqos_port_index[i],
+                    port, lsp->vc_id[i],lsp->pw_id, __FUNCTION__,__LINE__,ret);
+                rv = ret;
+            } 
+#endif     
+        }
+    }
+
+
+    
     if(AVLL_IN_TREE(lsp->spm_hqos_lsp_tx_node)/*删除存在的配置*/
     {
+        /*删除非默认的LSP节点:创建失败回收资源或者更新到默认的LSP ID*/
+        if(0 != lsp_id && lsp_id != port)
+        {
+            /*更新LSP ID 到默认的节点上*/
+            ret = spm_hqos_refresh_lsp_port(slot,port,port,lsp);
+            if (ATG_DCI_RC_OK != ret)
+            {
+                rv = ret;
+            }
+        }
+        
         /***************************************************************************/
-        /* VC VRF节点信息全部为空了才清除LSP资源*******************************/                                                   */
+        /* VC VRF节点信息全部为空了才清除绑定关系释放资源***********************/                                                   */
         /***********************************************************************/
         if ((NULL == AVLL_FIRST(lsp->vc_tree) && NULL == AVLL_FIRST(lsp->vrf_tree))
         {
@@ -1626,8 +1792,9 @@ static NBB_LONG spm_hqos_del_lsp_node(SPM_HQOS_LSP_CB **plsp)
             } 
             *plsp = NULL;
         }
+        
     }
-    else/*删除因为异常回收资源*/
+    else/*删除因为异常回收资源包括默认和非默认LSP节点*/
     {
         ret = spm_free_hqos_lsp_cb(lsp);
         if (ATG_DCI_RC_OK != ret) 
@@ -1645,6 +1812,120 @@ static NBB_LONG spm_hqos_del_lsp_node(SPM_HQOS_LSP_CB **plsp)
 }
 
 
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : 分配内存的同时分配PW ID
+   输入参数  : defaulte = ATG_DCI_RC_OK:申请LSP ID
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+static NBB_LONG spm_hqos_set_lsp_to_default(SPM_HQOS_LSP_CB *lsp)
+{
+    /***************************************************************************/
+    /* Local Variables                                                         */
+    /***************************************************************************/
+    NBB_LONG ret = ATG_DCI_RC_OK;
+    NBB_LONG rv = ATG_DCI_RC_OK;
+    SPM_HQOS_LSP_CB *lsp = NULL;
+    NBB_BYTE slot = 0;
+    NBB_USHORT port = 0;
+    NBB_LONG lsp_id = 0;
+    NBB_LONG pw_id = 0;
+    NBB_BYTE i = 0;
+    NBB_LONG unit = 0;
+    NBB_BYTE c3_num = v_spm_shared->c3_num;
+    
+    NBB_TRC_ENTRY(__FUNCTION__);
+
+    /*LSP节点不可能为NULL*/
+    if(NULL == lsp)
+    {
+       spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
+       rv = ATG_DCI_RC_UNSUCCESSFUL;
+       goto EXIT_LABEL;
+    }
+
+    slot = lsp->slot;
+    port = lsp->port;
+    lsp_id = lsp->lsp_id;
+    pw_id = lsp->pw_id;
+
+     /*NP hqos 去使能*/
+    if(0 != lsp->np_flow_id || 0 != lsp->posid)
+    {
+        for(unit = 0; unit < c3_num;unit++)
+        {
+#if defined (SPU) || defined (PTN690_CES)
+       
+            ret = fhdrv_psn_common_set_txlsp_hqos(unit, lsp->posid,0, lsp->np_flow_id);
+            if (ATG_DCI_RC_OK != ret)
+            {
+                spm_hqos_txlsp_error_log(unit, lsp->posid,0, lsp->np_flow_id,
+                    __FUNCTION__,__LINE__,ret);
+                goto EXIT_LABEL;
+            }
+#endif
+        }
+    }
+
+
+    /*删除voq*/
+    if( 0 != lsp->voq_id)
+    {
+#if defined (SPU) || defined (SRC)
+        ret = ApiAradHqosVoqDelete(0, lsp->voq_id, NUM_COS, slot, port, lsp->tm_vc);
+        if (ATG_DCI_RC_OK != ret)       
+        {
+            spm_hqos_arad_voq_error_log(lsp->voq_id,slot,port,
+                lsp->tm_vc, __FUNCTION__,__LINE__,ret);
+            rv = ret;
+        } 
+#endif    
+     }
+
+    /*删除vc*/
+    for(i = 0; i < MAX_HQOS_SLOT_NUM;i++)
+    {
+        if(0 != lsp->vc_id[i])
+        {
+#if defined (SPU) || defined (SRC)
+            ret = ApiAradHqosTrafficDelete(0, lsp->voq_id, NUM_COS, g_hqos_port_index[i],
+                    port, lsp->vc_id[i],lsp->pw_id);
+            if (ATG_DCI_RC_OK != ret)       
+            {
+                spm_hqos_arad_traffic_del_error_log(lsp->voq_id,g_hqos_port_index[i],
+                    port, lsp->vc_id[i],lsp->pw_id, __FUNCTION__,__LINE__,ret);
+                rv = ret;
+            } 
+#endif     
+        }
+    }
+
+    ret = spm_hqos_del_lsp_pw(lsp_id,pw_id,port);
+    if (ATG_DCI_RC_OK != ret)       
+    {
+        rv = ret;
+    } 
+    ret = spm_hqos_release_lsp_pw_id(lsp->lsp_id,lsp->pw_id);
+    if (ATG_DCI_RC_OK != ret)       
+    {
+        rv = ret;
+    } 
+    lsp->lsp_id = port;
+    lsp->pw_id = 0;
+
+   
+    /*异常跳出*/
+    EXIT_LABEL: NBB_TRC_EXIT();
+    return rv;
+}
+
 
 /*****************************************************************************
    函 数 名  : spm_disconnect_usr_group_cnt
@@ -1659,73 +1940,374 @@ static NBB_LONG spm_hqos_del_lsp_node(SPM_HQOS_LSP_CB **plsp)
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_LONG spm_hqos_refresh_lsp_port(NBB_USHORT slot,
-    NBB_LONG port,
-    SPM_HQOS_LSP_CB plsp,
-    NBB_ULONG posid)
+static NBB_LONG spm_hqos_add_lsp_all_drive(NBB_USHORT slot,
+    NBB_LONG port,SPM_HQOS_LSP_CB *lsp_cb)
+{
+    SPM_HQOS_VRF_CB *vrf_cb = NULL;
+    SPM_HQOS_VC_CB *vc_cb = NULL;
+    NBB_LONG ret = ATG_DCI_RC_OK;
+    
+    NBB_LONG unit = 0;
+
+    NBB_TRC_ENTRY(__FUNCTION__);
+
+    if (NULL == lsp_cb)
+    {
+       spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
+       goto EXIT_LABEL;
+    }
+
+
+    /*非默认lsp节点*/
+    if(0 != lsp_cb->lsp_id && lsp_cb->port != lsp_cb->lsp_id)
+    {
+#if defined (SPU) || defined (SRC) 
+        ret = ApiAradHqosLspCreate(0,port,lsp_cb->lsp_id);
+        if (ATG_DCI_RC_OK != ret)
+        {
+            spm_hqos_arad_create_lsp_error_log(port,lsp_cb->lsp_id,
+                __FUNCTION__,__LINE__,ret);
+            goto EXIT_LABEL;
+        }
+#endif
+    }
+
+
+    if(0 != lsp_cb->pw_id)
+    {
+#if defined (SPU) || defined (SRC)
+        ret = ApiAradHqosPwCreate(0,port,lsp_cb->lsp_id,lsp_cb->pw_id,0);
+        if (ATG_DCI_RC_OK != ret)
+        {
+            spm_hqos_arad_create_pw_error_log(port,lsp_cb->lsp_id,lsp_cb->pw_id,
+                __FUNCTION__,__LINE__,ret);
+            goto EXIT_LABEL;
+        }
+#endif 
+        ret = spm_hqos_set_lsp_drive(slot,port,lsp_cb->lsp_id,
+            lsp_cb->pw_id,lsp_cb->posid,lsp_cb->data,lsp_cb->voq_id,
+             lsp_cb->tm_vc,lsp_cb->vc_id,NULL);
+        if (ATG_DCI_RC_OK != ret)
+        {
+            goto EXIT_LABEL;
+        }
+
+    }
+
+    
+    
+
+    for(vrf_cb = (SPM_HQOS_VRF_CB*) AVLL_FIRST(lsp_cb->vrf_tree);
+         vrf_cb != NULL;
+         vrf_cb = (SPM_HQOS_VRF_CB*) AVLL_NEXT(lsp_cb->vrf_tree,
+                       vrf_cb->spm_hqos_vrf_node))
+    {
+        
+    }
+
+    for(vc_cb = (SPM_HQOS_VC_CB*) AVLL_FIRST(lsp_cb->vc_tree);
+         vc_cb != NULL;
+         vc_cb = (SPM_HQOS_VC_CB*) AVLL_NEXT(lsp_cb->vc_tree,
+                       vc_cb->spm_hqos_vc_node))
+    {
+        if(0 != vc_cb->pw_id)
+        {
+#if defined (SPU) || defined (SRC)
+            ret = ApiAradHqosPwCreate(0,port,lsp_cb->lsp_id,vc_cb->pw_id,0);
+            if (ATG_DCI_RC_OK != ret)
+            {
+                spm_hqos_arad_create_pw_error_log(port,lsp_cb->lsp_id,
+                    vc_cb->pw_id,__FUNCTION__,__LINE__,ret);
+                goto EXIT_LABEL;
+            }
+#endif 
+            ret = spm_hqos_set_vc_drive(slot, port, vc_cb->pw_id,
+                vc_cb->posid,vc_cb->proflag,vc_cb->vc_data,vc_cb->voq_id,
+                vc_cb->tm_vc,vc_cb->vc_id,NULL);
+            if (ATG_DCI_RC_OK != ret)
+            {
+                goto EXIT_LABEL;
+            }
+
+        }
+        
+        
+    }
+
+    /*更新成新的出槽位和出端口*/
+    lsp_cb->slot = slot;
+    lsp_cb->port = port;
+
+    
+
+    EXIT_LABEL: NBB_TRC_EXIT();
+    return ret;
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : 释放HQOS树的节点并释放内存
+   输入参数  : upflag=0代表更新
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+static NBB_LONG spm_hqos_del_lsp_all_drive(SPM_HQOS_LSP_CB *lsp_cb)
+{
+    SPM_HQOS_VRF_CB *vrf_cb = NULL;
+    SPM_HQOS_VC_CB *vc_cb = NULL;
+    NBB_LONG ret = ATG_DCI_RC_OK;
+    
+    NBB_LONG unit = 0;
+
+    NBB_TRC_ENTRY(__FUNCTION__);
+
+    if (NULL == lsp_cb)
+    {
+       spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
+       goto EXIT_LABEL;
+    }
+
+
+    for(vrf_cb = (SPM_HQOS_VRF_CB*) AVLL_FIRST(lsp_cb->vrf_tree);
+         vrf_cb != NULL;
+         vrf_cb = (SPM_HQOS_VRF_CB*) AVLL_NEXT(lsp_cb->vrf_tree,
+                       vrf_cb->spm_hqos_vrf_node))
+    {
+        
+    }
+
+    for(vc_cb = (SPM_HQOS_VC_CB*) AVLL_FIRST(lsp_cb->vc_tree);
+         vc_cb != NULL;
+         vc_cb = (SPM_HQOS_VC_CB*) AVLL_NEXT(lsp_cb->vc_tree,
+                       vc_cb->spm_hqos_vc_node))
+    {
+        ret = spm_hqos_del_vc_drive(lsp_cb->slot, lsp_cb->port, vc_cb);
+        if (ATG_DCI_RC_OK != ret)
+        {
+            goto EXIT_LABEL;
+        }
+        if(0 != vc_cb->pw_id)
+        {
+#if defined (SPU) || defined (SRC)
+            ret = ApiAradHqosPwDelete(0,vc_cb->pw_id,lsp_cb->lsp_id);
+            if (ATG_DCI_RC_OK != ret)
+            {
+                spm_hqos_arad_del_pw_error_log(lsp_cb->lsp_id,vc_cb->pw_id,
+                    __FUNCTION__,__LINE__,ret);
+                goto EXIT_LABEL;
+            }
+#endif 
+
+        }
+        
+    }
+
+    if(0 != lsp_cb->pw_id)
+    {
+#if defined (SPU) || defined (SRC)
+        ret = ApiAradHqosPwDelete(0,lsp_cb->pw_id,lsp_cb->lsp_id);
+        if (ATG_DCI_RC_OK != ret)
+        {
+            spm_hqos_arad_del_pw_error_log(lsp_cb->lsp_id,lsp_cb->pw_id,
+                __FUNCTION__,__LINE__,ret);
+            goto EXIT_LABEL;
+        }
+#endif 
+
+    }
+
+    /*非默认lsp节点*/
+    if(0 != lsp_cb->lsp_id && lsp_cb->port != lsp_cb->lsp_id)
+    {
+#if defined (SPU) || defined (SRC) 
+        ret = ApiAradHqosLspDelete(0,lsp_cb->port,lsp_cb->lsp_id);
+        if (ATG_DCI_RC_OK != ret)
+        {
+            spm_hqos_arad_del_lsp_error_log(lsp_cb->port,lsp_cb->lsp_id,
+                __FUNCTION__,__LINE__,ret);
+            goto EXIT_LABEL;
+        }
+#endif
+    }
+
+
+    EXIT_LABEL: NBB_TRC_EXIT();
+    return ret;
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : 释放HQOS树的节点并释放内存
+   输入参数  : upflag=0代表更新
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_LONG spm_hqos_refresh_lsp_port(
+    NBB_LONG port,NBB_LONG lsp_id,
+    SPM_HQOS_LSP_CB *lsp_cb)
+{
+    SPM_HQOS_VRF_CB *vrf_cb = NULL;
+    SPM_HQOS_VC_CB *vc_cb = NULL;
+    NBB_LONG ret = ATG_DCI_RC_OK;
+    NBB_LONG unit = 0;
+
+    NBB_TRC_ENTRY(__FUNCTION__);
+
+    if (NULL == lsp_cb)
+    {
+       spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
+       goto EXIT_LABEL;
+    }
+
+    
+    if(lsp_cb->slot == v_spm_shared->local_slot_id)
+    {
+        for(vrf_cb = (SPM_HQOS_VRF_CB*) AVLL_FIRST(lsp_cb->vrf_tree);
+         vrf_cb != NULL;
+         vrf_cb = (SPM_HQOS_VRF_CB*) AVLL_NEXT(lsp_cb->vrf_tree,
+                       vrf_cb->spm_hqos_vrf_node))
+        {
+#if defined (SPU) || defined (SRC) 
+            ret = fhdrv_fap_qos_refresh_pw_to_lsp(unit,vrf_cb->pw_id,lsp_id,port);
+            if (ATG_DCI_RC_OK != ret)
+            {
+                spm_hqos_arad_fresh_pw_to_lsp_error_log(unit,vrf_cb->pw_id,
+                    lsp_id,port,
+                    __FUNCTION__,__LINE__,ret);
+                goto EXIT_LABEL;
+            }
+#endif
+        }
+
+        for(vc_cb = (SPM_HQOS_VC_CB*) AVLL_FIRST(lsp_cb->vc_tree);
+             vc_cb != NULL;
+             vc_cb = (SPM_HQOS_VC_CB*) AVLL_NEXT(lsp_cb->vc_tree,
+                           vc_cb->spm_hqos_vc_node))
+        {
+#if defined (SPU) || defined (SRC) 
+            ret = fhdrv_fap_qos_refresh_pw_to_lsp(unit,vc_cb->pw_id,lsp_id,port);
+            if (ATG_DCI_RC_OK != ret)
+            {
+                spm_hqos_arad_fresh_pw_to_lsp_error_log(unit,vc_cb->pw_id,
+                    lsp_id,port,
+                    __FUNCTION__,__LINE__,ret);
+                goto EXIT_LABEL;
+            }
+#endif
+        }
+    }
+
+    
+
+    /*非默认lsp节点*/
+    if(0 != lsp_cb->pw_id)
+    {
+#if defined (SPU) || defined (SRC) 
+        ret = fhdrv_fap_qos_refresh_pw_to_lsp(unit,lsp_cb->pw_id,lsp_id,port);
+        if (ATG_DCI_RC_OK != ret)
+        {
+            spm_hqos_arad_fresh_pw_to_lsp_error_log(unit,lsp_cb->pw_id,
+                lsp_id,port,
+                __FUNCTION__,__LINE__,ret);
+            goto EXIT_LABEL;
+        }
+#endif
+    }
+
+    lsp_cb->port = port;
+
+    EXIT_LABEL: NBB_TRC_EXIT();
+    return ret;
+}
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : 释放HQOS树的节点并释放内存
+   输入参数  : upflag=0代表更新
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+static NBB_LONG* spm_hqos_set_lsp_drive(NBB_BYTE slot,NBB_USHORT port,
+        NBB_LONG lsp_id,NBB_LONG pw_id,
+        NBB_ULONG posid,
+        ATG_DCI_VPN_HQOS_POLICY *data,NBB_LONG voq,
+        NBB_LONG vc,NBB_LONG vc_id[MAX_HQOS_SLOT_NUM],SPM_HQOS_LSP_CB *plsp)
 {
     /***************************************************************************/
     /* Local Variables                                                         */
     /***************************************************************************/
-    
     NBB_LONG ret = ATG_DCI_RC_OK;
-    NBB_LONG rv  = ATG_DCI_RC_OK;
-    NBB_ULONG node_index = 0;
-    NBB_LONG voq = 0;
-    NBB_LONG vc = 0;
-    NBB_LONG vc_id[MAX_HQOS_SLOT_NUM] = {0};
+    NBB_LONG rv = ATG_DCI_RC_OK;
     
 
     NBB_TRC_ENTRY(__FUNCTION__);
 
-        
-    if ((NULL == lsp_key) || (NULL == data) 
-        || (0 == nhi) || (port > 0x80))/*不支持LAG*/
+    if ((NULL == data)|| (NULL == vc_id))
     {
        spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
-       ret = ATG_DCI_RC_UNSUCCESSFUL;
        goto EXIT_LABEL;
     }
-    
-    //qos_log_vc_hqos_data(slot,port,posid,proflag,lsp_key,vc_key,data);
-    
-        
-    /* 判断slot是否开启hqos的开关 */
-    ret = spm_hqos_check_slot(slot,data->node_index,&voq,&vc,vc_id);
-    if (ATG_DCI_RC_OK != ret)/*没有开启HQOS槽位使能直接跳过不报错*/
+
+
+    /*创建入口盘出口的voq与vc的链接关系HQOS业务才能通*/
+    if(NULL == plsp)/*根据保存的配置进行刷新驱动*/
     {
-        ret = ATG_DCI_RC_OK;
+        ret = spm_hqos_create_voq_vc(slot,port,pw_id,
+            voq,vc,vc_id,NULL,NULL,NULL);  
+    }
+    else/*根据收到的配置处理并保存配置*/
+    {
+        ret = spm_hqos_create_voq_vc(slot,port,pw_id,
+            voq,vc,vc_id,&(plsp->voq_id),&(plsp->tm_vc),plsp->vc_id);  
+    }
+    
+    if (ATG_DCI_RC_OK != ret)
+    {
         goto EXIT_LABEL;
     }
 
 
-
-    /* 查找是否存在,关键字pkey为该lsp的Type、Flag及Tx_Lsp的key值(ingress、egress、tunnelid及lspid) */
-    plsp = AVLL_FIND(g_qos_port_cb[slot][port].lsp_tree, lsp_key);
-    if(NULL == plsp)/*先创建LSP节点*/
+    /*设置LSP节点的HQOS策略生效*/
+    ret = spm_hqos_set_lsp_pw_property(slot,port,lsp_id,pw_id,posid,voq,data);
+    if (ATG_DCI_RC_OK != ret)
     {
-        plsp = spm_alloc_hqos_lsp_cb(lsp_key,ATG_DCI_RC_UNSUCCESSFUL,slot,port);/*申请LSP ID*/
-
-        /*申请内存失败*/
-        if (NULL == plsp)
-        {
-            ret = ATG_DCI_RC_UNSUCCESSFUL;
-            goto EXIT_LABEL;
-        }
-        /*创建入口盘出口的voq与vc的链接关系,默认没有开启hqos的pw节点走这个通道*/
-        plsp->voq_id = voq;
-        plsp->tm_vc = vc;
-        OS_MEMCPY(&(plsp->vc_id), vc_id, sizeof(vc_id));
-        ret = spm_hqos_create_voq_vc(slot,port,plsp->pw_id,
-            &(plsp->voq_id),&(plsp->tm_vc),plsp->vc_id);
-        if (ATG_DCI_RC_OK != ret)
-        {
-            spm_hqos_del_lsp_node(&plsp);
-            goto EXIT_LABEL;
-        }
-        ret = spm_hqos_set_lsp_pw_property
+        goto EXIT_LABEL;
     }
+    if(NULL != plsp)
+    {
+        plsp->posid = posid;
+        plsp->np_flow_id = voq;
+        
+        /*保存数据，数据插入相应的树中*/
+        OS_MEMCPY(&(plsp->data), data, sizeof(ATG_DCI_VPN_HQOS_POLICY));
+    }
+
+
+    /*异常跳出*/
+    EXIT_LABEL: NBB_TRC_EXIT();
+    return ret;
 }
+
 
 /*****************************************************************************
    函 数 名  : spm_disconnect_usr_group_cnt
@@ -1756,13 +2338,15 @@ NBB_LONG spm_hqos_add_lsp_node(NBB_USHORT slot,
     NBB_LONG voq = 0;
     NBB_LONG vc = 0;
     NBB_LONG vc_id[MAX_HQOS_SLOT_NUM] = {0};
+    NBB_LONG lsp_id = 0;
+    NBB_LONG pw_id = 0;
     
 
     NBB_TRC_ENTRY(__FUNCTION__);
 
         
     if ((NULL == lsp_key) || (NULL == data) 
-        || (0 == nhi) || (port > 0x80))/*不支持LAG*/
+        || (0 == posid) || (port > 0x80))/*不支持LAG*/
     {
        spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
        ret = ATG_DCI_RC_UNSUCCESSFUL;
@@ -1771,19 +2355,26 @@ NBB_LONG spm_hqos_add_lsp_node(NBB_USHORT slot,
     
     //qos_log_vc_hqos_data(slot,port,posid,proflag,lsp_key,vc_key,data);
     
-        
-    /* 判断slot是否开启hqos的开关 */
-    ret = spm_hqos_check_slot(slot,data->node_index,&voq,&vc,vc_id);
-    if (ATG_DCI_RC_OK != ret)/*没有开启HQOS槽位使能直接跳过不报错*/
-    {
-        ret = ATG_DCI_RC_OK;
-        goto EXIT_LABEL;
-    }
-
-
 
     /* 查找是否存在,关键字pkey为该lsp的Type、Flag及Tx_Lsp的key值(ingress、egress、tunnelid及lspid) */
     plsp = AVLL_FIND(g_qos_port_cb[slot][port].lsp_tree, lsp_key);
+    
+    /* 判断slot是否开启hqos的开关 */
+    ret = spm_hqos_check_slot(slot,data->node_index,&voq,&vc,vc_id);
+    if (ATG_DCI_RC_OK != ret)
+    {   
+        if(NULL != plsp)/*新的配置在非HQOS槽位需要使HQOS无效*/
+        {
+
+        }
+        else/*没有开启HQOS槽位使能直接跳过不报错*/
+        {
+            ret = ATG_DCI_RC_OK;
+        }
+        goto EXIT_LABEL;
+    }
+
+    
     if(NULL == plsp)/*先创建LSP节点*/
     {
         plsp = spm_alloc_hqos_lsp_cb(lsp_key,ATG_DCI_RC_UNSUCCESSFUL,slot,port);/*申请LSP ID*/
@@ -1794,42 +2385,93 @@ NBB_LONG spm_hqos_add_lsp_node(NBB_USHORT slot,
             ret = ATG_DCI_RC_UNSUCCESSFUL;
             goto EXIT_LABEL;
         }
-        /*创建入口盘出口的voq与vc的链接关系,默认没有开启hqos的pw节点走这个通道*/
-        plsp->voq_id = voq;
-        plsp->tm_vc = vc;
-        OS_MEMCPY(&(plsp->vc_id), vc_id, sizeof(vc_id));
-        ret = spm_hqos_create_voq_vc(slot,port,plsp->pw_id,
-            &(plsp->voq_id),&(plsp->tm_vc),plsp->vc_id);
-        if (ATG_DCI_RC_OK != ret)
+        ret = spm_hqos_set_lsp_drive(slot,port,lsp_id,pw_id,posid,data,voq,
+            vc,vc_id [ MAX_HQOS_SLOT_NUM ], plsp);
+        if(ATG_DCI_RC_OK != ret)
         {
+            //释放了LSP资源
             spm_hqos_del_lsp_node(&plsp);
             goto EXIT_LABEL;
         }
-        ret = spm_hqos_set_lsp_pw_property(slot,port,plsp->lsp_id,plsp->pw_id,posid,voq,data);
-        if (ATG_DCI_RC_OK != ret)
-        {
-            spm_hqos_del_lsp_node(&plsp);
-            goto EXIT_LABEL;
-        }
+        
+        rv = AVLL_INSERT(g_qos_port_cb[slot][port].lsp_tree, plsp->spm_hqos_lsp_tx_node);
     }
     else/*lsp节点为默认节点或者更新节点*/
     {
-        if(plsp->slot != slot)/*出端口发生变化*/
+        if(plsp->slot != slot)/*出槽位发生变化需要更新全部节点的驱动内容*/
         {
-            ret = spm_hqos_check_slot(slot,data->node_index,&voq,&vc,vc_id);
-            if (ATG_DCI_RC_OK != ret)/*没有开启HQOS槽位删除配置*/
+            /*更新槽位*/
+            ret = spm_hqos_del_lsp_all_drive(plsp);
+            if (ATG_DCI_RC_OK != ret)
             {
-                ret = spm_hqos_del_lsp_node(&plsp);
                 goto EXIT_LABEL;
             }
-
-            /*更新槽位和属性*/
-            fhdrv_fap_qos_refresh_pw_to_lsp();
+            ret = spm_hqos_add_lsp_all_drive(slot,port,plsp);
+            if (ATG_DCI_RC_OK != ret)
+            {
+                goto EXIT_LABEL;
+            }
         }
+        else if(plsp->port != port)/*出端口发生变化更新驱动*/
+        {
+            ret = spm_hqos_refresh_lsp_port(port,plsp->lsp_id,plsp);
+            if (ATG_DCI_RC_OK != ret)
+            {
+                goto EXIT_LABEL;
+            }
+        }
+        else/*更新配置*/
+        {
+            /*默认节点变为非默认节点要刷新LSP ID*/
+            if(plsp->lsp_id == plsp->port)
+            {
+                ret = spm_hqos_apply_lsp_pw_id(lsp_id,pw_id);
+                if(ATG_DCI_RC_OK != ret)
+                {
+                    goto EXIT_LABEL;
+                }
+
+                ret = spm_hqos_create_lsp_pw(lsp_id,port,pw_id);
+                if(ATG_DCI_RC_OK != ret)
+                {
+                    spm_hqos_release_lsp_pw_id(lsp_id,pw_id);
+                    goto EXIT_LABEL;
+                }
+                plsp->lsp_id = lsp_id;
+                plsp->pw_id = pw_id;
+                
+                ret = spm_hqos_set_lsp_drive(slot,port,lsp_id,pw_id,posid,data,voq,
+                    vc,vc_id [ MAX_HQOS_SLOT_NUM ], plsp);
+                if(ATG_DCI_RC_OK != ret)
+                {
+                    //释放了LSP资源
+                    spm_hqos_set_lsp_to_default(plsp);
+                    spm_hqos_del_lsp_node(&plsp);
+                    goto EXIT_LABEL;
+                }
+            }
+            else if((plsp->lsp_id != plsp->port) && (0 != plsp->lsp_id))/*更新非默认节点*/
+            {
+                ret = spm_hqos_set_lsp_pw_property(slot,port,plsp->lsp_id,plsp->pw_id,posid,voq,data);
+                if (ATG_DCI_RC_OK != ret)
+                {
+                    goto EXIT_LABEL;
+                }
+                plsp->posid = posid;
+                plsp->np_flow_id = voq;
+                OS_MEMCPY(&(plsp->data), data, sizeof(ATG_DCI_VPN_HQOS_POLICY));
+            }  
+            else/*错误的逻辑*/
+            {
+                spm_qos_exception_log(__FUNCTION__,__LINE__);
+            }
+        }
+
+        
+        
     }
 
 
-    
 
     /*异常跳出*/
     EXIT_LABEL: NBB_TRC_EXIT();
@@ -2129,6 +2771,7 @@ NBB_LONG spm_free_hqos_vc_cb(SPM_HQOS_VC_CB *pst_tbl,NBB_LONG lsp_id)
 }
 
 
+
 /*****************************************************************************
    函 数 名  : spm_disconnect_usr_group_cnt
    功能描述  : 分配内存的同时分配PW ID
@@ -2142,37 +2785,26 @@ NBB_LONG spm_free_hqos_vc_cb(SPM_HQOS_VC_CB *pst_tbl,NBB_LONG lsp_id)
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_LONG spm_hqos_del_vc_node(SPM_HQOS_LSP_CB **plsp,SPM_HQOS_VC_CB **pcb)
+NBB_LONG spm_hqos_del_vc_drive(NBB_BYTE slot,NBB_USHORT port,SPM_HQOS_VC_CB *vc)
 {
     /***************************************************************************/
     /* Local Variables                                                         */
     /***************************************************************************/
     NBB_LONG ret = ATG_DCI_RC_OK;
     NBB_LONG rv = ATG_DCI_RC_OK;
-    SPM_HQOS_VC_CB *vc = NULL;
-    SPM_HQOS_LSP_CB *lsp = NULL;
     NBB_LONG unit = 0;
-    NBB_BYTE c3_num = v_spm_shared->c3_num;
-    NBB_BYTE slot = 0;
-    NBB_USHORT port = 0;
+    NBB_BYTE c3_num = v_spm_shared->c3_num; 
     NBB_BYTE i = 0;
-    NBB_LONG lsp_id = 0;
     
     NBB_TRC_ENTRY(__FUNCTION__);
 
-    /*LSP节点不可能为NULL*/
-    if(NULL == plsp || NULL == *plsp || NULL == pcb)
+    if(NULL == vc)
     {
        spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
        ret = ATG_DCI_RC_UNSUCCESSFUL;
        goto EXIT_LABEL;
     }
 
-    vc = *pcb;
-    lsp = *plsp;
-    slot = lsp->slot;
-    port = lsp->port;
-    lsp_id = lsp->lsp_id;
 
     /***************************************************************************/
     /* 首先清除VC上的属性                                                    */
@@ -2235,6 +2867,70 @@ NBB_LONG spm_hqos_del_vc_node(SPM_HQOS_LSP_CB **plsp,SPM_HQOS_VC_CB **pcb)
 #endif     
             }
         }
+         
+    }
+  
+   
+    /*异常跳出*/
+    EXIT_LABEL: NBB_TRC_EXIT();
+    return rv;
+}
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : 分配内存的同时分配PW ID
+   输入参数  : defaulte = ATG_DCI_RC_OK:申请LSP ID
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_LONG spm_hqos_del_vc_node(SPM_HQOS_LSP_CB **plsp,SPM_HQOS_VC_CB **pcb)
+{
+    /***************************************************************************/
+    /* Local Variables                                                         */
+    /***************************************************************************/
+    NBB_LONG ret = ATG_DCI_RC_OK;
+    NBB_LONG rv = ATG_DCI_RC_OK;
+    SPM_HQOS_VC_CB *vc = NULL;
+    SPM_HQOS_LSP_CB *lsp = NULL;
+    NBB_LONG unit = 0;
+    NBB_BYTE c3_num = v_spm_shared->c3_num;
+    NBB_BYTE slot = 0;
+    NBB_USHORT port = 0;
+    NBB_BYTE i = 0;
+    NBB_LONG lsp_id = 0;
+    
+    NBB_TRC_ENTRY(__FUNCTION__);
+
+    /*LSP节点不可能为NULL*/
+    if(NULL == plsp || NULL == *plsp || NULL == pcb)
+    {
+       spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
+       ret = ATG_DCI_RC_UNSUCCESSFUL;
+       goto EXIT_LABEL;
+    }
+
+    vc = *pcb;
+    lsp = *plsp;
+    slot = lsp->slot;
+    port = lsp->port;
+    lsp_id = lsp->lsp_id;
+
+    /***************************************************************************/
+    /* 首先清除VC上的属性                                                    */
+    /***************************************************************************/
+    if(NULL != vc)
+    {
+        ret = spm_hqos_del_vc_drive(slot,port,vc);
+        if (ATG_DCI_RC_OK != ret) 
+        {
+            rv = ret;
+        }
 
          /*注册性能告警*/
 #ifdef PTN690
@@ -2283,27 +2979,25 @@ NBB_LONG spm_hqos_del_vc_node(SPM_HQOS_LSP_CB **plsp,SPM_HQOS_VC_CB **pcb)
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-static NBB_LONG spm_hqos_set_vc_pw_property(NBB_BYTE slot,SPM_HQOS_VC_CB *pcb,
-    NBB_ULONG posid,NBB_BYTE proflag,ATG_DCI_VPN_HQOS_POLICY *data)
+static NBB_LONG spm_hqos_set_vc_pw_property(NBB_BYTE slot,NBB_LONG pw_id,
+    NBB_ULONG posid,NBB_LONG base_queue,NBB_BYTE proflag,
+    ATG_DCI_VPN_HQOS_POLICY *data,SPM_HQOS_VC_CB *pcb)
 {
     NBB_LONG base_queue = 0;
     NBB_LONG unit = 0;
     NBB_LONG ret = ATG_DCI_RC_OK;
     NBB_BYTE i = 0;
-    NBB_LONG pw_id = 0;
     NBB_BYTE c3_num = v_spm_shared->c3_num;
 
     NBB_TRC_ENTRY(__FUNCTION__);
 
-    if(NULL == data || NULL == pcb)
+    if(NULL == data)
     {
         spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
         ret = ATG_DCI_RC_UNSUCCESSFUL;
         goto EXIT_LABEL;
     }
 
-    pw_id = pcb->pw_id;
-    base_queue = pcb->voq_id;
 
     ret = spm_hqos_set_pw_property(slot,pw_id,base_queue,data);
     if (ATG_DCI_RC_OK != ret)
@@ -2320,31 +3014,37 @@ static NBB_LONG spm_hqos_set_vc_pw_property(NBB_BYTE slot,SPM_HQOS_VC_CB *pcb,
 #if defined (SPU) || defined (PTN690_CES)
         if(VC_MAIN == proflag)
         {
-            ret = ApiC3SetVpHqos(unit, posid, 0, 1, pcb->voq_id);
+            ret = ApiC3SetVpHqos(unit, posid, 0, 1,base_queue);
         }
         else
         {
-            ret = ApiC3SetVpHqos(unit, posid, 1, 1, pcb->voq_id);
+            ret = ApiC3SetVpHqos(unit, posid, 1, 1, base_queue);
         }
         if (ATG_DCI_RC_OK != ret)
         {
-            spm_hqos_vp_error_log(pcb->voq_id,1,posid,proflag,
+            spm_hqos_vp_error_log(base_queue,1,posid,proflag,
                 __FUNCTION__,__LINE__,ret);
             goto EXIT_LABEL;
         }
 #endif
     }
-    pcb->np_flow_id = base_queue;
-    pcb->posid = posid;
-    pcb->proflag = proflag;
 
-    /*保存数据，数据插入相应的树中*/
-    OS_MEMCPY(&(pcb->vc_data), data, sizeof(ATG_DCI_VPN_HQOS_POLICY)); 
+    if(NULL != pcb)
+    {
+        pcb->np_flow_id = base_queue;
+        pcb->posid = posid;
+        pcb->proflag = proflag;
+
+        /*保存数据，数据插入相应的树中*/
+        OS_MEMCPY(&(pcb->vc_data), data, sizeof(ATG_DCI_VPN_HQOS_POLICY)); 
+    }
+    
 
     /*异常跳出*/
     EXIT_LABEL: NBB_TRC_EXIT();
     return ret;
 }
+
 
 
 
@@ -2361,74 +3061,60 @@ static NBB_LONG spm_hqos_set_vc_pw_property(NBB_BYTE slot,SPM_HQOS_VC_CB *pcb,
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-static SPM_HQOS_VC_CB* spm_hqos_create_vc_pw(NBB_BYTE slot,NBB_USHORT port, 
-        SPM_HQOS_LSP_CB *plsp,
-        NBB_ULONG posid,NBB_BYTE proflag, ATG_DCI_VC_KEY *vc_key,
+static NBB_LONG* spm_hqos_set_vc_drive(NBB_BYTE slot,NBB_USHORT port, NBB_LONG pw_id,
+        NBB_ULONG posid,NBB_BYTE proflag, 
         ATG_DCI_VPN_HQOS_POLICY *data,NBB_LONG voq,
-        NBB_LONG vc,NBB_LONG vc_id[MAX_HQOS_SLOT_NUM])
+        NBB_LONG vc,NBB_LONG vc_id[MAX_HQOS_SLOT_NUM],SPM_HQOS_VC_CB *pcb)
 {
     /***************************************************************************/
     /* Local Variables                                                         */
     /***************************************************************************/
     NBB_LONG ret = ATG_DCI_RC_OK;
     NBB_LONG rv = ATG_DCI_RC_OK;
-    SPM_HQOS_VC_CB *pcb = NULL;
     
 
     NBB_TRC_ENTRY(__FUNCTION__);
 
-    if ((NULL == vc_key) || (NULL == plsp) || (NULL == data) 
-        || (0 == posid) || (NULL == vc_id))
+    if ((NULL == data)|| (NULL == vc_id))
     {
        spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
        goto EXIT_LABEL;
     }
 
-    
-    pcb = spm_alloc_hqos_vc_cb(vc_key,plsp->lsp_id,slot,port);
-    if (NULL == pcb)
-    {
-        spm_hqos_del_vc_node(&plsp,&pcb);
-        goto EXIT_LABEL;
-    }
 
     /*创建入口盘出口的voq与vc的链接关系HQOS业务才能通*/
-    pcb->voq_id = voq;
-    pcb->tm_vc = vc;
-    OS_MEMCPY(&(pcb->vc_id), vc_id, sizeof(vc_id));
-    ret = spm_hqos_create_voq_vc(slot,port,pcb->pw_id,
-        &(pcb->voq_id),&(pcb->tm_vc),pcb->vc_id);
+    if(NULL == pcb)/*根据保存的配置进行刷新驱动*/
+    {
+        ret = spm_hqos_create_voq_vc(slot,port,pw_id,
+            voq,vc,vc_id,NULL,NULL,NULL);  
+    }
+    else/*根据收到的配置处理并保存配置*/
+    {
+        ret = spm_hqos_create_voq_vc(slot,port,pw_id,
+            voq,vc,vc_id,&(pcb->voq_id),&(pcb->tm_vc),pcb->vc_id);  
+    }
+    
     if (ATG_DCI_RC_OK != ret)
     {
-        spm_hqos_del_vc_node(&plsp,&pcb);
         goto EXIT_LABEL;
     }
-     
 
 
     /*设置VC节点的HQOS策略生效*/
-    ret = spm_hqos_set_vc_pw_property(slot,pcb,posid,proflag,data);
+    ret = spm_hqos_set_vc_pw_property(slot,posid,voq,proflag,data,pcb);
     if (ATG_DCI_RC_OK != ret)
     {
-        spm_hqos_del_vc_node(&plsp,&pcb);
         goto EXIT_LABEL;
     }
 
-    /*注册性能告警*/
-#ifdef PTN690
-    spm_hqos_add_vc_pmline(vc_key,pcb->voq_id);
-#endif
-
-    /*保存数据，数据插入相应的树中*/
-    OS_MEMCPY(&(pcb->vc_data), data, sizeof(ATG_DCI_VPN_HQOS_POLICY));
-
-    rv = AVLL_INSERT(g_qos_port_cb[slot][port].lsp_tree, plsp->spm_hqos_lsp_tx_node);
-    rv = AVLL_INSERT(plsp->vc_tree, pcb->spm_hqos_vc_node);
 
     /*异常跳出*/
     EXIT_LABEL: NBB_TRC_EXIT();
-    return pcb;
+    return ret;
 }
+
+
+
 
 /*****************************************************************************
    函 数 名  : spm_disconnect_usr_group_cnt
@@ -2494,12 +3180,29 @@ static NBB_LONG spm_hqos_add_vc(NBB_BYTE slot, NBB_USHORT port, NBB_ULONG posid,
             goto EXIT_LABEL;
         }
 
-        pcb = spm_hqos_create_vc_pw(slot,port,plsp,posid,proflag,vc_key,data,voq,vc,vc_id);
-        if(NULL == pcb)/*资源已经回收*/
+        pcb = spm_alloc_hqos_vc_cb(vc_key,plsp->lsp_id,slot,port);
+        if (NULL == pcb)
         {
-            ret = ATG_DCI_RC_UNSUCCESSFUL;
+            /*释放资源*/
+            spm_hqos_del_vc_node(&plsp,NULL);
             goto EXIT_LABEL;
         }
+
+        ret = spm_hqos_set_vc_drive(slot,port,pcb->pw_id,posid,proflag,data,
+            voq,vc,vc_id,pcb);
+        if(ATG_DCI_RC_OK != ret)
+        {
+            spm_hqos_del_vc_node(&plsp,&pcb);
+            goto EXIT_LABEL;
+        }
+
+        /*注册性能告警*/
+#ifdef PTN690
+        spm_hqos_add_vc_pmline(vc_key,pcb->voq_id);
+#endif
+
+        rv = AVLL_INSERT(g_qos_port_cb[slot][port].lsp_tree, plsp->spm_hqos_lsp_tx_node);
+        rv = AVLL_INSERT(plsp->vc_tree, pcb->spm_hqos_vc_node);
         
     }
     else/*LSP HQOS配置存在分默认LSP节点和非默认节点之分*/
@@ -2507,19 +3210,33 @@ static NBB_LONG spm_hqos_add_vc(NBB_BYTE slot, NBB_USHORT port, NBB_ULONG posid,
         pcb = AVLL_FIND(plsp->vc_tree, vc_key);
         if(NULL == pcb)/*新建节点*/
         {
-            pcb = spm_hqos_create_vc_pw(slot,port,plsp,posid,proflag,vc_key,data,voq,vc,vc_id);
-            if(NULL == pcb)/*资源已经回收*/
+            pcb = spm_alloc_hqos_vc_cb(vc_key,plsp->lsp_id,slot,port);
+            if (NULL == pcb)
             {
-                ret = ATG_DCI_RC_UNSUCCESSFUL;
+                /*释放资源*/
+                spm_hqos_del_vc_node(&plsp,&pcb);
                 goto EXIT_LABEL;
             }
-            
 
+            ret = spm_hqos_set_vc_drive(slot,port,pcb->pw_id,posid,proflag,data,
+                voq,vc,vc_id,pcb);
+            if(ATG_DCI_RC_OK != ret)
+            {
+                spm_hqos_del_vc_node(&plsp,&pcb);
+                goto EXIT_LABEL;
+            } 
+            
+            /*注册性能告警*/
+#ifdef PTN690
+            spm_hqos_add_vc_pmline(vc_key,pcb->voq_id);
+#endif
+            rv = AVLL_INSERT(plsp->vc_tree, pcb->spm_hqos_vc_node);
         }
         else/*更新*/
         {
             /*设置VC节点的HQOS配置*/
-            ret = spm_hqos_set_vc_pw_property(slot,pcb,posid,proflag,data);
+            ret = spm_hqos_set_vc_pw_property(slot,pcb->pw_id,posid,pcb->voq_id,
+                proflag,data,pcb);
             if (ATG_DCI_RC_OK != ret)
             {
                 goto EXIT_LABEL;
@@ -2564,8 +3281,6 @@ NBB_LONG spm_hqos_add_vc_node(NBB_BYTE slot, NBB_USHORT port, NBB_ULONG posid, N
     NBB_LONG vc = 0;
     NBB_LONG vc_id[MAX_HQOS_SLOT_NUM] = {0};
 
-    
-    
 
     NBB_TRC_ENTRY(__FUNCTION__);
 
@@ -3071,11 +3786,8 @@ static SPM_HQOS_VRF_CB* spm_hqos_create_vrf_pw(NBB_BYTE slot,NBB_USHORT port,
     }
 
     /*创建入口盘出口的voq与vc的链接关系HQOS业务才能通*/
-    pcb->voq_id = voq;
-    pcb->tm_vc = vc;
-    OS_MEMCPY(&(pcb->vc_id), vc_id, sizeof(vc_id));
     ret = spm_hqos_create_voq_vc(slot,port,pcb->pw_id,
-        &(pcb->voq_id),&(pcb->tm_vc),pcb->vc_id);
+        voq,vc,vc_id,&(pcb->voq_id),&(pcb->tm_vc),pcb->vc_id);
     if (ATG_DCI_RC_OK != ret)
     {
         spm_hqos_del_vrf_node(&plsp,&pcb);
