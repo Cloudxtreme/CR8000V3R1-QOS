@@ -267,6 +267,11 @@ NBB_VOID spm_cfg_cb_verify(NBB_CXT_T NBB_CXT)
 
 	spm_associate_if_cb_verify(NBB_CXT);
 
+	/*************************************************************************/
+    /* 遍历VPLS_L3组播配置的树逐一进行验证。                                 */
+    /*************************************************************************/
+    spm_cfg_vpls_l3_mc_cb_verify(NBB_CXT);
+
     NBB_TRC_EXIT();
 
     return;
@@ -307,7 +312,6 @@ NBB_VOID spm_cfg_phy_port_cb_verify(NBB_CXT_T NBB_CXT)
     ATG_DCI_PHY_PORT_COMMON_DATA *common_cfg_cb = NULL;
     ATG_DCI_PHY_PORT_SDH_TOVHD_DATA *sdh_tovhd_cfg_cb = NULL;
     ATG_DCI_PHY_PORT_ALS_DATA *als_cfg_cb = NULL;
-    ATG_DCI_PHY_PORT_STP_PROTOCOL *stp_cfg_cb = NULL;
 
     NBB_TRC_ENTRY("spm_cfg_phy_port_cb_verify");
 
@@ -523,17 +527,6 @@ NBB_VOID spm_cfg_phy_port_cb_verify(NBB_CXT_T NBB_CXT)
             NBB_VERIFY_MEMORY(als_cfg_cb, sizeof(ATG_DCI_PHY_PORT_ALS_DATA),
                               MEM_SPM_PHY_PORT_ALS_CB);
         }
-
-        /*************************************************************************/
-        /* 对stp协议报文处理配置块进行验证。                                     */
-        /*************************************************************************/
-        stp_cfg_cb = phy_port_cb->stp_cfg_cb;
-        if(stp_cfg_cb != NULL)
-        {
-            NBB_TRC_FLOW((NBB_FORMAT "Verify stp_cfg_cb cb %p", stp_cfg_cb));
-            NBB_VERIFY_MEMORY(stp_cfg_cb, sizeof(ATG_DCI_PHY_PORT_STP_PROTOCOL),
-                              MEM_SPM_PHY_PORT_STP_CB);
-        }
     }
 
     NBB_TRC_EXIT();
@@ -569,6 +562,7 @@ NBB_VOID spm_cfg_log_port_cb_verify(NBB_CXT_T NBB_CXT)
     ATG_DCI_LOG_PORT_IPV6_DATA *ipv6_cfg_cb = NULL;
     ATG_DCI_LOG_PORT_MC_IPV4_DATA *mc_ipv4_cfg_cb = NULL;
     ATG_DCI_LOG_PORT_VIP_VMAC_DATA *vip_vmac_cfg_cb = NULL;
+    ATG_DCI_LOG_VRRP_IPV6_MAC_L3 *vipv6_vmac_cfg_cb = NULL;
     ATG_DCI_LOG_PORT_VE_MAC_DATA *ve_mac_cfg_cb = NULL;
     ATG_DCI_LOG_PORT_DIFF_SERV_DATA *diff_serv_cfg_cb = NULL;
     ATG_DCI_LOG_PORT_FLOW_DIFF_SERV *flow_diff_serv_cfg_cb = NULL;
@@ -581,12 +575,10 @@ NBB_VOID spm_cfg_log_port_cb_verify(NBB_CXT_T NBB_CXT)
     ATG_DCI_LOG_PORT_TRAFFIC_FILTER *traffic_filter_cfg_cb = NULL;
 	ATG_DCI_LOG_PORT_MC_IPV6_DATA *mc_ipv6_cfg_cb = NULL;
 	ATG_DCI_LOG_PORT_DS_L2_DATA *ds_l2_cfg_cb = NULL;
-    ATG_DCI_LOG_STP_PORT_STATUS *stp_cfg_cb = NULL;
     SPM_DIFF_SERV_CB *diff_serv_cb = NULL;    
     SPM_FLOW_DIFF_SERV_CB *flow_diff_serv_cb = NULL;
     SPM_INCLASSIFY_QOS_CB *inclassify_qos_cb = NULL;
-    SPM_TRAFFIC_FILTER_CB *traffic_filter_cb = NULL; 
-
+    SPM_TRAFFIC_FILTER_CB *traffic_filter_cb = NULL;       
 	
     NBB_ULONG i = 0;
 
@@ -730,6 +722,20 @@ NBB_VOID spm_cfg_log_port_cb_verify(NBB_CXT_T NBB_CXT)
                 NBB_TRC_FLOW((NBB_FORMAT "Verify vip_vmac_cfg_cb cb %p", vip_vmac_cfg_cb));
                 NBB_VERIFY_MEMORY(vip_vmac_cfg_cb, sizeof(ATG_DCI_LOG_PORT_VIP_VMAC_DATA),
                                   MEM_SPM_LOG_PORT_VIP_VMAC_CB);
+            }
+        }
+
+        /*************************************************************************/
+        /* 对虚拟MAC和IP地址配置L3配置块进行验证。                               */
+        /*************************************************************************/
+        for (i = 0; i < ATG_DCI_LOG_PORT_VIP_VMAC_NUM; i++)
+        {
+            vipv6_vmac_cfg_cb = log_port_cb->vipv6_vmac_cfg_cb[i];
+            if(vipv6_vmac_cfg_cb != NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Verify vipv6_vmac_cfg_cb cb %p", vipv6_vmac_cfg_cb));
+                NBB_VERIFY_MEMORY(vipv6_vmac_cfg_cb, sizeof(ATG_DCI_LOG_VRRP_IPV6_MAC_L3),
+                                  MEM_SPM_LOG_PORT_VIPV6_VMAC_CB);
             }
         }
 
@@ -926,17 +932,6 @@ NBB_VOID spm_cfg_log_port_cb_verify(NBB_CXT_T NBB_CXT)
             NBB_VERIFY_MEMORY(ds_l2_cfg_cb, sizeof(ATG_DCI_LOG_PORT_DS_L2_DATA),
                               MEM_SPM_LOG_PORT_DS_L2_CB);
         }
-
-        /*************************************************************************/
-        /* 对端口STP状态配置块进行验证。                                         */
-        /*************************************************************************/
-        stp_cfg_cb = log_port_cb->stp_cfg_cb;
-        if(stp_cfg_cb != NULL)
-        {
-            NBB_TRC_FLOW((NBB_FORMAT "Verify stp_cfg_cb cb %p", stp_cfg_cb));
-            NBB_VERIFY_MEMORY(stp_cfg_cb, sizeof(ATG_DCI_LOG_STP_PORT_STATUS),
-                              MEM_SPM_LOG_PORT_STP_CB);
-        }
     }
 
     NBB_TRC_EXIT();
@@ -1090,9 +1085,7 @@ NBB_VOID spm_cfg_vc_cb_verify(NBB_CXT_T NBB_CXT)
     ATG_DCI_VC_BASIC_DATA *basic_cfg_cb = NULL;
     ATG_DCI_VC_DIFF_SERV_DATA *diff_serv_cfg_cb;
     ATG_DCI_VC_UP_VPN_QOS_POLICY *up_vpn_cfg_cb;
-    ATG_DCI_VC_STP_PROTOCOL *stp_protocol_cfg_cb = NULL;
-    ATG_DCI_VC_STP_STATUS *stp_status_cfg_cb = NULL;
-    SPM_MANAGE_PW_CB *manage_pw_cfg_cb = NULL;
+	ATG_DCI_VC_VPN_DATA *vpn_cfg_cb;
 
     NBB_TRC_ENTRY("spm_cfg_vc_cb_verify");
 
@@ -1144,40 +1137,18 @@ NBB_VOID spm_cfg_vc_cb_verify(NBB_CXT_T NBB_CXT)
                               MEM_SPM_VC_UP_VPN_CB);
         }
 
+		/*************************************************************************/
+        /* 对VPN 属性配置块进行验证。                                                */
         /*************************************************************************/
-        /* 对stp协议报文处理配置块进行验证。                                     */
-        /*************************************************************************/
-        stp_protocol_cfg_cb = vc_cb->stp_protocol_cfg_cb;
-        if(stp_protocol_cfg_cb != NULL)
+        vpn_cfg_cb = vc_cb->vpn_property_cfg_cb;
+        if(vpn_cfg_cb != NULL)
         {
-            NBB_TRC_FLOW((NBB_FORMAT "Verify stp_protocol_cfg_cb cb %p", stp_protocol_cfg_cb));
-            NBB_VERIFY_MEMORY(stp_protocol_cfg_cb, sizeof(ATG_DCI_VC_STP_PROTOCOL),
-                              MEM_SPM_VC_STP_PROTOCOL_CB);
+            NBB_TRC_FLOW((NBB_FORMAT "Verify vpn_cfg cb %p", vpn_cfg_cb));
+            NBB_VERIFY_MEMORY(vpn_cfg_cb, sizeof(ATG_DCI_VC_VPN_DATA),
+                              MEM_SPM_VC_VPN_PROPER_CB);
         }
 
-        /*************************************************************************/
-        /* 对stp状态配置块进行验证。                                             */
-        /*************************************************************************/
-        stp_status_cfg_cb = vc_cb->stp_status_cfg_cb;
-        if(stp_status_cfg_cb != NULL)
-        {
-            NBB_TRC_FLOW((NBB_FORMAT "Verify stp_status_cfg_cb cb %p", stp_status_cfg_cb));
-            NBB_VERIFY_MEMORY(stp_status_cfg_cb, sizeof(ATG_DCI_VC_STP_STATUS),
-                              MEM_SPM_VC_STP_STATUS_CB);
-        }
-
-        /*************************************************************************/
-        /* 对管理PW关联配置块进行验证。                                          */
-        /*************************************************************************/
-        for (manage_pw_cfg_cb = (SPM_MANAGE_PW_CB*) AVLL_FIRST(vc_cb->manage_pw_tree);
-             manage_pw_cfg_cb != NULL;
-             manage_pw_cfg_cb = (SPM_MANAGE_PW_CB*) AVLL_NEXT(vc_cb->manage_pw_tree,
-             manage_pw_cfg_cb->spm_manage_pw_node))
-        {
-            NBB_TRC_FLOW((NBB_FORMAT "Verify manage_pw_cfg_cb %p", manage_pw_cfg_cb));
-            NBB_VERIFY_MEMORY(manage_pw_cfg_cb, sizeof(SPM_MANAGE_PW_CB), MEM_SPM_VC_MANAGE_PW_CB);
-        }        
-        
+		
     }
 
     NBB_TRC_EXIT();
@@ -1198,14 +1169,11 @@ NBB_VOID spm_cfg_vc_cb_verify(NBB_CXT_T NBB_CXT)
 /**PROC-**********************************************************************/
 NBB_VOID spm_cfg_vpws_cb_verify(NBB_CXT_T NBB_CXT)
 {
+	
     /*************************************************************************/
     /* Local Variables                                                       */
     /*************************************************************************/
     SPM_VPWS_CB *vpws_cb = NULL;
-    ATG_DCI_VPWS_BASIC_DATA *basic_cfg_cb = NULL;
-    ATG_DCI_VPWS_NNI_DATA *nni_cfg_cb = NULL;
-    ATG_DCI_VPWS_UNI_DATA *uni_cfg_cb = NULL;
-    ATG_DCI_VPWS_BYPASS_PW_DATA *bypass_cfg_cb = NULL;
     NBB_ULONG i = 0;
 
     NBB_TRC_ENTRY("spm_cfg_vpws_cb_verify");
@@ -1220,63 +1188,11 @@ NBB_VOID spm_cfg_vpws_cb_verify(NBB_CXT_T NBB_CXT)
     {
         NBB_TRC_FLOW((NBB_FORMAT "Verify vpws_cb %p", vpws_cb));
         NBB_VERIFY_MEMORY(vpws_cb, sizeof(SPM_VPWS_CB), MEM_SPM_VPWS_CB);
-
-        /*********************************************************************/
-        /* 验证VPWS配置控制块中的所有子配置。                                */
-        /*********************************************************************/
-
-        /*************************************************************************/
-        /* 对基本配置块进行验证。                                                */
-        /*************************************************************************/
-        basic_cfg_cb = vpws_cb->basic_cfg_cb;
-        if(basic_cfg_cb != NULL)
-        {
-            NBB_TRC_FLOW((NBB_FORMAT "Verify basic_cfg_cb cb %p", basic_cfg_cb));
-            NBB_VERIFY_MEMORY(basic_cfg_cb, sizeof(ATG_DCI_VPWS_BASIC_DATA),
-                              MEM_SPM_VPWS_BASIC_CB);
-        }
-
-        /*************************************************************************/
-        /* 对NNI接口配置块进行验证。                                             */
-        /*************************************************************************/
-        for (i = 0; i < ATG_DCI_VPWS_NNI_NUM; i++)
-        {
-            nni_cfg_cb = vpws_cb->nni_cfg_cb[i];
-            if(nni_cfg_cb != NULL)
-            {
-                NBB_TRC_FLOW((NBB_FORMAT "Verify nni_cfg_cb cb %p", nni_cfg_cb));
-                NBB_VERIFY_MEMORY(nni_cfg_cb, sizeof(ATG_DCI_VPWS_NNI_DATA),
-                                  MEM_SPM_VPWS_NNI_CB);
-            }
-        }
-
-        /*************************************************************************/
-        /* 对UNI接口配置块进行验证。                                             */
-        /*************************************************************************/
-        for (i = 0; i < ATG_DCI_VPWS_UNI_NUM; i++)
-        {
-            uni_cfg_cb = vpws_cb->uni_cfg_cb[i];
-            if(uni_cfg_cb != NULL)
-            {
-                NBB_TRC_FLOW((NBB_FORMAT "Verify uni_cfg_cb cb %p", uni_cfg_cb));
-                NBB_VERIFY_MEMORY(uni_cfg_cb, sizeof(ATG_DCI_VPWS_UNI_DATA),
-                                  MEM_SPM_VPWS_UNI_CB);
-            }
-        }
-
-        /*************************************************************************/
-        /* 对Bypass pw配置块进行验证。                                                */
-        /*************************************************************************/
-        bypass_cfg_cb = vpws_cb->bypass_cfg_cb;
-        if(bypass_cfg_cb != NULL)
-        {
-            NBB_TRC_FLOW((NBB_FORMAT "Verify bypass_cfg_cb cb %p", bypass_cfg_cb));
-            NBB_VERIFY_MEMORY(bypass_cfg_cb, sizeof(ATG_DCI_VPWS_BYPASS_PW_DATA),
-                              MEM_SPM_VPWS_BYPASS_CB);
-        }
     }
 
     NBB_TRC_EXIT();
+
+	
 
     return;
 }
@@ -1299,8 +1215,8 @@ NBB_VOID spm_cfg_vpls_cb_verify(NBB_CXT_T NBB_CXT)
     /*************************************************************************/
     SPM_VPLS_CB *vpls_cb = NULL;
     ATG_DCI_VPLS_BASIC_DATA *basic_cfg_cb = NULL;
-    ATG_DCI_VPLS_NNI_DATA *nni_cfg_cb = NULL;
-    ATG_DCI_VPLS_UNI_DATA *uni_cfg_cb = NULL;
+    SPM_VPLS_NNI_CB *nni_cfg_cb = NULL;
+    SPM_VPLS_UNI_CB *uni_cfg_cb = NULL;
     NBB_ULONG i = 0;
 
     NBB_TRC_ENTRY("spm_cfg_vpls_cb_verify");
@@ -1334,29 +1250,27 @@ NBB_VOID spm_cfg_vpls_cb_verify(NBB_CXT_T NBB_CXT)
         /*************************************************************************/
         /* 对NNI接口配置块进行验证。                                             */
         /*************************************************************************/
-        for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+        for(nni_cfg_cb = (SPM_VPLS_NNI_CB *)AVLL_FIRST(vpls_cb->nni_cfg_tree);
+            nni_cfg_cb != NULL;
+            nni_cfg_cb = (SPM_VPLS_NNI_CB *)AVLL_NEXT(vpls_cb->nni_cfg_tree, 
+                nni_cfg_cb->spm_vpls_nni_node))
         {
-            nni_cfg_cb = vpls_cb->nni_cfg_cb[i];
-            if(nni_cfg_cb != NULL)
-            {
-                NBB_TRC_FLOW((NBB_FORMAT "Verify nni_cfg_cb cb %p", nni_cfg_cb));
-                NBB_VERIFY_MEMORY(nni_cfg_cb, sizeof(ATG_DCI_VPLS_NNI_DATA),
-                                  MEM_SPM_VPLS_NNI_CB);
-            }
+            NBB_TRC_FLOW((NBB_FORMAT "Verify nni_cfg_cb cb %p", nni_cfg_cb));
+            NBB_VERIFY_MEMORY(nni_cfg_cb, sizeof(SPM_VPLS_NNI_CB),
+                              MEM_SPM_VPLS_NNI_CB);
         }
 
         /*************************************************************************/
         /* 对UNI接口配置块进行验证。                                             */
         /*************************************************************************/
-        for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+        for(uni_cfg_cb = (SPM_VPLS_NNI_CB *)AVLL_FIRST(vpls_cb->uni_cfg_tree);
+            uni_cfg_cb != NULL;
+            uni_cfg_cb = (SPM_VPLS_NNI_CB *)AVLL_NEXT(vpls_cb->uni_cfg_tree, 
+                uni_cfg_cb->spm_vpls_uni_node))
         {
-            uni_cfg_cb = vpls_cb->uni_cfg_cb[i];
-            if(uni_cfg_cb != NULL)
-            {
-                NBB_TRC_FLOW((NBB_FORMAT "Verify uni_cfg_cb cb %p", uni_cfg_cb));
-                NBB_VERIFY_MEMORY(uni_cfg_cb, sizeof(ATG_DCI_VPLS_UNI_DATA),
-                                  MEM_SPM_VPLS_UNI_CB);
-            }
+            NBB_TRC_FLOW((NBB_FORMAT "Verify uni_cfg_cb cb %p", uni_cfg_cb));
+            NBB_VERIFY_MEMORY(uni_cfg_cb, sizeof(SPM_VPLS_UNI_CB),
+                              MEM_SPM_VPLS_UNI_CB);
         }
     }
 
@@ -1690,31 +1604,6 @@ NBB_VOID spm_cfg_switch_vc_cb_verify(NBB_CXT_T NBB_CXT)
         NBB_TRC_FLOW((NBB_FORMAT "Verify switch_vc_cb %p", switch_vc_cb));
         NBB_VERIFY_MEMORY(switch_vc_cb, sizeof(SPM_SWITCH_VC_CB), MEM_SPM_SWITCH_VC_CB);
 
-        /*********************************************************************/
-        /* 验证SWITCH VC表配置控制块中的所有子配置。                               */
-        /*********************************************************************/
-
-        /*************************************************************************/
-        /* 对第一段VC配置进行验证。                                                */
-        /*************************************************************************/
-        vc1_cfg_cb = switch_vc_cb->vc1_cfg_cb;
-        if(vc1_cfg_cb != NULL)
-        {
-            NBB_TRC_FLOW((NBB_FORMAT "Verify vc1_cfg_cb cb %p", vc1_cfg_cb));
-            NBB_VERIFY_MEMORY(vc1_cfg_cb, sizeof(ATG_DCI_SWITCH_VC_VC_DATA),
-                              MEM_SPM_SWITCH_VC_VC1_CB);
-        }
-
-        /*************************************************************************/
-        /* 对第二段VC配置进行验证。                                                */
-        /*************************************************************************/
-        vc2_cfg_cb = switch_vc_cb->vc2_cfg_cb;
-        if(vc2_cfg_cb != NULL)
-        {
-            NBB_TRC_FLOW((NBB_FORMAT "Verify vc2_cfg_cb cb %p", vc2_cfg_cb));
-            NBB_VERIFY_MEMORY(vc2_cfg_cb, sizeof(ATG_DCI_SWITCH_VC_VC_DATA),
-                              MEM_SPM_SWITCH_VC_VC2_CB);
-        }
     }
 
     NBB_TRC_EXIT();
@@ -2028,51 +1917,94 @@ NBB_VOID spm_cfg_cir_emu_cb_verify(NBB_CXT_T NBB_CXT)
 }
 
 
-#if 1
-
-/*QOS verfiy 函数*/
-NBB_VOID spm_cfg_ds_cb_verify(NBB_CXT_T NBB_CXT)
+/**PROC+**********************************************************************/
+/* Name:      spm_cfg_vpls_l3_mc_cb_verify                                      */
+/*                                                                           */
+/* Purpose:   遍历VPLS_L3组播配置的树逐一进行验证.                              */
+/*                                                                           */
+/* Returns:   Nothing.                                                       */
+/*                                                                           */
+/* Params:    None.                                                          */
+/*                                                                           */
+/**PROC-**********************************************************************/
+NBB_VOID spm_cfg_vpls_l3_mc_cb_verify(NBB_CXT_T NBB_CXT)
 {
     /*************************************************************************/
     /* Local Variables                                                       */
     /*************************************************************************/
-    SPM_DS_CB *ds_cb = NULL;
-    ATG_DCI_DIFF_SERV_PRI2PHBMAP *pri2phb_cfg_cb = NULL;
-    ATG_DCI_DIFF_SERV_PHB2PRIMAP *phb2pri_cfg_cb = NULL;
+    SPM_VPLS_L3_MC_CB *vpls_l3_mc_cb = NULL;
+    ATG_DCI_VPLS_L3_MC_BASIC_DATA *basic_cfg_cb = NULL;
+    ATG_DCI_VPLS_L3_MC_NNI_DATA *nni_cfg_cb = NULL;
+    ATG_DCI_VPLS_L3_MC_UNI_DATA *uni_cfg_cb = NULL;
+    NBB_ULONG i = 0;
 
-    NBB_TRC_ENTRY("spm_cfg_ds_cb_verify");
+    NBB_TRC_ENTRY("spm_cfg_vpls_l3_mc_cb_verify");
 
-    for (ds_cb = (SPM_DS_CB*) AVLL_FIRST(SHARED.ds_tree);
-         ds_cb != NULL;
-         ds_cb = (SPM_DS_CB*) AVLL_NEXT(SHARED.ds_tree,
-                       ds_cb->spm_ds_node))
+    /*************************************************************************/
+    /* 遍历VPLS_L3组播配置的树逐一进行验证。                                    */
+    /*************************************************************************/
+    for (vpls_l3_mc_cb = (SPM_VPLS_L3_MC_CB*) AVLL_FIRST(SHARED.vpls_l3_mc_tree);
+        vpls_l3_mc_cb != NULL;
+        vpls_l3_mc_cb = (SPM_VPLS_L3_MC_CB*) AVLL_NEXT(SHARED.vpls_l3_mc_tree,
+        vpls_l3_mc_cb->spm_vpls_l3_mc_node))
     {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify ds_cb %p", ds_cb));
-        NBB_VERIFY_MEMORY(ds_cb, sizeof(SPM_DS_CB), MEM_SPM_DS_CB);
+        NBB_TRC_FLOW((NBB_FORMAT "Verify vpls_l3_mc_cb %p", vpls_l3_mc_cb));
+        NBB_VERIFY_MEMORY(vpls_l3_mc_cb, sizeof(SPM_VPLS_L3_MC_CB), MEM_SPM_VPLS_L3_MC_CFG);
 
-        pri2phb_cfg_cb = ds_cb->pri2phb_cfg_cb;
-        if(pri2phb_cfg_cb != NULL)
+        /*********************************************************************/
+        /* 验证VPLS_L3组播配置控制块中的所有子配置。                            */
+        /*********************************************************************/
+
+        /*************************************************************************/
+        /* 对基本配置块进行验证。                                                */
+        /*************************************************************************/
+        basic_cfg_cb = vpls_l3_mc_cb->basic_cfg_cb;
+        if (basic_cfg_cb != NULL)
         {
-            NBB_TRC_FLOW((NBB_FORMAT "Verify pri2phb_cfg_cb cb %p", pri2phb_cfg_cb));
-            NBB_VERIFY_MEMORY(pri2phb_cfg_cb, sizeof(ATG_DCI_DIFF_SERV_PRI2PHBMAP),
-                              MEM_SPM_DS_PRI2PHB_CB);
+            NBB_TRC_FLOW((NBB_FORMAT "Verify basic_cfg_cb cb %p", basic_cfg_cb));
+            NBB_VERIFY_MEMORY(basic_cfg_cb, sizeof(ATG_DCI_VPLS_L3_MC_BASIC_DATA),
+                              MEM_SPM_VPLS_L3_MC_BASIC_CFG);
         }
 
-        phb2pri_cfg_cb = ds_cb->phb2pri_cfg_cb;
-        if(phb2pri_cfg_cb != NULL)
+        /*************************************************************************/
+        /* 对NNI成员配置块进行验证。                                             */
+        /*************************************************************************/
+        for (i = 0; i < ATG_DCI_VPLS_MC_NNI_NUM; i++)
         {
-            NBB_TRC_FLOW((NBB_FORMAT "Verify phy_cfg_cb cb %p", phb2pri_cfg_cb));
-            NBB_VERIFY_MEMORY(phb2pri_cfg_cb, sizeof(ATG_DCI_DIFF_SERV_PHB2PRIMAP),
-                              MEM_SPM_DS_PHB2PRI_CB);
+            nni_cfg_cb = vpls_l3_mc_cb->nni_cfg_cb[i];
+            if (nni_cfg_cb != NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Verify nni_cfg_cb cb %p", nni_cfg_cb));
+                NBB_VERIFY_MEMORY(nni_cfg_cb, sizeof(ATG_DCI_VPLS_L3_MC_NNI_DATA),
+                                  MEM_SPM_VPLS_L3_MC_NNI_CFG);
+            }
         }
 
-        
+        /*************************************************************************/
+        /* 对UNI成员配置块进行验证。                                             */
+        /*************************************************************************/
+        for (i = 0; i < ATG_DCI_VPLS_MC_UNI_NUM; i++)
+        {
+            uni_cfg_cb = vpls_l3_mc_cb->uni_cfg_cb[i];
+            if(uni_cfg_cb != NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Verify uni_cfg_cb cb %p", uni_cfg_cb));
+                NBB_VERIFY_MEMORY(uni_cfg_cb, sizeof(ATG_DCI_VPLS_L3_MC_UNI_DATA),
+                                  MEM_SPM_VPLS_L3_MC_UNI_CFG);
+            }
+        }
     }
 
     NBB_TRC_EXIT();
 
     return;
 }
+
+
+
+#if 0
+
+
 
 
 NBB_VOID spm_cfg_ds_domain_cb_verify(NBB_CXT_T NBB_CXT)
@@ -2730,229 +2662,6 @@ NBB_VOID spm_cfg_wred_cb_verify(NBB_CXT_T NBB_CXT)
 
 
 
-
-NBB_VOID spm_cfg_ds_intf_cb_verify(NBB_CXT_T NBB_CXT)
-{
-    /*************************************************************************/
-    /* Local Variables                                                       */
-    /*************************************************************************/
-    SPM_QOS_DS_LOGIC_INTF_CB *cfg_cb = NULL;
-
-
-    NBB_TRC_ENTRY("spm_cfg_ds_intf_cb_verify");
-
-    for (cfg_cb = (SPM_QOS_DS_LOGIC_INTF_CB*) AVLL_FIRST(SHARED.qos_ds_logic_intf_tree);
-         cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DS_LOGIC_INTF_CB*) AVLL_NEXT(SHARED.qos_ds_logic_intf_tree,
-                       cfg_cb->spm_qos_logic_node))
-    {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify cfg_cb %p", cfg_cb));
-        NBB_VERIFY_MEMORY(cfg_cb, sizeof(SPM_QOS_DS_LOGIC_INTF_CB), MEM_SPM_QOS_DS_LOGIC_CB);
-
-    }
-
-    NBB_TRC_EXIT();
-
-    return;
-}
-
-NBB_VOID spm_cfg_ds_flow_cb_verify(NBB_CXT_T NBB_CXT)
-{
-    /*************************************************************************/
-    /* Local Variables                                                       */
-    /*************************************************************************/
-    SPM_QOS_DS_LOGIC_FLOW_CB *cfg_cb = NULL;
-
-
-    NBB_TRC_ENTRY("spm_cfg_hqos_slot_cb_verify");
-
-    for (cfg_cb = (SPM_QOS_DS_LOGIC_FLOW_CB*) AVLL_FIRST(SHARED.qos_ds_logic_flow_tree);
-         cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DS_LOGIC_FLOW_CB*) AVLL_NEXT(SHARED.qos_ds_logic_flow_tree,
-                       cfg_cb->spm_qos_logic_node))
-    {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify cfg_cb %p", cfg_cb));
-        NBB_VERIFY_MEMORY(cfg_cb, sizeof(SPM_QOS_DS_LOGIC_FLOW_CB), MEM_SPM_QOS_DS_LOGIC_FLOW_CB);
-
-    }
-
-    NBB_TRC_EXIT();
-
-    return;
-}
-
-
-NBB_VOID spm_cfg_ds_univp_cb_verify(NBB_CXT_T NBB_CXT)
-{
-    /*************************************************************************/
-    /* Local Variables                                                       */
-    /*************************************************************************/
-    SPM_QOS_DS_LOGIC_UNIVP_CB *cfg_cb = NULL;
-
-    NBB_TRC_ENTRY("spm_cfg_ds_univp_cb_verify");
-
-    for (cfg_cb = (SPM_QOS_DS_LOGIC_UNIVP_CB*) AVLL_FIRST(SHARED.qos_ds_logic_univp_tree); cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DS_LOGIC_UNIVP_CB*) AVLL_NEXT(SHARED.qos_ds_logic_univp_tree,cfg_cb->spm_qos_logic_univp_node))
-    {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify cfg_cb %p", cfg_cb));
-        NBB_VERIFY_MEMORY(cfg_cb, sizeof(SPM_QOS_DS_LOGIC_UNIVP_CB), MEM_SPM_QOS_DS_LOGIC_UNIVP_CB);
-    }
-
-    NBB_TRC_EXIT();
-    return;
-}
-
-
-NBB_VOID spm_cfg_ds_vc_cb_verify(NBB_CXT_T NBB_CXT)
-{
-    /*************************************************************************/
-    /* Local Variables                                                       */
-    /*************************************************************************/
-    SPM_QOS_DS_VC_CB *cfg_cb = NULL;
-
-
-    NBB_TRC_ENTRY("spm_cfg_ds_vc_cb_verify");
-
-    for (cfg_cb = (SPM_QOS_DS_VC_CB*) AVLL_FIRST(SHARED.qos_ds_vc_tree);
-         cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DS_VC_CB*) AVLL_NEXT(SHARED.qos_ds_vc_tree,
-                       cfg_cb->spm_qos_vc_node))
-    {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify cfg_cb %p", cfg_cb));
-        NBB_VERIFY_MEMORY(cfg_cb, sizeof(SPM_QOS_DS_VC_CB), MEM_SPM_QOS_DS_VC_CB);
-
-    }
-
-    NBB_TRC_EXIT();
-
-    return;
-}
-
-
-NBB_VOID spm_cfg_ds_vrf_cb_verify(NBB_CXT_T NBB_CXT)
-{
-    /*************************************************************************/
-    /* Local Variables                                                       */
-    /*************************************************************************/
-    SPM_QOS_DS_VRF_CB *cfg_cb = NULL;
-
-
-    NBB_TRC_ENTRY("spm_cfg_ds_vrf_cb_verify");
-
-    for (cfg_cb = (SPM_QOS_DS_VRF_CB*) AVLL_FIRST(SHARED.qos_ds_vrf_tree);
-         cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DS_VRF_CB*) AVLL_NEXT(SHARED.qos_ds_vrf_tree,
-                       cfg_cb->spm_qos_vrf_node))
-    {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify cfg_cb %p", cfg_cb));
-        NBB_VERIFY_MEMORY(cfg_cb, sizeof(SPM_QOS_DS_VRF_CB), MEM_SPM_QOS_DS_VRF_CB);
-
-    }
-
-    NBB_TRC_EXIT();
-
-    return;
-}
-
-
-NBB_VOID spm_cfg_ds_ilm_cb_verify(NBB_CXT_T NBB_CXT)
-{
-    /*************************************************************************/
-    /* Local Variables                                                       */
-    /*************************************************************************/
-    SPM_QOS_DS_ILM_CB *cfg_cb = NULL;
-
-
-    NBB_TRC_ENTRY("spm_cfg_ds_ilm_cb_verify");
-
-    for (cfg_cb = (SPM_QOS_DS_ILM_CB*) AVLL_FIRST(SHARED.qos_ds_ilm_tree);
-         cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DS_ILM_CB*) AVLL_NEXT(SHARED.qos_ds_ilm_tree,
-                       cfg_cb->spm_qos_ilm_node))
-    {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify cfg_cb %p", cfg_cb));
-        NBB_VERIFY_MEMORY(cfg_cb, sizeof(SPM_QOS_DS_ILM_CB), MEM_SPM_QOS_DS_ILM_CB);
-
-    }
-
-    NBB_TRC_EXIT();
-
-    return;
-}
-
-
-/**PROC+**********************************************************************/
-/* Name:                                                                     */
-/*                                                                           */
-/* Purpose:                                .                                 */
-/*                                                                           */
-/* Returns:   Nothing.                                                       */
-/*                                                                           */
-/* Params:    None.                                                          */
-/*                                                                           */
-/**PROC-**********************************************************************/
-NBB_VOID spm_cfg_ds_rxlsp_cb_verify(NBB_CXT_T NBB_CXT)
-{
-    /*************************************************************************/
-    /* Local Variables                                                       */
-    /*************************************************************************/
-    SPM_QOS_DS_RX_LSP_CB *cfg_cb = NULL;
-
-
-    NBB_TRC_ENTRY("spm_cfg_ds_rxlsp_cb_verify");
-
-    for (cfg_cb = (SPM_QOS_DS_RX_LSP_CB*) AVLL_FIRST(SHARED.qos_ds_rx_lsp_tree);
-         cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DS_RX_LSP_CB*) AVLL_NEXT(SHARED.qos_ds_rx_lsp_tree,
-                       cfg_cb->spm_qos_rx_lsp_node))
-    {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify cfg_cb %p", cfg_cb));
-        NBB_VERIFY_MEMORY(cfg_cb, sizeof(SPM_QOS_DS_RX_LSP_CB), MEM_SPM_QOS_DS_RX_LSP_CB);
-
-    }
-
-    NBB_TRC_EXIT();
-
-    return;
-}
-
-
-
-/**PROC+**********************************************************************/
-/* Name:                                                                     */
-/*                                                                           */
-/* Purpose:                                .                                 */
-/*                                                                           */
-/* Returns:   Nothing.                                                       */
-/*                                                                           */
-/* Params:    None.                                                          */
-/*                                                                           */
-/**PROC-**********************************************************************/
-NBB_VOID spm_cfg_ds_tunnel_cb_verify(NBB_CXT_T NBB_CXT)
-{
-    /*************************************************************************/
-    /* Local Variables                                                       */
-    /*************************************************************************/
-    SPM_QOS_DS_TUNNEL_CB *cfg_cb = NULL;
-
-
-    NBB_TRC_ENTRY("spm_cfg_ds_tunnel_cb_verify");
-
-    for (cfg_cb = (SPM_QOS_DS_TUNNEL_CB*) AVLL_FIRST(SHARED.qos_ds_tunnel_tree);
-         cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DS_TUNNEL_CB*) AVLL_NEXT(SHARED.qos_ds_tunnel_tree,
-                       cfg_cb->spm_qos_tunnel_node))
-    {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify cfg_cb %p", cfg_cb));
-        NBB_VERIFY_MEMORY(cfg_cb, sizeof(SPM_QOS_DS_TUNNEL_CB), MEM_SPM_QOS_DS_TUNNEL_CB);
-
-    }
-
-    NBB_TRC_EXIT();
-
-    return;
-}
-
 #ifdef PTN690
 NBB_VOID spm_cfg_txlsp_car_cb_verify(NBB_CXT_T NBB_CXT)
 {
@@ -2977,9 +2686,7 @@ NBB_VOID spm_cfg_txlsp_car_cb_verify(NBB_CXT_T NBB_CXT)
     return;
 }
 
-#endif
 
-#if defined (CR8000_SMART) || defined (PTN690)
 /**PROC+**********************************************************************/
 /* Name:                                                                     */
 /*                                                                           */
@@ -2990,28 +2697,36 @@ NBB_VOID spm_cfg_txlsp_car_cb_verify(NBB_CXT_T NBB_CXT)
 /* Params:    None.                                                          */
 /*                                                                           */
 /**PROC-**********************************************************************/
-NBB_VOID spm_cfg_pw_car_cb_verify(NBB_CXT_T NBB_CXT) 
-{ 
-    /*************************************************************************/ 
-    /* Local Variables */ 
-    /*************************************************************************/ 
-    SPM_QOS_PW_CAR_CB *cfg_cb = NULL; 
+NBB_VOID spm_cfg_pw_car_cb_verify(NBB_CXT_T NBB_CXT)
+{
+    /*************************************************************************/
+    /* Local Variables                                                       */
+    /*************************************************************************/
+    SPM_QOS_PW_CAR_CB  *cfg_cb  = NULL;
+    SPM_QOS_INTF_PW_CB *intf_pw = NULL;
 
-    NBB_TRC_ENTRY("spm_cfg_pw_car_cb_verify"); 
+    NBB_TRC_ENTRY("spm_cfg_pw_car_cb_verify");
 
-    for (cfg_cb = (SPM_QOS_PW_CAR_CB*) AVLL_FIRST(SHARED.qos_pw_car_tree); 
-    cfg_cb != NULL; 
-    cfg_cb = (SPM_QOS_PW_CAR_CB*) AVLL_NEXT(SHARED.qos_pw_car_tree, 
-    cfg_cb->spm_qos_pw_car_node)) 
-    { 
-        NBB_TRC_FLOW((NBB_FORMAT "Verify cfg_cb %p", cfg_cb)); 
-        NBB_VERIFY_MEMORY(cfg_cb, sizeof(SPM_QOS_PW_CAR_CB), MEM_SPM_QOS_PW_CAR_CB); 
-    } 
+    for (cfg_cb = (SPM_QOS_PW_CAR_CB*) AVLL_FIRST(SHARED.qos_pw_car_tree);
+         cfg_cb != NULL;
+         cfg_cb = (SPM_QOS_PW_CAR_CB*) AVLL_NEXT(SHARED.qos_pw_car_tree,
+                   cfg_cb->spm_qos_pw_car_node))
+    {
+        NBB_TRC_FLOW((NBB_FORMAT "Verify cfg_cb %p", cfg_cb));
+        NBB_VERIFY_MEMORY(cfg_cb, sizeof(SPM_QOS_PW_CAR_CB), MEM_SPM_QOS_PW_CAR_CB);
 
-    NBB_TRC_EXIT(); 
+        for (intf_pw = (SPM_QOS_INTF_PW_CB*)AVLL_FIRST(cfg_cb->pw_instance_tree); NULL != intf_pw;
+             intf_pw = (SPM_QOS_INTF_PW_CB*)AVLL_NEXT(cfg_cb->pw_instance_tree, intf_pw->spm_qos_intf_pw_node))
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Verify intf_pw %p", intf_pw));
+            NBB_VERIFY_MEMORY(intf_pw, sizeof(SPM_QOS_INTF_PW_CB), MEM_SPM_QOS_INTF_PW_CB);
+        }
+    }
 
-    return; 
-} 
+    NBB_TRC_EXIT();
+
+    return;
+}
 
 #endif
 
@@ -3332,6 +3047,8 @@ NBB_VOID spm_twamp_ipv6_cb_verfify(NBB_CXT_T NBB_CXT)
     return;
 }
 
+#endif
+
 /**PROC+**********************************************************************/
 /* Name:                                                                     */
 /*                                                                           */
@@ -3347,7 +3064,7 @@ NBB_VOID spm_qos_cfg_cb_verfify(NBB_CXT_T NBB_CXT)
     NBB_TRC_ENTRY("spm_qos_cfg_cb_verfify");
 
 
-    spm_cfg_ds_cb_verify( NBB_CXT);
+/*
 
     spm_cfg_ds_domain_cb_verify( NBB_CXT);
 
@@ -3366,28 +3083,9 @@ NBB_VOID spm_qos_cfg_cb_verfify(NBB_CXT_T NBB_CXT)
     spm_cfg_wred_cb_verify( NBB_CXT);
 
 
-
-    spm_cfg_ds_intf_cb_verify( NBB_CXT);
-
-    spm_cfg_ds_flow_cb_verify( NBB_CXT);
-
-    spm_cfg_ds_univp_cb_verify( NBB_CXT);
-
-    spm_cfg_ds_vc_cb_verify( NBB_CXT);
-
-    spm_cfg_ds_vrf_cb_verify( NBB_CXT);
-
-    spm_cfg_ds_ilm_cb_verify( NBB_CXT);
-
-    spm_cfg_ds_rxlsp_cb_verify( NBB_CXT);
-
-    spm_cfg_ds_tunnel_cb_verify( NBB_CXT);
-
 #ifdef PTN690
     spm_cfg_txlsp_car_cb_verify( NBB_CXT);
-#endif
 
-#if defined (CR8000_SMART) || defined (PTN690)
     spm_cfg_pw_car_cb_verify( NBB_CXT);
 #endif
 
@@ -3403,22 +3101,18 @@ NBB_VOID spm_qos_cfg_cb_verfify(NBB_CXT_T NBB_CXT)
 
     spm_cfg_hqos_cb_verify(NBB_CXT);
 
-    spm_cfg_defend_cb_verify(NBB_CXT);
-
-    spm_cfg_defend_policy_cb_verify(NBB_CXT);
-
     spm_twamp_ipv4_cb_verfify(NBB_CXT);
     
     spm_twamp_ipv6_cb_verfify(NBB_CXT);
-
-
+*/
+    spm_qos_defend_verify();
 
     NBB_TRC_EXIT();
 
     return;   
 }
 
-#endif
+
 
 /* bfd全局变量verify函数 */
 NBB_VOID spm_cfg_ds_bfd_cb_verify(NBB_CXT_T NBB_CXT)
@@ -3725,7 +3419,17 @@ NBB_VOID spm_l3_verify_crlsprx(NBB_CXT_T NBB_CXT)
 	return;
 }
 
-
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_verify_crlsptx
+ * Author		: 	    wjhe	
+ * CreateDate		:	2015-12-1
+ * Description		:   
+ * InputParam	:	    
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	       
+ * OtherInfo		:	
+******************************************************************************/
 NBB_VOID spm_l3_verify_crlsptx(NBB_CXT_T NBB_CXT)
 {
   /***************************************************************************/
@@ -3734,6 +3438,10 @@ NBB_VOID spm_l3_verify_crlsptx(NBB_CXT_T NBB_CXT)
 	CRTXLSP		*txlsp = NULL;
 	SHASH_NODE 	*node = NULL;
 	NBB_ULONG 	i = 0;
+	RSVPCRLSP   *rsvplsp = NULL;
+	PWVPN       *pw_vpn = NULL;
+	PWVC		*pwvc = NULL;
+	PWMC		*pwmc = NULL;
 
 	NBB_TRC_ENTRY("spm_l3_verify_crlsptx");
 
@@ -3757,6 +3465,39 @@ NBB_VOID spm_l3_verify_crlsptx(NBB_CXT_T NBB_CXT)
 			}
 			node = node->next;
 		}	
+	}
+	rsvplsp =  (RSVPCRLSP *)AVLL_FIRST( SHARED.rsvplsp_tree );
+	while (rsvplsp != NULL)
+	{
+		NBB_TRC_FLOW((NBB_FORMAT "Verify rsvplsp  %p", rsvplsp));
+		NBB_VERIFY_MEMORY(rsvplsp, sizeof(RSVPCRLSP),MEM_SPM_CR_LSP_TAB_RSVP_CB);
+		
+		pwvc =  (PWVC *)AVLL_FIRST( rsvplsp->vp_tree );
+		while (pwvc != NULL)
+		{
+			NBB_TRC_FLOW((NBB_FORMAT "Verify pwvc  %p", pwvc));
+			NBB_VERIFY_MEMORY(pwvc, sizeof(PWVC),MEM_SPM_FTN_TAB_VC_CB);
+			pwvc = (PWVC *)AVLL_NEXT( rsvplsp->vp_tree, pwvc->vc_node);
+		}
+
+		pw_vpn =  (PWVPN *)AVLL_FIRST( rsvplsp->vrfpeer_tree);
+		while (pw_vpn != NULL)
+		{
+			NBB_TRC_FLOW((NBB_FORMAT "Verify pw vpn  %p", pw_vpn));
+			NBB_VERIFY_MEMORY(pw_vpn, sizeof(PWVPN),MEM_SPM_CR_LSP_TAB_VPN_CB);
+			pw_vpn = (PWVPN *)AVLL_NEXT( rsvplsp->vrfpeer_tree, pw_vpn->vrf_node);
+		}
+		
+		pwmc =  (PWMC *)AVLL_FIRST( rsvplsp->mcid_tree );
+		while (pwmc != NULL)
+		{
+			NBB_TRC_FLOW((NBB_FORMAT "Verify pwmc  %p", pwmc));
+			NBB_VERIFY_MEMORY(pwmc, sizeof(PWMC),MEM_SPM_FTN_TAB_MC_CB);
+			pwmc = (PWMC *)AVLL_NEXT( rsvplsp->mcid_tree, pwmc->mc_node);
+		}
+		
+		rsvplsp = (RSVPCRLSP *)AVLL_NEXT( SHARED.rsvplsp_tree, rsvplsp->rsvp_node);
+
 	}
 	
 	EXIT_LABEL:

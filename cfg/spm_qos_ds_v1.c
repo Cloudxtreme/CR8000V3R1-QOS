@@ -1757,7 +1757,7 @@ static NBB_LONG spm_ds_phb2pri_map_init(void)
    修改内容  : 新生成函数
 
 *****************************************************************************/
-NBB_LONG spm_qos_ds_init(void)
+NBB_LONG spm_ds_init(void)
 {
     /***************************************************************************/
     /* Local Variables                                                         */
@@ -2660,7 +2660,7 @@ NBB_LONG spm_ds_set_l3_intf_node(
     node.vid = sub_port->ovlan;
     pL3Uni = &node;
 
-    if(v_spm_shared->local_slot_id == sub_port.slot)/*本槽位处理*/
+    if(v_spm_shared->local_slot_id == sub_port->slot)/*本槽位处理*/
     {
         if(0 == diff_serve->l3_in_ds_mod)/*指配*/
         {
@@ -2684,10 +2684,10 @@ NBB_LONG spm_ds_set_l3_intf_node(
             goto EXIT_LABEL;
         }
 #if defined (SPU) || defined (PTN690_CES)
-        ret = ApiC3SetIntfPhb(sub_port.unit, posid, in_mod, in_dsptr);
+        ret = ApiC3SetIntfPhb(sub_port->unit, posid, in_mod, in_dsptr);
         if(ATG_DCI_RC_OK != ret)
         {
-            spm_api_c3_set_intf_phb_err(sub_port.unit, posid,in_mod,in_dsptr,
+            spm_api_c3_set_intf_phb_err(sub_port->unit, posid,in_mod,in_dsptr,
                 __FUNCTION__, __LINE__, ret); 
             goto EXIT_LABEL;
         }
@@ -2827,7 +2827,7 @@ NBB_LONG spm_ds_set_l3out_uni(NBB_ULONG logic_key,NBB_ULONG posid,
         ret = ApiC3SetL3UniPri(unit, posid, NULL, out_mod, out_dsptr);
         if(ATG_DCI_RC_OK != ret)
         {
-            spm_api_c3_set_l3uni_pri_err(sub_port.unit, posid,NULL,out_mod,out_dsptr,
+            spm_api_c3_set_l3uni_pri_err(unit, posid,NULL,out_mod,out_dsptr,
                 __FUNCTION__, __LINE__, ret); 
             goto EXIT_LABEL;
         }
@@ -2957,7 +2957,7 @@ NBB_LONG spm_ds_set_l2_intf_node(SUB_PORT *sub_port,
 
     posid = sub_port->posid;
 
-    if(v_spm_shared->local_slot_id == sub_port.slot)/*本槽位处理*/
+    if(v_spm_shared->local_slot_id == sub_port->slot)/*本槽位处理*/
     {
         if(0 == diff_serve->l2_in_ds_mod)/*指配*/
         {
@@ -2981,10 +2981,10 @@ NBB_LONG spm_ds_set_l2_intf_node(SUB_PORT *sub_port,
             goto EXIT_LABEL;
         }
 #if defined (SPU) || defined (PTN690_CES)
-        ret = ApiC3SetIntfPhb(sub_port.unit, posid, in_mod, in_dsptr);
+        ret = ApiC3SetIntfPhb(sub_port->unit, posid, in_mod, in_dsptr);
         if(ATG_DCI_RC_OK != ret)
         {
-            spm_api_c3_set_intf_phb_err(sub_port.unit, posid,in_mod,in_dsptr,
+            spm_api_c3_set_intf_phb_err(sub_port->unit, posid,in_mod,in_dsptr,
                 __FUNCTION__, __LINE__, ret); 
             goto EXIT_LABEL;
         }
@@ -3248,9 +3248,9 @@ void qos_log_vc_diff_serv_data(ATG_DCI_VC_KEY *vc_key,ATG_DCI_VC_DIFF_SERV_DATA 
         if(ATG_DCI_RC_OK != g_qos_ds_log)
         {
             qos_log_vc_key(vc_key);     
-            OS_SPRINTF(uc_message,"in_ds_mod=%d,phb=%d,corlour=%d,in_diff_serv_id=%ld\n",
+            OS_SPRINTF(uc_message,"(%s)in_ds_mod=%d,phb=%d,corlour=%d,in_diff_serv_id=%ld\n",
                       "out_ds_mod=%d,exp=%d,out_diff_serv_id=%ld\n\n",
-                      diff->in_ds_mod,diff->phb,diff->corlour,diff->in_diff_serv_id,
+                      DS_TAG,diff->in_ds_mod,diff->phb,diff->corlour,diff->in_diff_serv_id,
                       diff->out_ds_mod,diff->exp,diff->out_diff_serv_id);
             BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
         }
@@ -3284,7 +3284,6 @@ NBB_LONG spm_ds_set_vc_node(
     /* Local Variables                                                         */
     /***************************************************************************/
     NBB_LONG ret = ATG_DCI_RC_OK;
-    NBB_ULONG posid = 0;
     ING_NNI_MODE_E in_mod = UNIFORM;
     EGR_PW_MODE_E out_mod = PHB_TO_EXP;
     NBB_USHORT in_dsptr = 0;
@@ -3306,22 +3305,22 @@ NBB_LONG spm_ds_set_vc_node(
     if(0 == diff_serve->in_ds_mod)/*指配*/
     {
         in_mod = UNIFORM;
-        in_dsptr = ((diff_serve->phb) * MAX_COLOR_NUM) + diff_serve->colour + PRI2PHB_ASSIGN_OFFSET;
+        in_dsptr = ((diff_serve->phb) * MAX_COLOR_NUM) + diff_serve->corlour + PRI2PHB_ASSIGN_OFFSET;
     }
-    else if(1 == diff_serve->l3_in_ds_mod)/*基于外层EXP*/
+    else if(1 == diff_serve->in_ds_mod)/*基于外层EXP*/
     {
         in_mod = UNIFORM;
-        in_dsptr = diff_serve->l3_in_diff_serv_id;
+        in_dsptr = diff_serve->in_diff_serv_id;
     }
-    else if(2 == diff_serve->l3_in_ds_mod)/*基于内层EXP*/
+    else if(2 == diff_serve->in_ds_mod)/*基于内层EXP*/
     {
         in_mod = UNIFORM;
-        in_dsptr = diff_serve->l3_in_diff_serv_id;
+        in_dsptr = diff_serve->in_diff_serv_id;
     }
-    else if(3 == diff_serve->l3_in_ds_mod)/*基于dscp*/
+    else if(3 == diff_serve->in_ds_mod)/*基于dscp*/
     {
         in_mod = SHORT_PIPE;
-        in_dsptr = diff_serve->l3_in_diff_serv_id;
+        in_dsptr = diff_serve->in_diff_serv_id;
     }
     else
     {
@@ -3371,7 +3370,7 @@ NBB_LONG spm_ds_set_vc_node(
     else if (1 == diff_serve->out_ds_mod) /* 映射 */
     {
         out_mod = PHB_TO_EXP;
-        out_dsptr = diff_serve->l3_out_diff_serv_id;
+        out_dsptr = diff_serve->out_diff_serv_id;
     }
     else if (2 == diff_serve->out_ds_mod) /*拷贝ip优先级*/
     {
@@ -3466,7 +3465,7 @@ static void qos_print_vrf_diff_serv_cfg(ATG_DCI_VRF_INSTANCE_DIFF_SERV *diff)
     修改内容   : 新生成函数
 
 *****************************************************************************/
-static void qos_log_vrf_key(SPM_QOS_VRF_INSTANSE_KEY *vrf_key)
+void qos_log_vrf_key(SPM_QOS_VRF_INSTANSE_KEY *vrf_key)
 {
     NBB_CHAR uc_message[DS_MSG_INFO_LEN];
         
@@ -3509,8 +3508,8 @@ void qos_log_vrf_diff_serv_data(SPM_QOS_VRF_INSTANSE_KEY *vrf_key,ATG_DCI_VRF_IN
         if(ATG_DCI_RC_OK != g_qos_ds_log)
         {
             qos_log_vrf_key(vrf_key);
-            OS_SPRINTF(uc_message,"out_ds_mod=%d,exp=%d,out_diff_serv_id=%ld\n\n",
-                      diff->out_ds_mod,diff->exp,diff->out_diff_serv_id);
+            OS_SPRINTF(uc_message,"(%s)out_ds_mod=%d,exp=%d,out_diff_serv_id=%ld\n\n",
+                      DS_TAG,diff->out_ds_mod,diff->exp,diff->out_diff_serv_id);
             BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
         }
     }
@@ -3542,7 +3541,6 @@ NBB_LONG spm_ds_set_vrf_node(
     /* Local Variables                                                         */
     /***************************************************************************/
     NBB_LONG ret = ATG_DCI_RC_OK;
-    NBB_ULONG posid = 0;
     EGR_PW_MODE_E out_mod = PHB_TO_EXP;
     NBB_USHORT out_dsptr = 0;
     NBB_BYTE unit = 0;
@@ -3691,8 +3689,8 @@ void qos_log_lsp_diff_serv_data(SPM_QOS_TUNNEL_KEY *lsp_key,ATG_DCI_LSP_TX_PROT_
         if(ATG_DCI_RC_OK != g_qos_ds_log)
         {
             qos_log_lsp_key(lsp_key);
-            OS_SPRINTF(uc_message,"out_ds_mod=%d,exp=%d,out_diff_serv_id=%ld\n\n",
-                  diff->out_ds_mod,diff->exp,diff->out_diff_serv_id);
+            OS_SPRINTF(uc_message,"(%s)out_ds_mod=%d,exp=%d,out_diff_serv_id=%ld\n\n",
+                  DS_TAG,diff->out_ds_mod,diff->exp,diff->out_diff_serv_id);
             BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
    
         }
@@ -3708,7 +3706,6 @@ NBB_LONG spm_ds_add_tx_lsp_node (SPM_QOS_TUNNEL_KEY *lspkey,
     /* Local Variables                                                         */
     /***************************************************************************/
     NBB_LONG ret = ATG_DCI_RC_OK;
-    NBB_ULONG posid = 0;
     EGR_LSP_MODE_E out_mod = MAP_EXP;
     NBB_USHORT out_dsptr = 0;
     NBB_BYTE unit = 0;
@@ -3726,7 +3723,7 @@ NBB_LONG spm_ds_add_tx_lsp_node (SPM_QOS_TUNNEL_KEY *lspkey,
 
     if (0 == diff_serve->out_ds_mod) /*指配exp*/
     {
-        exp = diff_serve->exp
+        exp = diff_serve->exp;
         out_mod = LSP_NO_ACTION;
         //out_dsptr = diff_serve->exp+ PHB2PRI_ASSIGN_OFFSET;
         
@@ -3764,7 +3761,7 @@ NBB_LONG spm_ds_add_tx_lsp_node (SPM_QOS_TUNNEL_KEY *lspkey,
         else if(1 == type)
         {
 #if defined (SPU) || defined (PTN690_CES)
-            ret = ApiC3SetTxLspOutExp(unit,posid,out_mod,exp,out_dsptr);
+            ret = ApiC3SetTxLspOutExp(unit,posid,out_mod,exp);
             if(ATG_DCI_RC_OK != ret)
             {
                 spm_api_c3_set_txlsp_exp_err(unit,posid,out_mod,exp,out_dsptr,
@@ -3781,6 +3778,408 @@ NBB_LONG spm_ds_add_tx_lsp_node (SPM_QOS_TUNNEL_KEY *lspkey,
 }
 
 
-
-
 #endif
+
+
+#if 10
+
+/*****************************************************************************
+   函 数 名  : spm_ds_add_ilm_node
+   功能描述  : ILM优先级映射的接口函数(它可能是内层标签)
+   输入参数  : ds模板的index  ,ilm key,驱动结构体指针
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年1月15日 星期二
+    作    者   : zenglu
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+static NBB_LONG spm_ds_set_out_ilm(NBB_ULONG posid, NBB_ULONG eposid,NBB_BYTE type,
+                EGR_LSP_MODE_E out_mod,NBB_USHORT out_dsptr,NBB_BYTE exp) 
+{
+    NBB_LONG ret = ATG_DCI_RC_OK;
+    NBB_BYTE unit = 0;
+    
+    NBB_TRC_ENTRY(__FUNCTION__);
+
+    /*出方向*/
+    if(1 == type)/*RxLspEgrInExp*/
+    {
+        for(unit = 0;unit < v_spm_shared->c3_num;unit++)
+        {
+#if defined (SPU) || defined (PTN690_CES)
+            ret = ApiC3SetRxLspEgrInExp(unit, posid, out_mod,exp, out_dsptr);
+            if(ATG_DCI_RC_OK != ret)
+            {
+                goto EXIT_LABEL;
+            }
+#endif 
+        }
+    }
+    else if(2 == type)/*RxLspEgrBackupInExp*/
+    {
+        for(unit = 0;unit < v_spm_shared->c3_num;unit++)
+        {
+#if defined (SPU) || defined (PTN690_CES)
+            ret = ApiC3SetRxLspEgrBackupInExp(unit, posid, out_mod,exp, out_dsptr);
+            if(ATG_DCI_RC_OK != ret)
+            {
+                goto EXIT_LABEL;
+            }
+#endif 
+        }
+    }
+    else if(3 == type)/*RxLspEgrOutExp*/
+    {
+        for(unit = 0;unit < v_spm_shared->c3_num;unit++)
+        {
+#if defined (SPU) || defined (PTN690_CES)
+            ret = ApiC3SetRxLspEgrOutExp(unit, posid, out_mod,exp/*, out_dsptr*/);
+            if(ATG_DCI_RC_OK != ret)
+            {
+                goto EXIT_LABEL;
+            }
+#endif 
+        }
+    }
+    else if(4 == type)/*RxLspEgrBackupOutExp*/
+    {
+        for(unit = 0;unit < v_spm_shared->c3_num;unit++)
+        {
+#if defined (SPU) || defined (PTN690_CES)
+            ret = ApiC3SetRxLspEgrBackupOutExp(unit, posid, out_mod,exp/*, out_dsptr*/);
+            if(ATG_DCI_RC_OK != ret)
+            {
+                goto EXIT_LABEL;
+            }
+#endif 
+        }
+    }
+    else if(5 == type)/*RxLspEcmpInExp*/
+    {
+        for(unit = 0;unit < v_spm_shared->c3_num;unit++)
+        {
+#if defined (SPU) || defined (PTN690_CES)
+            ret = ApiC3SetRxLspEgrEcmpInExp(unit, posid,eposid, out_mod,exp, out_dsptr);
+            if(ATG_DCI_RC_OK != ret)
+            {
+                goto EXIT_LABEL;
+            }
+#endif 
+        }
+    }
+    else if(6 == type)/*RxLspEcmpOutExp*/
+    {
+        for(unit = 0;unit < v_spm_shared->c3_num;unit++)
+        {
+#if defined (SPU) || defined (PTN690_CES)
+            ret = ApiC3SetRxLspEgrEcmpOutExp(unit, posid,eposid, out_mod,exp/*, out_dsptr*/);
+            if(ATG_DCI_RC_OK != ret)
+            {
+                goto EXIT_LABEL;
+            }
+#endif 
+        }
+    }
+    else
+    {
+        //spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
+        ret = ATG_DCI_RC_UNSUCCESSFUL;
+        goto EXIT_LABEL;
+    }
+
+
+    EXIT_LABEL: NBB_TRC_EXIT();
+    return ret;
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_ds_add_ilm_node
+   功能描述  : ILM优先级映射的接口函数(它可能是内层标签)
+   输入参数  : ds模板的index  ,ilm key,驱动结构体指针
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年1月15日 星期二
+    作    者   : zenglu
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+static NBB_LONG spm_ds_set_in_ilm(NBB_ULONG posid,NBB_BYTE type,
+                                    ING_NNI_MODE_E in_mod,NBB_USHORT in_dsptr) 
+{
+    NBB_LONG ret = ATG_DCI_RC_OK;
+    NBB_BYTE unit = 0;
+    
+    NBB_TRC_ENTRY(__FUNCTION__);
+
+    /*入方向*/
+    if(0 == type)
+    {
+        for(unit = 0;unit < v_spm_shared->c3_num;unit++)
+        {
+#if defined (SPU) || defined (PTN690_CES)
+            ret = ApiC3SetRxpwPhb(unit, posid, in_mod, in_dsptr);
+            if(ATG_DCI_RC_OK != ret)
+            {
+                goto EXIT_LABEL;
+            }
+#endif 
+        }
+    }
+    else
+    {
+        for(unit = 0;unit < v_spm_shared->c3_num;unit++)
+        {
+#if defined (SPU) || defined (PTN690_CES)
+            ret = ApiC3SetRxLspIngPhb(unit, posid, in_mod, in_dsptr);
+            if(ATG_DCI_RC_OK != ret)
+            {
+                goto EXIT_LABEL;
+            }
+#endif 
+        }   
+    }
+
+    EXIT_LABEL: NBB_TRC_EXIT();
+    return ret;
+}
+
+/*****************************************************************************
+   函 数 名  : spm_ds_add_ilm_node
+   功能描述  : ILM优先级映射的接口函数(它可能是内层标签)
+   输入参数  : ds模板的index  ,ilm key,驱动结构体指针
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年1月15日 星期二
+    作    者   : zenglu
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+static NBB_LONG spm_ds_set_ilm(NBB_ULONG posid, NBB_ULONG eposid,NBB_BYTE type,
+                ING_NNI_MODE_E in_mod,NBB_USHORT in_dsptr,EGR_LSP_MODE_E out_mod,
+                NBB_USHORT out_dsptr,NBB_BYTE exp) 
+{
+    NBB_LONG ret = ATG_DCI_RC_OK;
+    NBB_BYTE unit = 0;
+    
+    NBB_TRC_ENTRY(__FUNCTION__);
+
+    ret = spm_ds_set_in_ilm(posid, type,in_mod, in_dsptr);
+    if(ATG_DCI_RC_OK != ret)
+    {
+        goto EXIT_LABEL;
+    }
+    
+    ret = spm_ds_set_out_ilm(posid,eposid,type,out_mod,out_dsptr, exp);
+    if(ATG_DCI_RC_OK != ret)
+    {
+        goto EXIT_LABEL;
+    }
+
+    EXIT_LABEL: NBB_TRC_EXIT();
+    return ret;
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_ds_add_logic_intf_node
+   功能描述  : 逻辑端口优先级映射的接口函数
+   输入参数  : ds模板的index  ,逻辑端口的key,驱动结构体指针
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年1月15日 星期二
+    作    者   : zenglu
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+static void qos_print_ilm_diff_serv_data(NBB_ULONG label,ATG_DCI_ILM_DIFF_SERV_DATA *diff,
+                            NBB_ULONG posid,NBB_ULONG eposid,NBB_BYTE type)
+{
+    if(NULL != diff)
+    {
+       if(ATG_DCI_RC_OK != g_qos_ds_print)
+        {
+            printf("label =%ld,nxhp_index=%ld,nextip=%ld\n"
+                      "in_ds_mod=%d,phb=%d,corlour=%d,in_diff_serv_id=%ld\n,"
+                      "out_ds_mod=%d,exp=%d,out_diff_serv_id=%d\n"
+                      "posid=%ld,eposid=%ld,type=%d\n\n",
+                      label,diff->nxhp_index,diff->nxhp_ip,diff->in_ds_mod,
+                      diff->phb,diff->corlour,diff->in_diff_serv_id,
+                      diff->out_ds_mod,diff->exp,diff->out_diff_serv_id,
+                      posid,eposid,type);
+        } 
+    }
+    
+}
+
+/*****************************************************************************
+   函 数 名  : spm_ds_add_logic_intf_node
+   功能描述  : 逻辑端口优先级映射的接口函数
+   输入参数  : ds模板的index  ,逻辑端口的key,驱动结构体指针
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年1月15日 星期二
+    作    者   : zenglu
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+static void qos_log_ilm_diff_serv_data(NBB_ULONG label,ATG_DCI_ILM_DIFF_SERV_DATA *diff,NBB_ULONG posid,
+                                        NBB_ULONG eposid,NBB_BYTE type)
+{
+    NBB_CHAR uc_message[DS_MSG_INFO_LEN];
+    
+    qos_print_ilm_diff_serv_data(label,diff, posid,eposid, type);
+    
+    if(NULL != diff)
+    {
+        if(ATG_DCI_RC_OK != g_qos_ds_log)
+        {
+            
+            OS_SPRINTF(uc_message,"(%s)label =%ld,nextport=%ld,nextip=%ld\n"
+                      "in_ds_mod=%d,phb=%d,corlour=%d,in_diff_serv_id=%ld\n,"
+                      "out_ds_mod=%d,exp=%d,out_diff_serv_id=%d\n"
+                      "posid=%ld,eposid=%ld,type=%d\n\n",
+                      DS_TAG,
+                      label,diff->nxhp_index,diff->nxhp_ip,diff->in_ds_mod,
+                      diff->phb,diff->corlour,diff->in_diff_serv_id,
+                      diff->out_ds_mod,diff->exp,diff->out_diff_serv_id,
+                      posid,eposid,type);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
+        }
+    }
+   
+}
+
+/*****************************************************************************
+   函 数 名  : spm_ds_add_ilm_node
+   功能描述  : ILM优先级映射的接口函数(它可能是内层标签)
+   输入参数  : eposid:ECMP ID
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年1月15日 星期二
+    作    者   : zenglu
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+
+//type:
+//0:RXPW;1: RxLspEgrInExp;2:RxLspEgrBackupInExp;
+//3:RxLspEgrOutExp;4:RxLspEgrBackupOutExp
+//5:RxLspEcmpInExp;6:RxLspEcmpOutExp
+NBB_LONG spm_add_ilm_ds_node(NBB_ULONG label,ATG_DCI_ILM_DIFF_SERV_DATA *diff,NBB_ULONG posid,
+                                NBB_ULONG eposid,NBB_BYTE type) 
+{
+
+    /***************************************************************************/
+    /* Local Variables                                                         */
+    /***************************************************************************/
+    NBB_LONG ret = ATG_DCI_RC_OK;
+    ING_NNI_MODE_E in_mod = UNIFORM;
+    EGR_LSP_MODE_E out_mod = LSP_NO_ACTION;
+    NBB_BYTE unit = 0;
+    NBB_USHORT in_dsptr = 0;
+    NBB_USHORT out_dsptr = 0;
+    NBB_BYTE exp = 0;
+
+    NBB_TRC_ENTRY(__FUNCTION__);
+
+    if(NULL == diff)
+    {
+        ret = ATG_DCI_RC_UNSUCCESSFUL;
+        goto EXIT_LABEL;
+    }
+
+    qos_log_ilm_diff_serv_data(label,diff, posid,eposid,type);
+
+    
+    if(0 == diff->in_ds_mod)/*指配*/
+    {
+        in_mod = UNIFORM;
+        in_dsptr = (diff->phb) * MAX_COLOR_NUM + diff->corlour + PRI2PHB_ASSIGN_OFFSET;
+    }
+    else if(1 == diff->in_ds_mod)/*基于外层映射*/
+    {
+        in_mod = UNIFORM;
+        in_dsptr =  diff->in_diff_serv_id;
+    }
+    else if(2 == diff->in_ds_mod)/*短管道*/
+    {
+        in_mod = SHORT_PIPE;
+        in_dsptr =   diff->in_diff_serv_id;
+    }
+    else
+    {
+        //spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
+        ret = ATG_DCI_RC_UNSUCCESSFUL;
+        goto EXIT_LABEL;
+    }
+
+    ret = spm_ds_set_in_ilm(posid, type,in_mod, in_dsptr);
+    if(ATG_DCI_RC_OK != ret)
+    {
+        goto EXIT_LABEL;
+    }
+
+    
+    if(0 == diff->out_ds_mod)/*指配EXP*/
+    {
+        out_mod = MAP_EXP;
+        exp = diff->exp;
+        out_dsptr = diff->out_diff_serv_id;
+    }
+    else if(1 == diff->out_ds_mod)/*映射*/
+    {
+        out_mod = MAP_EXP;
+        out_dsptr = diff->exp + PHB2PRI_ASSIGN_OFFSET;
+    }
+    else if(2 == diff->out_ds_mod)/*拷贝ip优先级*/
+    {
+        out_mod = LSP_NO_ACTION;
+        out_dsptr = diff->out_diff_serv_id;
+    }
+    else
+    {
+        spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
+        ret = ATG_DCI_RC_UNSUCCESSFUL;
+        goto EXIT_LABEL;
+    }
+
+
+    ret = spm_ds_set_out_ilm(posid,eposid,type,out_mod,out_dsptr, exp);
+    if(ATG_DCI_RC_OK != ret)
+    {
+        goto EXIT_LABEL;
+    }
+    
+   
+    
+    EXIT_LABEL: NBB_TRC_EXIT();
+    return ret;
+}
+#endif
+

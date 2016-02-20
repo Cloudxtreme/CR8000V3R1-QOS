@@ -51,7 +51,18 @@
 
 
 
+/* QoS模块相关信息 */
+typedef struct spm_qos_pri2phb_map
+{
+    NBB_BYTE phb;
 
+    NBB_BYTE color;
+
+}SPM_QOS_PRI2PHB_MAP;
+
+
+
+NBB_LONG spm_ds_init(void);
 
 
 /*****************************************************************************
@@ -158,11 +169,8 @@ NBB_LONG spm_ds_set_univp_node(NBB_ULONG logic_index,
     修改内容   : 新生成函数
 
 *****************************************************************************/
-NBB_LONG spm_ds_set_vc_node(
-    ATG_DCI_VC_KEY *vc_key, //VC表 配置块条目键值
-    ATG_DCI_VC_DIFF_SERV_DATA *diff_serve, //VC表 DS配置
-    NBB_ULONG posid, //驱动返回值
-    NBB_USHORT flag);    //VC主备标识
+NBB_LONG spm_ds_set_vc_node(ATG_DCI_VC_KEY *vc_key, 
+    ATG_DCI_VC_DIFF_SERV_DATA *diff_serve, NBB_ULONG posid,NBB_USHORT flag);  
 
 
 
@@ -182,10 +190,8 @@ NBB_LONG spm_ds_set_vc_node(
     修改内容   : 新生成函数
 
 *****************************************************************************/
-NBB_LONG spm_ds_set_vrf_node(
-    SPM_QOS_VRF_INSTANSE_KEY *vrf_key, //VRF表 配置块条目键值
-    ATG_DCI_VRF_INSTANCE_DIFF_SERV *diff_serve, //VRF表 DS配置
-    NBB_ULONG posid);
+NBB_LONG spm_ds_set_vrf_node(SPM_QOS_VRF_INSTANSE_KEY *vrf_key, 
+    ATG_DCI_VRF_INSTANCE_DIFF_SERV *diff_serve,NBB_ULONG posid);
 
 
 
@@ -197,7 +203,12 @@ NBB_LONG spm_ds_add_tx_lsp_node (SPM_QOS_TUNNEL_KEY *lspkey,
 
 
 
-
+//type:
+//0:RXPW;1: RxLspEgrInExp;2:RxLspEgrBackupInExp;
+//3:RxLspEgrOutExp;4:RxLspEgrBackupOutExp
+//5:RxLspEcmpInExp;6:RxLspEcmpOutExp
+NBB_LONG spm_add_ilm_ds_node(NBB_ULONG label,ATG_DCI_ILM_DIFF_SERV_DATA *diff,NBB_ULONG posid,
+                                NBB_ULONG eposid,NBB_BYTE type) ;
 
 
 

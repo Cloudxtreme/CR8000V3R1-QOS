@@ -69,8 +69,7 @@ static char *defend_protcal_string[] =
 /* 全局打印变量acl_pri_setting */
 NBB_BYTE acl_pri_setting = ATG_DCI_RC_UNSUCCESSFUL;
 
-/* 全局打印变量qos_phy_cfg_print */
-NBB_BYTE qos_phy_cfg_print = ATG_DCI_RC_OK;
+
 
 /* 全局打印变量qos_log_cfg_print */
 NBB_BYTE qos_log_cfg_print = ATG_DCI_RC_OK;

@@ -54,38 +54,13 @@ typedef struct tx_uni_port
     NBB_USHORT      vid;        //内层VID
 }TX_UNI_PORT;
 
-/* QoS模块相关信息 */
-typedef struct spm_qos_tunnel_key
-{
-    NBB_USHORT      type;       //type = 0 FTN; type = 1 CR-LSP Tx; 其他非法
-    NBB_USHORT      flag;       // 1为主用，0为备用
-    FTN_KEY         ftn;        //type = 0 FTN
-    CRTXLSP_KEY     tx_lsp;     //type = 1 CR-LSP Tx
-}SPM_QOS_TUNNEL_KEY;
 
-/* QoS模块相关信息 */
-typedef struct spm_qos_vrf_instanse_key
-{
-    NBB_ULONG  label;
-    NBB_USHORT vrf_id; 
-    NBB_ULONG peer_ip; 
-}SPM_QOS_VRF_INSTANSE_KEY;
 
-/* QoS模块相关信息 */
-typedef struct spm_port_wred_key
-{
-    NBB_ULONG index;//物理端口INDEX
-    NBB_BYTE cos;   //队列优先级
-}SPM_PORT_WRED_KEY;
 
-/* QoS模块相关信息 */
-typedef struct spm_qos_ilm_key
-{
-    NBB_ULONG inlabel;//入标签
-    NBB_BYTE flag;//下一跳标志位
-    NBB_ULONG nextip;
-    NBB_ULONG nextport;
-}SPM_QOS_ILM_KEY;
+
+
+
+
 
 /* QoS模块相关信息 */
 typedef struct spm_te_shaping
@@ -109,71 +84,6 @@ typedef struct sub_port
     NBB_LONG posid;/*ACL包过滤用*/
 }SUB_PORT;
 
-#if 21
-NBB_LONG spm_ds_set_l3uni(NBB_ULONG logic_key,NBB_ULONG posid,
-            ATG_DCI_LOG_PORT_DIFF_SERV_DATA *data NBB_CCXT_T);
-
-NBB_LONG spm_ds_add_logic_intf_node(
-    SUB_PORT                *sub_port,
-    SPM_QOS_LOGIC_INTF_KEY *key,
-    ATG_DCI_LOG_PORT_DIFF_SERV_DATA *diff_serve NBB_CCXT_T);
-
-/*********删除L3逻辑接口所有的ds数据********************/
-NBB_LONG spm_qos_clear_ds_logic_intf(NBB_LONG logic_key NBB_CCXT_T);
-
-NBB_LONG spm_ds_add_logic_flow_node(SUB_PORT *sub_port, 
-            SPM_QOS_LOGIC_FLOW_KEY *key,
-            ATG_DCI_LOG_PORT_FLOW_DIFF_SERV *diff_serv NBB_CCXT_T);
-
-/*********删除l2逻辑接口所有的ds数据********************/
-NBB_LONG spm_qos_clear_logic_ds_flow(NBB_LONG logic_key NBB_CCXT_T);
-
-NBB_LONG spm_ds_add_vc_node(
-            NBB_ULONG               ds_index,   //VC表 DS模板ID
-            ATG_DCI_VC_KEY          *key,       //VC表 配置块条目键值 
-            NBB_ULONG               posid,      //驱动返回值
-            NBB_USHORT              flag NBB_CCXT_T);     //VC主备1为主0为备
-NBB_LONG spm_ds_add_vrf_node(
-            NBB_ULONG               ds_index,   //VRF实例 DS模板ID
-            SPM_QOS_VRF_INSTANSE_KEY *key,      //VRF实例 配置块条目键值
-            NBB_ULONG               nhiId NBB_CCXT_T);     //建立VRF实例时，驱动返回
-
-
-NBB_LONG spm_ds_add_tx_lsp_node(
-            NBB_ULONG               ds_index,   //FTN DS模板ID
-            SPM_QOS_TUNNEL_KEY      *key,       //FTN 配置块条目键值
-            NBB_ULONG               posid,      //建立FTN条目时，驱动返回
-            NBB_ULONG               ds_index2,  //封装第二层Tunnel标签的DS模板ID   
-            SPM_QOS_TUNNEL_KEY      *key_tun2 NBB_CCXT_T); //封装第二层Tunnel标签的条目键值
-
-NBB_LONG spm_ds_add_rx_lsp_node(
-            NBB_ULONG ds_index,  //ILM DS模板ID
-            CRRXLSP_KEY *key,      //CRRXLSP_KEY key
-            NBB_ULONG posid,     //建立ILM条目时，驱动返回
-            NBB_BYTE node_action, //节点动作信息
-            NBB_USHORT flag,      //主备标识1/2:主/备
-            NBB_ULONG ds_index2, //封装第二层Tunnel标签的DS模板ID
-            SPM_QOS_TUNNEL_KEY *key_tun2 NBB_CCXT_T); //封装第二层Tunnel标签的条目键值
-
-
-//type:
-//0:RXPW;1: RxLspEgrInExp;2:RxLspEgrBackupInExp;
-//3:RxLspEgrOutExp;4:RxLspEgrBackupOutExp
-//5:RxLspEcmpInExp;6:RxLspEcmpOutExp
-NBB_LONG spm_add_ilm_ds_node(NBB_ULONG label,
-    ILM_DIFSER* diff,NBB_ULONG posid, NBB_ULONG eposid, 
-    NBB_BYTE type) ;
-
-/*如果是PW标签动作为IPOP,node_action=LABEL_ACTION_PW_POP_GO*/
-NBB_LONG spm_ds_add_ilm_node(
-            ILM_DIFSER *ilm_ds, 
-            SPM_QOS_ILM_KEY *key, //ilm KEY
-            NBB_ULONG posid, //建立ILM条目时，入标签信息
-            NBB_BYTE node_action, //节点动作信息
-            NBB_ULONG ds_index2, //封装第二层Tunnel标签的DS模板ID
-            SPM_QOS_TUNNEL_KEY *key_tun2 NBB_CCXT_T); //封装第二层Tunnel标签的条目键值
-
-#endif
 
 #if 1/*接口函数*/
 

@@ -836,7 +836,7 @@ NBB_VOID spm_get_vlan_from_logical_port_index_error_log( NBB_ULONG index,
     }  
 }
 
-
+#if 5
 /*****************************************************************************
    函 数 名  : spm_disconnect_usr_group_cnt
    功能描述  : usr group引用计数减1
@@ -1142,6 +1142,8 @@ NBB_VOID spm_api_c3_del_acl_error_log(NBB_ULONG unit, ACL_T *acl,
     			       0,0,LINE,0));  
     }  
 }
+
+#endif
 
 #ifdef PTN690
 
@@ -1463,7 +1465,6 @@ NBB_VOID  spm_hqos_l3uni_error_log(
 
 #endif
 
-
 #if 11
 
 /*****************************************************************************
@@ -1739,3 +1740,4 @@ NBB_VOID spm_hqos_almpm_attack_error_log(
 
 
 #endif
+

@@ -8,7 +8,7 @@
    作    者   : zenglu
    生成日期   : 2012年9月18日
    最近修改   :
-   功能描述   : QOS处理
+   功能描述   : QOS内部依赖公共部分
    函数列表   :
    修改历史   :
    1.日    期   : 2012年9月18日
@@ -18,12 +18,9 @@
 #ifndef SPM_QOS_PRIVATE_INCLUDE
 #define SPM_QOS_PRIVATE_INCLUDE
 
-#include "spm_qos_ver_control.h"
-#include "spm_qos_ds_v1.h"
 #include <spm_qos.h>
 
 
-#define QOS_PD              25
 
 #define QOS_CFG_STRING       "QOS CFG"
 #define HQOS_LSP_CFG         "HQOS LSP CFG"
@@ -40,7 +37,7 @@
 #define HQOS_ARAD_ERROR       "***HQOS ARAD ERROR***"
 #define HQOS_C3_ERROR       "***HQOS C3 ERROR***"
 #define HQOS_BMU_ERROR       "***HQOS BMU ERROR***"
-#define QOS_ERROR_STRING     "**Qos ERROR**"
+
 #define QOS_MSG_INFO_LEN    300 
 
 #define VOQ_OFFSET          40
@@ -56,29 +53,7 @@
 #define MAX_DS_NUM          4097
 
 
-#define MAX_PHB_NUM         8
-#define PHB_BE              0
-#define PHB_AF1             1
-#define PHB_AF2             2
-#define PHB_AF3             3
-#define PHB_AF4             4
-#define PHB_EF              5
-#define PHB_CS6             6
-#define PHB_CS7             7
 
-#define MAX_COLOR_NUM       3
-#define QOS_COLOR_GREEN     0
-#define QOS_COLOR_YELLOW        1
-#define QOS_COLOR_RED       2
-
-#define MAX_VLAN_PRI_NUM    8
-
-#define MAX_DSCP_PRI_NUM    64
-
-#define MAX_EXP_PRI_NUM     8
-
-#define PRI2PHB_ASSIGN_OFFSET      16
-#define PHB2PRI_ASSIGN_OFFSET      16
 
 #define WRED_MODE_QUE_DROP        0
 #define WRED_MODE_COL_BIND        1
@@ -86,7 +61,7 @@
 
 
 
-#define QOS_RCU_PORT    (104 + PTN_690_PORT_OFFSET)
+
 
 
 #define CLASSIFY_HIGH_ACL_ID  5000
@@ -113,17 +88,12 @@
 #define LABEL_ACTION_PW_POP_GO    3
 
 
-#define QOS_MAIN     1
-#define QOS_BACK     2
-#define QOS_ECMP     3
 
 
 #define FTN_TYPE   1
 #define LSP_TX_TYPE 2
 #define IP_LSP_TYPE 3
 
-#define QOS_EXIST         1
-#define QOS_UNEXIST       0
 
 
 #define MATCH_ERROR         0
@@ -202,14 +172,7 @@
    
 #define DEFEND_DEFAULT_RULE_ID             10000
 
-/* QoS模块相关信息 */
-typedef struct spm_qos_pri2phb_map
-{
-    NBB_BYTE phb;
 
-    NBB_BYTE color;
-
-}SPM_QOS_PRI2PHB_MAP;
 
 /* 内部数据tree */
 typedef struct spm_qos_ds_logic_intf_cb
@@ -461,10 +424,7 @@ typedef struct spm_qos_txlsp_car_cb
 } SPM_QOS_TXLSP_CAR_CB;
 
 
-#endif
 
-
-#if defined (CR8000_SMART) || defined (PTN690)
 /* QoS模块相关信息 */
 typedef struct spm_qos_pw_car_cb
 {
@@ -568,88 +528,7 @@ typedef struct spm_qos_up_usr_cb
 
 } SPM_QOS_UP_USR_CB;
 
-/* QoS模块相关信息 */
-typedef struct spm_qos_flow_up_usr_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_qos_flow_up_usr_node;
 
-    /* key值: index */
-    SPM_QOS_LOGIC_FLOW_KEY key;
-
-    /*policy 索引*/
-    NBB_ULONG policy_index;
-    SUB_PORT sub_port;
-
-} SPM_QOS_FLOW_UP_USR_CB;
-
-/* QoS模块相关信息 */
-typedef struct spm_hqos_usr_cb
-{
-
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_hqos_usr_node;
-
-    /***************************************************************************/
-    /* Handle for this control block, to be used as a correlator for           */
-    /* asynchronous message exchanges.                                         */
-    /***************************************************************************/
-    //NBB_HANDLE spm_qos_usr_handle;
-
-    /***************************************************************************/
-    /* 逻辑端口key值                                        */
-    /***************************************************************************/
-    NBB_ULONG index;
-
-    /*PW id*/
-    NBB_ULONG pw_id;
-
-    NBB_LONG flow_id;
-
-    ATG_DCI_LOG_DOWN_USER_QUEUE_QOS usr_data;
-} SPM_HQOS_LOG_USR_CB;
-
-/* QoS模块相关信息 */
-typedef struct spm_hqos_log_group_cb
-{
-
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_hqos_group_node;
-
-
-    /***************************************************************************/
-    /*group index                                        */
-    /***************************************************************************/
-    NBB_ULONG index;
-
-    NBB_ULONG slot;
-
-    NBB_ULONG port;
-
-    AVLL_TREE usr_tree;
-
-    NBB_ULONG lsp_id;
-
-    /*组索引*/
-    NBB_ULONG group_index;
-
-    NBB_ULONG policy_index;
-
-    NBB_USHORT pw_cnt;
-
-    NBB_ULONG cnt;
-
-} SPM_HQOS_LOG_GROUP_CB;
-
-
-
-/* QoS模块相关信息 */
 
 
 
@@ -1192,34 +1071,6 @@ typedef struct spm_qos_wred_cb
     NBB_ULONG cnt;
 } SPM_QOS_WRED_CB;
 
-/* QoS模块相关信息 */
-typedef struct spm_qos_user_group_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_qos_user_group_node;
-
-    /* key值: index */
-    NBB_ULONG user_group_key;
-
-    ATG_DCI_USER_GROUP_BASIC_DATA *basic_cfg_cb;
-
-    ATG_DCI_USER_GROUP_UP_QOS *up_cfg_cb;
-
-    ATG_DCI_USER_GROUP_DOWN_QOS *down_cfg_cb;
-
-    /*绑定的LSP ID*/
-    NBB_ULONG lsp_id;
-
-    /*HQOS实例化端口*/
-    NBB_USHORT port;
-    NBB_USHORT slot;
-
-    /*引用计数*/
-    NBB_BYTE cnt;
-
-} SPM_QOS_USER_GROUP_CB;
 
 /* QoS模块相关信息 */
 typedef struct spm_qos_vrf_vpn_cb
@@ -1693,7 +1544,7 @@ NBB_VOID spm_qos_clear_all_twamp_ipv4_cb(NBB_CXT_T NBB_CXT);
 
 NBB_VOID spm_qos_clear_all_twamp_ipv6_cb(NBB_CXT_T NBB_CXT);
 
-NBB_VOID spm_qos_init(NBB_CXT_T NBB_CXT);
+
 
 NBB_LONG spm_qos_voq_init(void);
 

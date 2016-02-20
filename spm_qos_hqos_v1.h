@@ -20,24 +20,63 @@
 #define SPM_QOS_WRED_H
 
 
-#ifdef PTN690
-#define MAX_SLOT_NUM        42
-#define MAX_MSP_ID          64
-#define MAX_METER_NUM     (32 * 1024)
-#else
-#define MAX_SLOT_NUM        13
-#define MAX_METER_NUM     (8 * 1024)
-#endif
 
-#define MAX_METER_BUKECT_NUM                        (256)
-#define MAX_PHYSIC_PORT                             128
-#define MIN_PHYSIC_PORT                             0
-#define MAX_PHYSIC_PORT_NUM                             128
-#define VOQ_OFFSET          40
-#define NUM_COS             8
-#define HQOS_OFFSET          (MAX_SLOT_NUM * NUM_COS * MAX_PHYSIC_PORT_NUM + VOQ_OFFSET)
-#define MAX_NODE_ID          2048
-#define MAX_HQOS_SLOT_NUM    4
+
+
+
+
+/* QoS模块相关信息 */
+typedef struct spm_hqos_usr_cb
+{
+
+    /***************************************************************************/
+    /* The AVLL node.                                                          */
+    /***************************************************************************/
+    AVLL_NODE spm_hqos_usr_node;
+
+    /***************************************************************************/
+    /* 逻辑端口key值                                        */
+    /***************************************************************************/
+    NBB_ULONG index;
+
+    /*PW id*/
+    NBB_ULONG pw_id;
+
+    NBB_LONG flow_id;
+
+    ATG_DCI_VPN_HQOS_POLICY data;
+} SPM_HQOS_LOG_USR_CB;
+
+
+
+/* QoS模块相关信息 */
+typedef struct spm_qos_user_group_cb
+{
+    /***************************************************************************/
+    /* The AVLL node.                                                          */
+    /***************************************************************************/
+    AVLL_NODE spm_qos_user_group_node;
+
+    /* key值: index */
+    NBB_ULONG user_group_key;
+
+    AVLL_TREE usr_tree;
+
+    //ATG_DCI_USER_GROUP_BASIC_DATA *basic_cfg_cb;
+
+    //ATG_DCI_USER_GROUP_UP_QOS *up_cfg_cb;
+
+    ATG_DCI_VPN_HQOS_POLICY data;//全FF代表删除不限速
+
+    NBB_ULONG lsp_id;
+
+    NBB_BYTE slot;
+
+    NBB_USHORT port;
+
+} SPM_QOS_USER_GROUP_CB;
+
+
 
 
 typedef struct spm_hqos_lsp_cb
@@ -55,8 +94,6 @@ typedef struct spm_hqos_lsp_cb
     AVLL_TREE vrf_tree;
 
     NBB_ULONG lsp_id;
-
-    NBB_ULONG pw_id;/*默认的PW ID */
 
     NBB_BYTE slot;
 

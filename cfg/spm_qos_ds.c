@@ -7760,6 +7760,7 @@ NBB_LONG spm_ds_add_ilm_node(
 }
 
 
+#if 8
 
 /*****************************************************************************
    函 数 名  : spm_ds_add_ilm_node
@@ -8180,7 +8181,7 @@ NBB_LONG spm_add_ilm_ds_node(NBB_ULONG label,ILM_DIFSER *diff,NBB_ULONG posid,
     EXIT_LABEL: NBB_TRC_EXIT();
     return ret;
 }
-
+#endif
 
 /*****************************************************************************
    函 数 名  : spm_qos_find_classify_cb
