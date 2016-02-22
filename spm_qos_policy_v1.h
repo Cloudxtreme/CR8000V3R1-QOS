@@ -112,4 +112,15 @@ typedef struct tx_uni_port
 
 NBB_LONG spm_add_flow_classify(SPM_QOS_POLICY_CB *policyCb, SUB_PORT *port);
 
+NBB_LONG spm_qos_policy_init(void);
+
+NBB_VOID spm_cfg_policy_cb_verify(void);
+
+NBB_VOID spm_cfg_logic_classify_cb_verify(void);
+
+NBB_LONG spm_add_logic_flow_classify_node(NBB_ULONG key,
+    ATG_DCI_LOG_PORT_INCLASSIFY_QOS *classify_qos, SUB_PORT *sub_port);
+
+NBB_VOID spm_qos_clear_all_logic_classify(void);
+
 #endif

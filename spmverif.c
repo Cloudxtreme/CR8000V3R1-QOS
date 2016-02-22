@@ -3068,13 +3068,7 @@ NBB_VOID spm_qos_cfg_cb_verfify(NBB_CXT_T NBB_CXT)
 
     spm_cfg_ds_domain_cb_verify( NBB_CXT);
 
-    spm_cfg_acl_cb_verify( NBB_CXT);
-
-    spm_cfg_policy_cb_verify( NBB_CXT);
-
-    spm_cfg_classify_cb_verify( NBB_CXT);
-
-    spm_cfg_action_cb_verify( NBB_CXT);
+    
 
     spm_cfg_hqos_slot_cb_verify( NBB_CXT);
 
@@ -3105,6 +3099,12 @@ NBB_VOID spm_qos_cfg_cb_verfify(NBB_CXT_T NBB_CXT)
     
     spm_twamp_ipv6_cb_verfify(NBB_CXT);
 */
+    spm_cfg_acl_cb_verify();
+    spm_cfg_logic_acl_cb_verify();
+    spm_cfg_policy_cb_verify();
+    spm_cfg_logic_classify_cb_verify();
+    spm_cfg_classify_cb_verify();
+    spm_cfg_action_cb_verify();
     spm_qos_defend_verify();
 
     NBB_TRC_EXIT();

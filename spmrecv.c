@@ -1239,7 +1239,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* ªÒ»°ATG_DCI_SET_WRED≈‰÷√.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_WRED"));
-      //spm_rcv_dci_set_wred(( ATG_DCI_SET_WRED*) ips   NBB_CCXT);
+      spm_rcv_dci_set_wred(( ATG_DCI_SET_WRED*) ips);
       break;  
       
     case IPS_ATG_DCI_SET_HQOS:

@@ -218,12 +218,12 @@ static NBB_LONG spm_set_wred_basic_cfg(NBB_ULONG key,NBB_ULONG oper,NBB_BYTE *bu
             /*                          存配置                                         */
             /***************************************************************************/
 #if defined (SPU) || defined (SRC)
-            ret = fhdrv_fap_qos_set_wred_profile(unit,0,ptemp->green_discard_percent,key,
+            ret = fhdrv_fap_qos_set_wred_profile(unit,0,key,
                 ptemp->green_end_threshold,ptemp->green_start_threshold,
                 ptemp->green_discard_percent);
             if(ATG_DCI_RC_OK != ret)
             {
-                spm_api_set_wred_profile_err(unit,0,ptemp->green_discard_percent,key,
+                spm_api_set_wred_profile_err(unit,0,key,
                     ptemp->green_end_threshold,ptemp->green_start_threshold,
                     ptemp->green_discard_percent,__FUNCTION__, __LINE__, ret);
                 goto EXIT_LABEL;
@@ -232,12 +232,12 @@ static NBB_LONG spm_set_wred_basic_cfg(NBB_ULONG key,NBB_ULONG oper,NBB_BYTE *bu
 #endif
 
 #if defined (SPU) || defined (SRC)
-            ret = fhdrv_fap_qos_set_wred_profile(unit,1,ptemp->yellow_discard_percent,key,
+            ret = fhdrv_fap_qos_set_wred_profile(unit,1,key,
                 ptemp->yellow_end_threshold,ptemp->yellow_start_threshold,
                 ptemp->yellow_discard_percent);
             if(ATG_DCI_RC_OK != ret)
             {
-                spm_api_set_wred_profile_err(unit,1,ptemp->yellow_discard_percent,key,
+                spm_api_set_wred_profile_err(unit,1,key,
                     ptemp->yellow_end_threshold,ptemp->yellow_start_threshold,
                     ptemp->yellow_discard_percent,__FUNCTION__, __LINE__, ret);
                 goto EXIT_LABEL;
@@ -246,12 +246,12 @@ static NBB_LONG spm_set_wred_basic_cfg(NBB_ULONG key,NBB_ULONG oper,NBB_BYTE *bu
 #endif
 
 #if defined (SPU) || defined (SRC)
-            ret = fhdrv_fap_qos_set_wred_profile(unit,2,ptemp->red_discard_percent,key,
+            ret = fhdrv_fap_qos_set_wred_profile(unit,2,key,
                 ptemp->red_end_threshold,ptemp->red_start_threshold,
                 ptemp->red_discard_percent);
             if(ATG_DCI_RC_OK != ret)
             {
-                spm_api_set_wred_profile_err(unit,2,ptemp->red_discard_percent,key,
+                spm_api_set_wred_profile_err(unit,2,key,
                     ptemp->red_end_threshold,ptemp->red_start_threshold,
                     ptemp->red_discard_percent,__FUNCTION__, __LINE__, ret);
                 goto EXIT_LABEL;
@@ -283,12 +283,12 @@ static NBB_LONG spm_set_wred_basic_cfg(NBB_ULONG key,NBB_ULONG oper,NBB_BYTE *bu
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_VOID spm_rcv_dci_set_wred_v1(ATG_DCI_SET_WRED *pst_set_ips)
+NBB_VOID spm_rcv_dci_set_wred(ATG_DCI_SET_WRED *pst_set_ips)
 {
     /***************************************************************************/
     /* Local Variables                                                         */
     /***************************************************************************/
-    NBB_ULONG ulkey = 0;
+    NBB_ULONG key = 0;
     NBB_LONG ret = ATG_DCI_RC_OK;
     NBB_BYTE *basic_date_start = NULL;
     NBB_ULONG oper_basic = ATG_DCI_OPER_NULL;
@@ -303,7 +303,7 @@ NBB_VOID spm_rcv_dci_set_wred_v1(ATG_DCI_SET_WRED *pst_set_ips)
     }
 
     pst_set_ips->return_code = ATG_DCI_RC_OK;
-    ulkey = pst_set_ips->key;
+    key = pst_set_ips->key;
 
 
     oper_basic = pst_set_ips->oper_basic;
@@ -313,10 +313,10 @@ NBB_VOID spm_rcv_dci_set_wred_v1(ATG_DCI_SET_WRED *pst_set_ips)
     if (TRUE == pst_set_ips->delete_struct)
     {
 #if defined (SPU) || defined (SRC)
-        ret = fhdrv_fap_qos_delete_wred_profile(unit,key);
+        ret = fhdrv_fap_qos_delete_wred_profile(0,key);
         if(ATG_DCI_RC_OK != ret)
         {
-            spm_api_del_wred_profile_err(unit,key,__FUNCTION__, __LINE__, ret);
+            spm_api_del_wred_profile_err(0,key,__FUNCTION__, __LINE__, ret);
             pst_set_ips->return_code = ATG_DCI_RC_DEL_FAILED;
             goto EXIT_LABEL;
         }
@@ -327,7 +327,7 @@ NBB_VOID spm_rcv_dci_set_wred_v1(ATG_DCI_SET_WRED *pst_set_ips)
     else
     {
 
-        ret = spm_set_wred_basic_cfg(ulkey,oper_basic,basic_date_start);
+        ret = spm_set_wred_basic_cfg(key,oper_basic,basic_date_start);
         pst_set_ips->basic_return_code = ret;
         pst_set_ips->return_code = ret;
     }
@@ -363,7 +363,7 @@ static void qos_print_port_wred_data(ATG_DCI_PHY_PORT_CONGEST_QUEUE *cfg)
     {
        if(ATG_DCI_RC_OK != g_qos_wred_print)
         {
-            printf("mode=%d,wred id=%d\n\n",cfg->mode,cfg->id);
+            printf("mode=%d,wred id=%d\n\n",cfg->mode,cfg->wred_id);
         } 
     }
     
@@ -398,7 +398,7 @@ static void qos_log_port_wred_data(NBB_LONG slot,NBB_LONG port,NBB_ULONG voq,NBB
         {
             
             OS_SPRINTF(uc_message,"slot=%d,port=%d,voq=%ld,cos=%d\n"
-                "mode=%d,wred id=%d\n\n",slot,port,voq,cos,cfg->mode,cfg->id);
+                "mode=%d,wred id=%d\n\n",slot,port,voq,cos,cfg->mode,cfg->wred_id);
             BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
         }
     }
@@ -457,10 +457,10 @@ NBB_LONG spm_set_physical_port_wred(SUB_PORT *sub_port,NBB_BYTE cos,ATG_DCI_PHY_
     else
     {
 #if defined (SPU) || defined (SRC)
-        ret = fhdrv_fap_qos_set_queue_wred(unit, voq, cos,cfg->id);
+        ret = fhdrv_fap_qos_set_queue_wred(unit, voq, cos,cfg->wred_id);
         if (ATG_DCI_RC_OK != ret)
         {
-            spm_api_set_que_wred_err(unit, voq, cos,cfg->id,__FUNCTION__, __LINE__, ret);
+            spm_api_set_que_wred_err(unit, voq, cos,cfg->wred_id,__FUNCTION__, __LINE__, ret);
             goto EXIT_LABEL;
         }
 #endif

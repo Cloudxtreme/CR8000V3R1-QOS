@@ -228,12 +228,13 @@ void spm_qos_init()
     /***************************************************************************/
     /* Local Variables                                                         */
     /***************************************************************************/
-    NBB_BUF_SIZE avll_key_offset;
     NBB_ULONG i = 0;
 
     NBB_TRC_ENTRY(__FUNCTION__);
-
-
+    spm_qos_policy_init();
+    spm_qos_acl_init();
+    spm_qos_behavior_init();
+    spm_qos_classify_init();
     spm_qos_defend_init();
 
 

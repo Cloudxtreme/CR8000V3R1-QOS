@@ -103,6 +103,11 @@ typedef struct spm_qos_classify_id_cb
 } SPM_QOS_CLASSIFY_ID_CB;
 
 
+NBB_VOID spm_cfg_classify_cb_verify(void);
+
+NBB_LONG spm_qos_classify_init(void);
+
+
 NBB_LONG spm_apply_classify_high_acl_id(NBB_ULONG *pid);
 
 NBB_LONG spm_apply_classify_port_acl_id(NBB_ULONG *pid);

@@ -128,6 +128,10 @@ typedef struct spm_qos_pw_car_cb
 
 #endif
 
+NBB_VOID spm_cfg_action_cb_verify(void);
+
+NBB_LONG spm_qos_behavior_init(void);
+
 NBB_LONG spm_qos_apply_meter_id(NBB_ULONG *pid);
 
 NBB_LONG spm_qos_free_meter_id(NBB_ULONG *pid);

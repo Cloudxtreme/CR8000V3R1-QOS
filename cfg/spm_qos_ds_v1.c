@@ -79,6 +79,36 @@ NBB_VOID qos_set_ds_log(NBB_BYTE set)
     g_qos_ds_log = set;
 }
 
+NBB_VOID qos_ds_help()
+{
+    NBB_CHAR **ppc_msg;
+
+    static NBB_CHAR *p_help_msg[] = {       
+        "---------------------------DS-----------------------------------", "",
+        "qos_set_ds_print(set)",                   "set all ds cfg print",
+        "qos_set_ds_log(set)",                     "set all ds log print",
+        "qos_show_phb2pri_ds_offset(dsptr,phb,color)",  "show ds offset",
+        "qos_show_pri2phb_ds_offset(dsptr,pri)",        "show ds offset",   
+        NULL
+    };
+
+    printf("\n");
+
+    for (ppc_msg = p_help_msg; *ppc_msg != NULL; ppc_msg += 2)
+    {
+        if (strlen(*(ppc_msg)) > 45)
+        {
+            printf(" %s %s\n", *ppc_msg, *(ppc_msg + 1));
+        }
+        else
+        {
+            printf(" %-40s %s\n", *ppc_msg, *(ppc_msg + 1));
+        }
+    }
+
+    printf("\n");
+}
+
 #if 1
 
 /*****************************************************************/

@@ -130,5 +130,10 @@ typedef struct spm_qos_logic_univp
     NBB_ULONG      vp_posid;
 }SPM_QOS_LOGIC_UNIVP;
 
+NBB_LONG spm_qos_acl_init(void);
+NBB_VOID spm_cfg_logic_acl_cb_verify(void);
+NBB_VOID spm_cfg_acl_cb_verify(void);
+NBB_VOID spm_qos_clear_all_logic_acl(void);
+NBB_LONG spm_add_logic_acl_node(NBB_ULONG key,ATG_DCI_LOG_PORT_TRAFFIC_FILTER *cfg, SUB_PORT *sub_port);
 
 #endif
