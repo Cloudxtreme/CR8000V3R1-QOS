@@ -68,6 +68,47 @@ NBB_INT spm_qos_logic_flow_key_compare(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_
     return ret;
 }
 
+/*****************************************************************************
+   函 数 名  : spm_qos_ilm_comp
+   功能描述  : ilm树的比较函数
+   输入参数  :
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_INT spm_qos_vrf_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 )
+{
+    NBB_INT ret = 0;
+    SPM_QOS_VRF_INSTANSE_KEY *key1;
+    SPM_QOS_VRF_INSTANSE_KEY *key2;
+
+    key1 = (SPM_QOS_VRF_INSTANSE_KEY *)(keyarg1);
+    key2 = (SPM_QOS_VRF_INSTANSE_KEY *)(keyarg2);
+
+    ret = compare_ushort(&key1->vrf_id, &key2->vrf_id );
+    if (0 != ret)
+    {
+        goto EXIT_LABEL;
+    }
+    ret = compare_ulong(&key1->peer_ip, &key2->peer_ip );
+    if (0 != ret)
+    {
+        goto EXIT_LABEL;
+    }
+    ret = compare_ulong(&key1->label, &key2->label);
+    if (0 != ret)
+    {
+        goto EXIT_LABEL;
+    }
+
+    EXIT_LABEL:
+    return ret;
+}
 
 /*****************************************************************************
    函 数 名  : spm_qos_logic_flow_key_compare
@@ -83,7 +124,7 @@ NBB_INT spm_qos_logic_flow_key_compare(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_
    修改内容  : 新生成函数
 *****************************************************************************/
 NBB_INT spm_qos_port_wred_key_compare(NBB_VOID *keyarg1, 
-    NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
+    NBB_VOID *keyarg2 )
 {
     /***************************************************************************/
     /* Local Variables                                                         */
@@ -92,12 +133,12 @@ NBB_INT spm_qos_port_wred_key_compare(NBB_VOID *keyarg1,
     SPM_PORT_WRED_KEY *key2 = (SPM_PORT_WRED_KEY *)keyarg2;
     NBB_INT ret = 0;
 
-    ret = compare_ulong(&key1->index, &key2->index NBB_CCXT);
+    ret = compare_ulong(&key1->index, &key2->index );
     if (0 != ret)
     {
         goto EXIT_LABEL;
     }
-    ret = compare_byte(&key1->cos, &key2->cos NBB_CCXT);
+    ret = compare_byte(&key1->cos, &key2->cos);
     if (0 != ret)
     {
         goto EXIT_LABEL;
@@ -109,8 +150,8 @@ NBB_INT spm_qos_port_wred_key_compare(NBB_VOID *keyarg1,
 
 
 /*****************************************************************************
-   函 数 名  : spm_qos_logic_key_compare
-   功能描述  : LSP_TX树的比较函数
+   函 数 名  : spm_qos_ftn_comp
+   功能描述  : ftn树的比较函数
    输入参数  :
    输出参数  :
    返 回 值  :
@@ -121,38 +162,132 @@ NBB_INT spm_qos_port_wred_key_compare(NBB_VOID *keyarg1,
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_INT spm_qos_lsp_tx_compare(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
+NBB_INT spm_qos_ftn_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2)
 {
-    /***************************************************************************/
-    /* Local Variables                                                         */
-    /***************************************************************************/
-    CRTXLSP_KEY *key1 = (CRTXLSP_KEY *)keyarg1;
-    CRTXLSP_KEY *key2 = (CRTXLSP_KEY *)keyarg2;
+    FTN_KEY *key1 = (FTN_KEY *)keyarg1;
+    FTN_KEY *key2 = (FTN_KEY *)keyarg2;
     NBB_INT rv = 0;
 
-    rv = compare_ulong(&key1->ingress, &key2->ingress NBB_CCXT);
+    rv = compare_ushort(&key1->vrfid, &key2->vrfid);
     if (rv != 0)
     {
         goto EXIT_LABEL;
     }
-    rv = compare_ulong(&key1->egress, &key2->egress NBB_CCXT);
+    rv = compare_ulong(&key1->fec, &key2->fec);
     if (rv != 0)
     {
         goto EXIT_LABEL;
     }
-    rv = compare_ulong(&key1->tunnelid, &key2->tunnelid NBB_CCXT);
-    if (rv != 0)
-    {
-        goto EXIT_LABEL;
-    }
-    rv = compare_ulong(&key1->lspid, &key2->lspid NBB_CCXT);
+    rv = compare_byte(&key1->mask, &key2->mask);
     if (rv != 0)
     {
         goto EXIT_LABEL;
     }
 
     EXIT_LABEL:
-    return(rv);
+    return rv;
+}
+
+
+
+
+/*****************************************************************************
+   函 数 名  : spm_qos_tx_lsp_comp
+   功能描述  : tx_lsp树的比较函数
+   输入参数  :
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_INT spm_qos_tx_lsp_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 )
+{
+    CRTXLSP_KEY *lsp_key1;
+    CRTXLSP_KEY *lsp_key2;
+    NBB_INT ret = 0;
+
+    lsp_key1 = (CRTXLSP_KEY *)(keyarg1);
+    lsp_key2 = (CRTXLSP_KEY *)(keyarg2);
+
+    ret = compare_ulong(&(lsp_key1->ingress), &(lsp_key2->ingress));
+    if (0 != ret)
+    {
+        goto EXIT_LABEL;
+    }
+    ret = compare_ulong(&(lsp_key1->egress), &(lsp_key2->egress) );
+    if (0 != ret)
+    {
+        goto EXIT_LABEL;
+    }
+    ret = compare_ulong(&(lsp_key1->lspid), &(lsp_key2->lspid) );
+    if (0 != ret)
+    {
+        goto EXIT_LABEL;
+    }
+    ret = compare_ulong(&(lsp_key1->tunnelid), &(lsp_key2->tunnelid) );
+    if (0 != ret)
+    {
+        goto EXIT_LABEL;
+    }
+
+    EXIT_LABEL:
+    return ret;
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_qos_tunnel_comp
+   功能描述  : tunnel树的比较函数
+   输入参数  :
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_INT spm_qos_tunnel_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2  )
+{
+    SPM_QOS_TUNNEL_KEY *key1 = (SPM_QOS_TUNNEL_KEY *)keyarg1;
+    SPM_QOS_TUNNEL_KEY *key2 = (SPM_QOS_TUNNEL_KEY *)keyarg2;
+    NBB_INT rv = 0;
+
+    rv = compare_ushort(&key1->type, &key2->type );
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+    rv = compare_ushort(&key1->flag, &key2->flag );
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+    if(1 == key1->type)
+    {
+        rv = spm_qos_tx_lsp_comp(&key1->tx_lsp, &key2->tx_lsp );
+        if (rv != 0)
+        {
+            goto EXIT_LABEL;
+        }
+
+    }
+    else
+    {
+        rv = spm_qos_ftn_comp(&key1->ftn, &key2->ftn );
+        if (rv != 0)
+        {
+            goto EXIT_LABEL;
+        }
+    }
+
+    EXIT_LABEL:
+    return rv;
 }
 
 
@@ -225,16 +360,16 @@ NBB_INT spm_qos_logic_key_compare(NBB_VOID *keyarg1, NBB_VOID *keyarg2)
 *****************************************************************************/
 void spm_qos_init()
 {
-    /***************************************************************************/
-    /* Local Variables                                                         */
-    /***************************************************************************/
-    NBB_ULONG i = 0;
 
     NBB_TRC_ENTRY(__FUNCTION__);
+    
     spm_qos_policy_init();
     spm_qos_acl_init();
     spm_qos_behavior_init();
     spm_qos_classify_init();
+
+    spm_init_twamp();
+    
     spm_qos_defend_init();
 
 
@@ -1381,6 +1516,16 @@ void spm_qos_clear_all_cfg()
 {
     spm_qos_clear_defend_cfg();
     spm_qos_defend_init();
+
+    spm_qos_clear_all_acl();
+    spm_qos_clear_all_logic_acl();
+    spm_qos_clear_all_action();
+    spm_qos_clear_all_classify();
+    spm_qos_clear_all_policy();
+    spm_qos_clear_all_logic_classify();
+    
+    spm_qos_clear_all_twamp_ipv4_cb();
+    spm_qos_clear_all_twamp_ipv6_cb();
 }
 
 #endif

@@ -39,11 +39,31 @@ typedef struct spm_port_wred_key
 
 /*##################以上不需要的结构体为了编译通过######################*/
 
-#define QOS_CFG_STRING       "QOS CFG"
+
 #define QOS_MSG_INFO_LEN    300 
 #define QOS_PD              25
-#define QOS_ERROR_STRING     "**Qos ERROR**"
 #define QOS_RCU_PORT    (104)
+
+
+
+#define QOS_CFG_STRING       "QOS CFG"
+#define HQOS_LSP_CFG         "HQOS LSP CFG"
+#define HQOS_LSP_ERROR       "***HQOS LSP ERROR***"
+#define HQOS_LSP_WARNING     "***HQOS LSP WARNING***"
+#define HQOS_VRF_CFG         "HQOS VRF CFG"
+#define HQOS_VRF_ERROR       "***HQOS VRF ERROR***"
+#define HQOS_VC_CFG         "HQOS VC CFG"
+#define HQOS_VC_ERROR       "***HQOS VC ERROR***"
+#define HQOS_USR_CFG         "HQOS USR CFG"
+#define HQOS_USR_ERROR       "***HQOS USR ERROR***"
+#define HQOS_GROUP_CFG         "HQOS GROUP CFG"
+#define HQOS_GROUP_ERROR       "***HQOS GROUP ERROR***"
+#define HQOS_ARAD_ERROR       "***HQOS ARAD ERROR***"
+#define HQOS_C3_ERROR       "***HQOS C3 ERROR***"
+#define HQOS_BMU_ERROR       "***HQOS BMU ERROR***"
+#define QOS_ERROR_STRING     "**Qos ERROR**"
+
+
 
 #define QOS_EXIST 1
 #define QOS_UNEXIST 0
@@ -111,46 +131,6 @@ typedef struct spm_qos_tunnel_key
     CRTXLSP_KEY     tx_lsp;     //type = 1 CR-LSP Tx
 }SPM_QOS_TUNNEL_KEY;
 
-
-
-
-
-
-/* QoS模块相关信息 */
-typedef struct spm_twamp_ipv4_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_twamp_ipv4_node;
-
-    ATG_DCI_TWAMP_IPV4_KEY key;
-
-    ATG_DCI_TWAMP_IPV4_BASIC data;
-    
-    /***************************************************************************/
-    /* Driver return code.                                                     */
-    /***************************************************************************/
-    NBB_ULONG posId;         /*posId*/
-    
-    NBB_ULONG groupId;       /*groupId*/
-    
-    NBB_ULONG entryId;       /*entryId*/   
-} SPM_TWAMP_IPV4_CB;
-
-/* QoS模块相关信息 */
-typedef struct spm_twamp_ipv6_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_twamp_ipv6_node;
-
-    ATG_DCI_TWAMP_IPV6_KEY key;
-
-    ATG_DCI_TWAMP_IPV6_BASIC *data;
-
-} SPM_TWAMP_IPV6_CB;
 
 
 

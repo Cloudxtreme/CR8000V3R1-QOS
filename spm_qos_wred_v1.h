@@ -19,7 +19,8 @@
 #ifndef SPM_QOS_WRED_H
 #define SPM_QOS_WRED_H
 
-
+#define MEM_SPM_WRED_CB                     ((NBB_LONG)(PCT_SPM | 0x00001f00))
+#define MEM_SPM_WRED_BASIC_CB                     ((NBB_LONG)(PCT_SPM | 0x00001f01))
 
 /*****************************************************************************
    函 数 名  : spm_qos_logic_key_compare
@@ -35,5 +36,7 @@
    修改内容  : 新生成函数
 *****************************************************************************/
 NBB_LONG spm_set_physical_port_wred(SUB_PORT *sub_port,NBB_BYTE cos,ATG_DCI_PHY_PORT_CONGEST_QUEUE *cfg);
+
+NBB_VOID spm_rcv_dci_set_wred(ATG_DCI_SET_WRED *pst_set_ips);
 
 #endif

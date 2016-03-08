@@ -328,114 +328,7 @@ NBB_INT spm_qos_logic_acl_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T N
 }
 
 
-/*****************************************************************************
-   函 数 名  : spm_qos_logic_key_compare
-   功能描述  : 逻辑端口树的比较函数
-   输入参数  :
-   输出参数  :
-   返 回 值  :
-   调用函数  :
-   被调函数  :
-   修改历史  :
-   日    期  : 2013年1月15日 星期二
-   作    者  : zenglu
-   修改内容  : 新生成函数
-*****************************************************************************/
-NBB_INT spm_twamp_ipv4_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
-{
-    /***************************************************************************/
-    /* Local Variables                                                         */
-    /***************************************************************************/
-    ATG_DCI_TWAMP_IPV4_KEY *key1 = (ATG_DCI_TWAMP_IPV4_KEY *)keyarg1;
-    ATG_DCI_TWAMP_IPV4_KEY *key2 = (ATG_DCI_TWAMP_IPV4_KEY *)keyarg2;
-    NBB_INT ret = 0;
 
-    ret = compare_ushort(&(key1->vrf_id), &(key2->vrf_id) NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-    ret = compare_ulong(&(key1->sip), &(key2->sip) NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-    ret = compare_ulong(&key1->dip, &key2->dip NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-    ret = compare_ushort(&key1->sport, &key2->sport NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-    ret = compare_ushort(&key1->dport, &key2->dport NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-
-    EXIT_LABEL:
-    return ret;
-}
-
-
-/*****************************************************************************
-   函 数 名  : spm_qos_logic_key_compare
-   功能描述  : 逻辑端口树的比较函数
-   输入参数  :
-   输出参数  :
-   返 回 值  :
-   调用函数  :
-   被调函数  :
-   修改历史  :
-   日    期  : 2013年1月15日 星期二
-   作    者  : zenglu
-   修改内容  : 新生成函数
-*****************************************************************************/
-NBB_INT spm_twamp_ipv6_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
-{
-    /***************************************************************************/
-    /* Local Variables                                                         */
-    /***************************************************************************/
-    ATG_DCI_TWAMP_IPV6_KEY *key1 = (ATG_DCI_TWAMP_IPV6_KEY *)keyarg1;
-    ATG_DCI_TWAMP_IPV6_KEY *key2 = (ATG_DCI_TWAMP_IPV6_KEY *)keyarg2;
-    NBB_INT ret = 0;
-    NBB_INT i = 0;
-
-    ret = compare_ushort(&(key1->vrf_id), &(key2->vrf_id) NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-    for(i = 0;i < ATG_DCI_IPV6_LEN;i++)
-    {
-        ret = compare_ulong(&(key1->sip[i]), &(key2->sip[i]) NBB_CCXT);
-        if (0 != ret)
-        {
-            goto EXIT_LABEL;
-        }
-        ret = compare_ulong(&(key1->dip[i]), &(key2->dip[i]) NBB_CCXT);
-        if (0 != ret)
-        {
-            goto EXIT_LABEL;
-        }
-    }
-    ret = compare_ushort(&key1->sport, &key2->sport NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-    ret = compare_ushort(&key1->dport, &key2->dport NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-
-    EXIT_LABEL:
-    return ret;
-}
 
 
 
@@ -706,220 +599,10 @@ NBB_INT spm_qos_ilm_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT
 }
 
 
-/*****************************************************************************
-   函 数 名  : spm_qos_ilm_comp
-   功能描述  : ilm树的比较函数
-   输入参数  :
-   输出参数  :
-   返 回 值  :
-   调用函数  :
-   被调函数  :
-   修改历史  :
-   日    期  : 2013年1月15日 星期二
-   作    者  : zenglu
-   修改内容  : 新生成函数
-*****************************************************************************/
-NBB_INT spm_qos_vrf_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
-{
-    NBB_INT ret = 0;
-    SPM_QOS_VRF_INSTANSE_KEY *key1;
-    SPM_QOS_VRF_INSTANSE_KEY *key2;
-
-    key1 = (SPM_QOS_VRF_INSTANSE_KEY *)(keyarg1);
-    key2 = (SPM_QOS_VRF_INSTANSE_KEY *)(keyarg2);
-
-    ret = compare_ushort(&key1->vrf_id, &key2->vrf_id NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-    ret = compare_ulong(&key1->peer_ip, &key2->peer_ip NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-    ret = compare_ulong(&key1->label, &key2->label NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-
-    EXIT_LABEL:
-    return ret;
-}
 
 
-/*****************************************************************************
-   函 数 名  : spm_qos_ftn_comp
-   功能描述  : ftn树的比较函数
-   输入参数  :
-   输出参数  :
-   返 回 值  :
-   调用函数  :
-   被调函数  :
-   修改历史  :
-   日    期  : 2013年1月15日 星期二
-   作    者  : zenglu
-   修改内容  : 新生成函数
-*****************************************************************************/
-NBB_INT spm_qos_ftn_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
-{
-    FTN_KEY *key1 = (FTN_KEY *)keyarg1;
-    FTN_KEY *key2 = (FTN_KEY *)keyarg2;
-    NBB_INT rv = 0;
-
-    rv = compare_ushort(&key1->vrfid, &key2->vrfid NBB_CCXT);
-    if (rv != 0)
-    {
-        goto EXIT_LABEL;
-    }
-    rv = compare_ulong(&key1->fec, &key2->fec NBB_CCXT);
-    if (rv != 0)
-    {
-        goto EXIT_LABEL;
-    }
-    rv = compare_byte(&key1->mask, &key2->mask NBB_CCXT);
-    if (rv != 0)
-    {
-        goto EXIT_LABEL;
-    }
-
-    EXIT_LABEL:
-    return rv;
-}
-
-/*****************************************************************************
-   函 数 名  : spm_qos_rx_lsp_comp
-   功能描述  : rx_lsp树的比较函数
-   输入参数  :
-   输出参数  :
-   返 回 值  :
-   调用函数  :
-   被调函数  :
-   修改历史  :
-   日    期  : 2013年1月15日 星期二
-   作    者  : zenglu
-   修改内容  : 新生成函数
-*****************************************************************************/
-NBB_INT spm_qos_rx_lsp_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
-{
-    SPM_QOS_DS_RXLSP_KEY *lsp_key1;
-    SPM_QOS_DS_RXLSP_KEY *lsp_key2;
-
-    lsp_key1 = (SPM_QOS_DS_RXLSP_KEY *)(keyarg1);
-    lsp_key2 = (SPM_QOS_DS_RXLSP_KEY *)(keyarg2);
-
-    if (lsp_key1->rxlspkey.ingress == lsp_key2->rxlspkey.ingress
-        && lsp_key1->rxlspkey.egress == lsp_key2->rxlspkey.egress
-        && lsp_key1->rxlspkey.tunnelid == lsp_key2->rxlspkey.tunnelid
-        && lsp_key1->rxlspkey.lspid == lsp_key2->rxlspkey.lspid
-        && lsp_key1->flag == lsp_key2->flag)
-    {
-        return 0;
-    }
-
-    return 1;
-}
 
 
-/*****************************************************************************
-   函 数 名  : spm_qos_tx_lsp_comp
-   功能描述  : tx_lsp树的比较函数
-   输入参数  :
-   输出参数  :
-   返 回 值  :
-   调用函数  :
-   被调函数  :
-   修改历史  :
-   日    期  : 2013年1月15日 星期二
-   作    者  : zenglu
-   修改内容  : 新生成函数
-*****************************************************************************/
-NBB_INT spm_qos_tx_lsp_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
-{
-    CRTXLSP_KEY *lsp_key1;
-    CRTXLSP_KEY *lsp_key2;
-    NBB_INT ret = 0;
-
-    lsp_key1 = (CRTXLSP_KEY *)(keyarg1);
-    lsp_key2 = (CRTXLSP_KEY *)(keyarg2);
-
-    ret = compare_ulong(&(lsp_key1->ingress), &(lsp_key2->ingress) NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-    ret = compare_ulong(&(lsp_key1->egress), &(lsp_key2->egress) NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-    ret = compare_ulong(&(lsp_key1->lspid), &(lsp_key2->lspid) NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-    ret = compare_ulong(&(lsp_key1->tunnelid), &(lsp_key2->tunnelid) NBB_CCXT);
-    if (0 != ret)
-    {
-        goto EXIT_LABEL;
-    }
-
-    EXIT_LABEL:
-    return ret;
-}
-
-
-/*****************************************************************************
-   函 数 名  : spm_qos_tunnel_comp
-   功能描述  : tunnel树的比较函数
-   输入参数  :
-   输出参数  :
-   返 回 值  :
-   调用函数  :
-   被调函数  :
-   修改历史  :
-   日    期  : 2013年1月15日 星期二
-   作    者  : zenglu
-   修改内容  : 新生成函数
-*****************************************************************************/
-NBB_INT spm_qos_tunnel_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
-{
-    SPM_QOS_TUNNEL_KEY *key1 = (SPM_QOS_TUNNEL_KEY *)keyarg1;
-    SPM_QOS_TUNNEL_KEY *key2 = (SPM_QOS_TUNNEL_KEY *)keyarg2;
-    NBB_INT rv = 0;
-
-    rv = compare_ushort(&key1->type, &key2->type NBB_CCXT);
-    if (rv != 0)
-    {
-        goto EXIT_LABEL;
-    }
-    rv = compare_ushort(&key1->flag, &key2->flag NBB_CCXT);
-    if (rv != 0)
-    {
-        goto EXIT_LABEL;
-    }
-    if(1 == key1->type)
-    {
-        rv = spm_qos_tx_lsp_comp(&key1->tx_lsp, &key2->tx_lsp NBB_CCXT);
-        if (rv != 0)
-        {
-            goto EXIT_LABEL;
-        }
-
-    }
-    else
-    {
-        rv = spm_qos_ftn_comp(&key1->ftn, &key2->ftn NBB_CCXT);
-        if (rv != 0)
-        {
-            goto EXIT_LABEL;
-        }
-    }
-
-    EXIT_LABEL:
-    return rv;
-}
 
 
 #if 1
@@ -1025,61 +708,8 @@ NBB_VOID spm_qos_init(NBB_CXT_T NBB_CXT)
         (NBB_USHORT)avll_key_offset,
         (NBB_USHORT)NBB_OFFSETOF(SPM_PORT_WRED_CB, spm_port_wred_node));
 
-    /* QOS L3 INTF逻辑端口树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_DS_LOGIC_INTF_CB, logic_key);
-    AVLL_INIT_TREE(SHARED.qos_ds_logic_intf_tree, spm_qos_logic_key_compare,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DS_LOGIC_INTF_CB, spm_qos_logic_node));
 
-    /* QOS L2 flow逻辑端口树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_DS_LOGIC_FLOW_CB, flow_key);
-    AVLL_INIT_TREE(SHARED.qos_ds_logic_flow_tree, spm_qos_logic_flow_key_compare,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DS_LOGIC_FLOW_CB, spm_qos_logic_node));
 
-    /* QOS vc 树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_DS_VC_CB, vc_key);
-    AVLL_INIT_TREE(SHARED.qos_ds_vc_tree, spm_vc_key_compare,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DS_VC_CB, spm_qos_vc_node));
-
-    /* QOS vrf 树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_DS_VRF_CB, vrf_key);
-    AVLL_INIT_TREE(SHARED.qos_ds_vrf_tree, spm_qos_vrf_comp,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DS_VRF_CB, spm_qos_vrf_node));
-
-    /* QOS ILM 树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_DS_ILM_CB, ilm_key);
-    AVLL_INIT_TREE(SHARED.qos_ds_ilm_tree, spm_qos_ilm_comp,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DS_ILM_CB, spm_qos_ilm_node));
-
-    /* QOS ftn 树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_DS_FTN_CB, ftn_key);
-    AVLL_INIT_TREE(SHARED.qos_ds_ftn_tree, spm_qos_ftn_comp,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DS_FTN_CB, spm_qos_ftn_node));
-
-    /* QOS rx lsp树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_DS_RX_LSP_CB, rx_lsp_key);
-    AVLL_INIT_TREE(SHARED.qos_ds_rx_lsp_tree, spm_qos_rx_lsp_comp,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DS_RX_LSP_CB, spm_qos_rx_lsp_node));
-
-    /* QOS tx lsp树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_DS_TX_LSP_CB, tx_lsp_key);
-    AVLL_INIT_TREE(SHARED.qos_ds_tx_lsp_tree, spm_qos_tx_lsp_comp,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DS_TX_LSP_CB, spm_qos_tx_lsp_node));
-
-    /* QOS tunnel树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_DS_TUNNEL_CB, tunnel_key);
-    AVLL_INIT_TREE(SHARED.qos_ds_tunnel_tree, spm_qos_tunnel_comp,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DS_TUNNEL_CB, spm_qos_tunnel_node));
-
-#ifdef PTN690
 
     /* QOS txlsp car树初始化 */
     avll_key_offset = NBB_OFFSETOF(SPM_QOS_TXLSP_CAR_CB, txlsp_key);
@@ -1087,18 +717,13 @@ NBB_VOID spm_qos_init(NBB_CXT_T NBB_CXT)
         (NBB_USHORT)avll_key_offset,
         (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_TXLSP_CAR_CB, spm_qos_txlsp_car_node));
 
-#endif
+
     /* QOS pw car树初始化 */
     avll_key_offset = NBB_OFFSETOF(SPM_QOS_PW_CAR_CB, log_key);
     AVLL_INIT_TREE(SHARED.qos_pw_car_tree, compare_ulong,
         (NBB_USHORT)avll_key_offset,
         (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_PW_CAR_CB, spm_qos_pw_car_node));
 
-    /* DS 树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_DS_CB, ds_key);
-    AVLL_INIT_TREE(SHARED.ds_tree, compare_ulong,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_DS_CB, spm_ds_node));
 
     /* DS域树初始化 */
     avll_key_offset = NBB_OFFSETOF(SPM_DS_DOMAIN_CB, ds_domain_key);
@@ -1130,30 +755,7 @@ NBB_VOID spm_qos_init(NBB_CXT_T NBB_CXT)
         (NBB_USHORT)avll_key_offset,
         (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_FLOW_UP_USR_CB, spm_qos_flow_up_usr_node));
 
-    /* 逻辑端口filter树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_LOGIC_ACL_CB, key);
-    AVLL_INIT_TREE(SHARED.qos_filter_tree, spm_qos_logic_acl_comp,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_LOGIC_ACL_CB, spm_acl_node));
-
-    /* ACL树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_ACL_CB, acl_key);
-    AVLL_INIT_TREE(SHARED.qos_acl_tree, spm_qos_acl_comp,
-        (NBB_USHORT)avll_key_offset,
-        (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_ACL_CB, spm_acl_node));
-
-    /* ACL组初始化 */
-    for (i = 0; i < MAX_ACL_CFG_NUM; i++)
-    {
-        NBB_INIT_ROOT(SHARED.g_acl_id_instance[i].acl_group);
-
-        avll_key_offset = NBB_OFFSETOF(SPM_QOS_LOGIC_ACL_CB, key);
-        AVLL_INIT_TREE(SHARED.g_acl_id_instance[i].instance_tree, spm_qos_logic_acl_comp,
-                (NBB_USHORT)avll_key_offset,
-                (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_LOGIC_ACL_CB,spm_acl_id_node));
-
-        SHARED.g_acl_id_instance[i].match_type = MATCH_ERROR;
-    }
+  
 
     /* CLASSIFY组初始化 */
     for (i = 0; i < MAX_FLOW_CLASSIFY_PRI; i++)
@@ -1200,33 +802,15 @@ NBB_VOID spm_qos_init(NBB_CXT_T NBB_CXT)
             (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DEFEND_CB,spm_defend_node));
 #endif
 
-    /* 用户组树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_QOS_USER_GROUP_CB,user_group_key);
-    AVLL_INIT_TREE(SHARED.qos_user_group_tree, compare_ulong,
-            (NBB_USHORT)avll_key_offset,
-            (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_USER_GROUP_CB,spm_qos_user_group_node));
+    
 
-    avll_key_offset = NBB_OFFSETOF(SPM_HQOS_SLOT_CB, index);
-    AVLL_INIT_TREE(SHARED.hqos_tree, compare_ulong,
-            (NBB_USHORT)avll_key_offset,
-            (NBB_USHORT)NBB_OFFSETOF(SPM_HQOS_SLOT_CB,spm_hqos_slot_node));
 
     avll_key_offset = NBB_OFFSETOF(SPM_QOS_WRED_CB, wred_key);
     AVLL_INIT_TREE(SHARED.qos_wred_tree, compare_ulong,
             (NBB_USHORT)avll_key_offset,
             (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_WRED_CB,spm_wred_node));
 
-    /* twamp_ipv4树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_TWAMP_IPV4_CB, key);
-    AVLL_INIT_TREE(SHARED.twamp_ipv4_tree, spm_twamp_ipv4_comp,
-            (NBB_USHORT)avll_key_offset,
-            (NBB_USHORT)NBB_OFFSETOF(SPM_TWAMP_IPV4_CB,spm_twamp_ipv4_node));
-
-    /* twamp_ipv6树初始化 */
-    avll_key_offset = NBB_OFFSETOF(SPM_TWAMP_IPV6_CB, key);
-    AVLL_INIT_TREE(SHARED.twamp_ipv6_tree, spm_twamp_ipv6_comp,
-            (NBB_USHORT)avll_key_offset,
-            (NBB_USHORT)NBB_OFFSETOF(SPM_TWAMP_IPV6_CB, spm_twamp_ipv6_node));
+    
 
     spm_init_hqos_port_cb(NBB_CXT);
 
@@ -3318,122 +2902,6 @@ NBB_VOID spm_qos_clear_all_cfg(NBB_CXT_T NBB_CXT)
 #endif
 
 
-#if 0
-NBB_VOID dbg_get_mem(NBB_LONG *mem)
-{
-    struct sysinfo s_info;
-    int error;
-
-   /* error = sysinfo(&s_info);
-    printf("\n\ncode error=%d\n",error);
-    printf("Uptime = %ds\nLoad: 1 min%d / 5 min %d / 15 min %d\n"
-          "RAM: total %dk / free %dk / shared %dk\n"
-          "Memory in buffers = %d\nSwap:total %d / free %d\n"
-          "Number of processes = %d\n",
-          s_info.uptime, s_info.loads[0],
-          s_info.loads[1], s_info.loads[2],
-          s_info.totalram/1024, s_info.freeram/1024,
-          s_info.totalswap, s_info.freeswap,
-          s_info.procs ); 
-
-    *mem = (int)(s_info.freeram/1024);*/
-    return;
-}
-
-NBB_LONG dbg_hqos_lsp(NBB_USHORT port)
-{
-   NBB_TRC_ENTRY("dbg_hqos_lsp");
-   
-   NBB_USHORT i = 0;
-   NBB_USHORT j = 0;
-   NBB_USHORT k = 0;
-   NBB_LONG voq = 7000;
-   NBB_LONG ret = 0;
-   for(i = 2;i < 1001;i++)
-   {
-#if defined (SPU) || defined (SRC)
-     ret = ApiAradHqosLspCreate(0,port+PTN_690_PORT_OFFSET,i);
-#endif
-     if(0 != ret)
-     {
-        printf("**ERROR** ret =%d,lsp id=%d ApiAradHqosLspCreate", ret,i);
-        break;     
-     }
-   }
-   EXIT_LABEL: NBB_TRC_EXIT();
-   
-   return ret;
-}
-
-NBB_LONG dbg_hqos_pw(NBB_USHORT port)
-{
-   NBB_TRC_ENTRY("dbg_hqos_pw");
-   
-   NBB_USHORT i = 0;
-   NBB_LONG ret = 0;
-   for(i = 2;i < 1001;i++)
-   {
-     sleep(1);
-#if defined (SPU) || defined (SRC)
-     ret=ApiAradHqosPwCreate(0,port+PTN_690_PORT_OFFSET,i,2*i-1,0);
-#endif
-     if(0 != ret)
-     {
-        printf( "ret =%d,pw id=%,ApiAradHqosPwCreate",ret,2*i-1);
-        break;     
-     }
-     //sleep(1);
-#if defined (SPU) || defined (SRC)
-     ret=ApiAradHqosPwCreate(0,port+PTN_690_PORT_OFFSET,i,2*i,0);
-#endif
-     if(0 != ret)
-     {
-        printf("ret =%d,pw id=%,ApiAradHqosPwCreate",ret,2*i);
-        break;     
-     }
-
-   }
-
-   EXIT_LABEL: NBB_TRC_EXIT();
-   return ret;
-}
-
-NBB_LONG dbg_hqos_voq(NBB_USHORT port)
-{
-
-   NBB_TRC_ENTRY("dbg_hqos_voq");
-   
-   NBB_USHORT i = 0;
-   NBB_LONG voq = 16000;
-   NBB_LONG ret = 0;
-   for(i = 2;i < 1001;i++)
-   {
-#if defined (SPU) || defined (SRC)
-     ret = ApiAradHqosTrafficSet(0,voq,8,7,port+PTN_690_PORT_OFFSET,voq,2*i-1);
-#endif
-     if(0 != ret)
-     {
-        printf( "ret =%d,pw id=%,voq=%d,ApiAradHqosTrafficSet",ret,2*i-1,voq);
-        break;     
-     }
-     voq+=8;
-#if defined (SPU) || defined (SRC)
-     ret = ApiAradHqosTrafficSet(0,voq,8,7,port+PTN_690_PORT_OFFSET,voq,2*i);
-#endif
-     if(0 != ret)
-     {
-        printf("ret =%d,pw id=%,voq=%d,ApiAradHqosTrafficSet",ret,2*i,voq);
-        break;     
-     }
-     voq+=8; 
-   }
-
-   EXIT_LABEL: NBB_TRC_EXIT();
-   return ret;
-}
-
-
-#endif
 
 
 

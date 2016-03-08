@@ -22,21 +22,7 @@
 
 
 
-#define QOS_CFG_STRING       "QOS CFG"
-#define HQOS_LSP_CFG         "HQOS LSP CFG"
-#define HQOS_LSP_ERROR       "***HQOS LSP ERROR***"
-#define HQOS_LSP_WARNING     "***HQOS LSP WARNING***"
-#define HQOS_VRF_CFG         "HQOS VRF CFG"
-#define HQOS_VRF_ERROR       "***HQOS VRF ERROR***"
-#define HQOS_VC_CFG         "HQOS VC CFG"
-#define HQOS_VC_ERROR       "***HQOS VC ERROR***"
-#define HQOS_USR_CFG         "HQOS USR CFG"
-#define HQOS_USR_ERROR       "***HQOS USR ERROR***"
-#define HQOS_GROUP_CFG         "HQOS GROUP CFG"
-#define HQOS_GROUP_ERROR       "***HQOS GROUP ERROR***"
-#define HQOS_ARAD_ERROR       "***HQOS ARAD ERROR***"
-#define HQOS_C3_ERROR       "***HQOS C3 ERROR***"
-#define HQOS_BMU_ERROR       "***HQOS BMU ERROR***"
+
 
 #define QOS_MSG_INFO_LEN    300 
 
@@ -558,61 +544,8 @@ typedef struct spm_qos_lsp_tx_cb
 
 #define DEFAULT_B_NODE         1
 
-/* QoS模块相关信息 */
-typedef struct spm_hqos_lsp_tx_cb
-{
-
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_hqos_lsp_tx_node;
 
 
-    SPM_QOS_TUNNEL_KEY lsp_tx_key;
-
-    AVLL_TREE vc_tree;
-
-    AVLL_TREE vrf_tree;
-
-    NBB_ULONG lsp_id;
-
-    NBB_ULONG pw_id;
-
-    /*policy索引*/
-    NBB_ULONG policy_index;
-
-    NBB_BYTE mode;
-
-    SPM_TE_SHAPING shaping;
-
-    NBB_ULONG node_index;
-
-    NBB_USHORT pw_cnt;/*IP LSP业务模型引用计数*/
-
-    //NBB_USHORT default_flag;
-} SPM_HQOS_LSP_TX_CB;
-
-
-/* cfg tree */
-typedef struct spm_ds_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_ds_node;
-
-    /* key值: index */
-    NBB_ULONG ds_key;
-
-    /* 用户到phb映射子配置*/
-    ATG_DCI_DIFF_SERV_PRI2PHBMAP *pri2phb_cfg_cb;
-
-    /* phb到用户映射子配置*/
-    ATG_DCI_DIFF_SERV_PHB2PRIMAP *phb2pri_cfg_cb;
-
-    NBB_ULONG cnt;
-
-} SPM_DS_CB;
 
 /* QoS模块相关信息 */
 typedef struct spm_qos_ds_domain_cb
@@ -1125,41 +1058,8 @@ typedef struct spm_hqos_slot_cb
 
 } SPM_HQOS_SLOT_CB;
 
-/* QoS模块相关信息 */
-typedef struct spm_twamp_ipv4_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_twamp_ipv4_node;
 
-    ATG_DCI_TWAMP_IPV4_KEY key;
 
-    ATG_DCI_TWAMP_IPV4_BASIC data;
-    
-    /***************************************************************************/
-    /* Driver return code.                                                     */
-    /***************************************************************************/
-    NBB_ULONG posId;         /*posId*/
-    
-    NBB_ULONG groupId;       /*groupId*/
-    
-    NBB_ULONG entryId;       /*entryId*/   
-} SPM_TWAMP_IPV4_CB;
-
-/* QoS模块相关信息 */
-typedef struct spm_twamp_ipv6_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_twamp_ipv6_node;
-
-    ATG_DCI_TWAMP_IPV6_KEY key;
-
-    ATG_DCI_TWAMP_IPV6_BASIC *data;
-
-} SPM_TWAMP_IPV6_CB;
 
 
 

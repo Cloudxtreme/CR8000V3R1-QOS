@@ -24,6 +24,11 @@
 #include <spm_qos_action_v1.h>
 #include <spm_qos_classify_v1.h>
 
+#define MEM_SPM_QOS_FLOW_CLASSIFY_CB                     ((NBB_LONG)(PCT_SPM | 0x0000111B))
+#define MEM_SPM_POLICY_CB                     ((NBB_LONG)(PCT_SPM | 0x00002400))
+#define MEM_SPM_POLICY_BASIC_CB                     ((NBB_LONG)(PCT_SPM | 0x00002401))
+#define MEM_SPM_POLICY_C2B_CB                     ((NBB_LONG)(PCT_SPM | 0x00002402))
+
 #define POLICY_C2B_ACL_RULE_MAX  850
 
 /* QoS模块相关信息 */

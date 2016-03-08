@@ -30,7 +30,91 @@ NBB_BYTE acl_pri_setting;
 NBB_BYTE qos_defend_cfg_print;
 
 
+/***************************************************************************/
+/* 存放防攻击的每个协议的rule个数*/
+/***************************************************************************/
+NBB_BYTE g_qos_defend_num[SIGNAL_NUM + 1];
 
+/***************************************************************************/
+/* 存放防攻击的每个协议的rule偏移*/
+/***************************************************************************/
+NBB_USHORT g_qos_defend_offset[SIGNAL_NUM + 1];
+
+
+/***************************************************************************/
+/* 存放policy qos配置*/
+/***************************************************************************/
+AVLL_TREE g_qos_defend_policy_tree;
+
+/***************************************************************************/
+/* 存放policy qos配置*/
+/***************************************************************************/
+AVLL_TREE g_qos_defend_tree;
+
+static char *defend_protcal_string[] =
+{
+ "空","OSPF","ISIS","BGP","LDP","LDP(UDP)","RSVP","RIP","MSDP","PIM","SNMP",
+ "RADIUS","LSP PING","IGMP","ICMP","VRRP","DHCP","LACP","BFD","TACACS","NTP",
+ "FTP S","FTP C","TELNET S","TELNET C","SSH S","SSH C","OSPFV3","MLD","BGPV6","RIPNG",
+ "ICMPV6","VRRPV6","DHCPV6","PIMV6","UNKOWN ARP","UNKOWN MULICAST","TCP SYN","空"
+ "RIPV1","RIPng","SNMP","NTP","TELNET","SSH","空","空","空","空"
+};
+
+
+/*****************************************************************************
+   函 数 名  : spm_qos_find_classify_cb
+   功能描述  : 查找classify模板相关配置
+   输入参数  : classify模板的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID spm_print_ipv4(NBB_ULONG ip)
+{
+    if (0 == ip)
+    {
+        printf("ip == 0\n");
+        return;
+    }
+    printf("%ld.%ld.%ld.%ld\n", ((ip >> 24) & 0x00ff),
+            ((ip >> 16) & 0x00ff), ((ip >> 8) & 0x00ff), (ip & 0x00ff));
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_qos_find_classify_cb
+   功能描述  : 查找classify模板相关配置
+   输入参数  : classify模板的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID spm_print_ipv6(NBB_ULONG *ip)
+{
+    NBB_BYTE i;
+
+    if (NULL == ip)
+    {
+        printf("ip == 0\n");
+        return;
+    }
+    for (i = 0; i < 4; i++)
+    {
+        printf("%ld.%ld.%ld.%ld\n", ((*ip >> 24) & 0x00ff),
+                ((*ip >> 16) & 0x00ff), ((*ip >> 8) & 0x00ff), (*ip & 0x00ff));
+        ip++;
+    }
+}
 
 /*****************************************************************************
    函 数 名  : spm_qos_logic_key_compare
@@ -1296,9 +1380,9 @@ NBB_LONG spm_defend_del_apper_acl(NBB_ULONG acl_id,NBB_ULONG rule_id)
         goto EXIT_LABEL;
     }
 
-    for(i = 0;(rule_id <= SIGNAL_NUM) && (i < SHARED.qos_defend_num[rule_id]);i++)
+    for(i = 0;(rule_id <= SIGNAL_NUM) && (i < g_qos_defend_num[rule_id]);i++)
     {
-        acl.mRuleId = SHARED.qos_defend_offset[rule_id] + i;
+        acl.mRuleId = g_qos_defend_offset[rule_id] + i;
         for(unit = 0;unit < SHARED.c3_num;unit++)
         {
 #if defined (SPU) || defined (PTN690_CES)
@@ -1343,7 +1427,7 @@ NBB_LONG spm_defend_apper_ldpudp(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_ldp");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************IPV4udp组播*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -1430,7 +1514,7 @@ NBB_LONG spm_defend_apper_ldptcp(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_ldp");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************IPV4tcp单播*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -1574,7 +1658,7 @@ NBB_LONG spm_defend_apper_snmp(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_snmp");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************IPV4udp*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -1662,7 +1746,7 @@ NBB_LONG spm_defend_apper_radius(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_radius");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************IPV4udp*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -1750,7 +1834,7 @@ NBB_LONG spm_defend_apper_bgpv4(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_bgpv4");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************tcp单播*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -1838,7 +1922,7 @@ NBB_LONG spm_defend_apper_bgpv6(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_bgpv6");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
     
     /***************tcp单播*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -1926,7 +2010,7 @@ NBB_LONG spm_defend_apper_telnet_client(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_telnet_client");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
     
     /***************IPV4tcp单播*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -2126,7 +2210,7 @@ NBB_LONG spm_defend_apper_telnet_service(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_telnet_service");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************IPV4tcp单播*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -2326,7 +2410,7 @@ NBB_LONG spm_defend_apper_ssh_client(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_ssh_client");   
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
     
     /***************IPV4tcp单播*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -2469,7 +2553,7 @@ NBB_LONG spm_defend_apper_ssh_service(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_ssh_service");   
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************IPV4tcp单播*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -2613,7 +2697,7 @@ NBB_LONG spm_defend_apper_dhcp(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_dhcp");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************IPV4 udp client*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -2699,7 +2783,7 @@ NBB_LONG spm_defend_apper_tacacs(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_tacacs");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************IPV4 udp *********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -2843,7 +2927,7 @@ NBB_LONG spm_defend_apper_dhcpv6(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_dhcp");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************IPV4 udp client*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -2927,7 +3011,7 @@ NBB_LONG spm_defend_apper_tcpsyn(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_tcpsyn");
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
     
     /***************IPV4*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -3015,7 +3099,7 @@ NBB_LONG spm_defend_apper_ftp_service(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_ftp_service");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************IPV4*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -3158,7 +3242,7 @@ NBB_LONG spm_defend_apper_ftp_client(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_ftp_client");  
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
 
     /***************IPV4*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -3301,7 +3385,7 @@ NBB_LONG spm_defend_apper_mld(ACL_T *pstAcl,NBB_USHORT l3_protcal,
 
     NBB_TRC_ENTRY("spm_defend_apper_mld");
 
-    rule_id = SHARED.qos_defend_offset[l3_protcal];
+    rule_id = g_qos_defend_offset[l3_protcal];
     
     /***************IPV6*********************/
     OS_MEMSET(&(pstAcl->tAclRule.tAclKey),0,sizeof(ACL_KEY_T));
@@ -3447,7 +3531,7 @@ NBB_LONG spm_defend_apper_acl_cfg(ACL_T *pstAcl,NBB_USHORT type,
 
     if(type <= SIGNAL_NUM)
     {
-        pstAcl->mRuleId = SHARED.qos_defend_offset[type];
+        pstAcl->mRuleId = g_qos_defend_offset[type];
     }
     
     switch(type)
@@ -5711,7 +5795,7 @@ NBB_VOID spm_rcv_dci_set_defend_policy(ATG_DCI_SET_DEFEND_POLICY* pstSetIps)
 
     pstSetIps->return_code = ATG_DCI_RC_OK;
     ulkey = pstSetIps->key;
-    pstCb = AVLL_FIND(SHARED.qos_defend_policy_tree, &ulkey);
+    pstCb = AVLL_FIND(g_qos_defend_policy_tree, &ulkey);
     if (pstCb == NULL)
     {
         ucIfExist = QOS_UNEXIST;
@@ -5775,7 +5859,7 @@ NBB_VOID spm_rcv_dci_set_defend_policy(ATG_DCI_SET_DEFEND_POLICY* pstSetIps)
                 goto EXIT_LABEL;
             }*/
             spm_del_defend_driver(pstCb );
-            AVLL_DELETE(SHARED.qos_defend_policy_tree, pstCb->spm_defend_policy_node);
+            AVLL_DELETE(g_qos_defend_policy_tree, pstCb->spm_defend_policy_node);
 
             /* 释放POLICY表分配的内存空间 */
             ret = spm_free_defend_policy_cb(pstCb );
@@ -5894,7 +5978,7 @@ NBB_VOID spm_rcv_dci_set_defend_policy(ATG_DCI_SET_DEFEND_POLICY* pstSetIps)
         if (QOS_UNEXIST == ucIfExist)
         {
             //coverity[no_effect_test]
-            AVLL_INSERT(SHARED.qos_defend_policy_tree, pstCb->spm_defend_policy_node);
+            AVLL_INSERT(g_qos_defend_policy_tree, pstCb->spm_defend_policy_node);
         }
     }
 
@@ -5922,10 +6006,10 @@ NBB_VOID spm_qos_clear_all_defend_policy()
     SPM_QOS_DEFEND_POLICY_CB *cfg_cb = NULL;
 
 
-    for (cfg_cb = (SPM_QOS_DEFEND_POLICY_CB*) AVLL_FIRST(v_spm_shared->qos_defend_policy_tree); cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DEFEND_POLICY_CB*) AVLL_FIRST(v_spm_shared->qos_defend_policy_tree))
+    for (cfg_cb = (SPM_QOS_DEFEND_POLICY_CB*) AVLL_FIRST(g_qos_defend_policy_tree); cfg_cb != NULL;
+         cfg_cb = (SPM_QOS_DEFEND_POLICY_CB*) AVLL_FIRST(g_qos_defend_policy_tree))
     {
-        AVLL_DELETE(v_spm_shared->qos_defend_policy_tree, cfg_cb->spm_defend_policy_node);
+        AVLL_DELETE(g_qos_defend_policy_tree, cfg_cb->spm_defend_policy_node);
         spm_free_defend_policy_cb(cfg_cb );   
     }
 
@@ -5964,7 +6048,7 @@ NBB_LONG spm_set_slot_policy_cfg(NBB_ULONG slot,NBB_ULONG policy_index )
     {
         goto EXIT_LABEL;
     }
-    pstPol = AVLL_FIND(SHARED.qos_defend_policy_tree,&policy_index);
+    pstPol = AVLL_FIND(g_qos_defend_policy_tree,&policy_index);
     if(NULL == pstPol)
     {
         printf("**QOS ERROR**,%s,%d  cant't find policy index=%d\n",
@@ -6381,7 +6465,7 @@ NBB_LONG spm_set_slot_defend_policy(NBB_BYTE ulkey,NBB_ULONG old_policy,
        }
        else if((0 != old_policy) && (0 == new_policy))/*删除*/
        {
-            pstPol = AVLL_FIND(SHARED.qos_defend_policy_tree,&old_policy);
+            pstPol = AVLL_FIND(g_qos_defend_policy_tree,&old_policy);
             ret = spm_del_slot_driver(pstPol );
             goto EXIT_LABEL;
        }
@@ -6520,7 +6604,7 @@ NBB_VOID spm_rcv_dci_set_slot_defend(ATG_DCI_SET_DEFEND_SWITCH* pstSetIps)
     /* 首先将IPS消息的返回值设置为OK，如果有一个子配置失败，则置为FAIL */
     pstSetIps->return_code = ATG_DCI_RC_OK;
     ulkey = pstSetIps->key;
-    pstCb = AVLL_FIND(SHARED.qos_defend_tree, &ulkey);
+    pstCb = AVLL_FIND(g_qos_defend_tree, &ulkey);
 
     /* 如果条目不存在 */
     if (pstCb == NULL)
@@ -6561,7 +6645,7 @@ NBB_VOID spm_rcv_dci_set_slot_defend(ATG_DCI_SET_DEFEND_SWITCH* pstSetIps)
 
             if(0 != pstCb->basic.defend_switch_index)
             {
-                pstPol = AVLL_FIND(SHARED.qos_defend_policy_tree,&(pstCb->basic.defend_switch_index));
+                pstPol = AVLL_FIND(g_qos_defend_policy_tree,&(pstCb->basic.defend_switch_index));
                 spm_del_slot_driver(pstPol);
             } 
             if(0 != pstCb->basic.arp_defend_switch)
@@ -6573,7 +6657,7 @@ NBB_VOID spm_rcv_dci_set_slot_defend(ATG_DCI_SET_DEFEND_SWITCH* pstSetIps)
 #endif
 				}
             }
-            AVLL_DELETE(SHARED.qos_defend_tree, pstCb->spm_defend_node);
+            AVLL_DELETE(g_qos_defend_tree, pstCb->spm_defend_node);
             ret = spm_free_defend_cb(pstCb);
             if (ATG_DCI_RC_OK != ret)
             {
@@ -6594,7 +6678,7 @@ NBB_VOID spm_rcv_dci_set_slot_defend(ATG_DCI_SET_DEFEND_SWITCH* pstSetIps)
             }
             
             //coverity[no_effect_test]
-            AVLL_INSERT(SHARED.qos_defend_tree, pstCb->spm_defend_node);      
+            AVLL_INSERT(g_qos_defend_tree, pstCb->spm_defend_node);      
         }
         ret = spm_set_slot_defend_cfg(ulOperBasic,pstCb,pstBasichData);      
         pstSetIps->return_code = ret;
@@ -6624,10 +6708,10 @@ NBB_VOID spm_qos_clear_all_defend_switch()
     SPM_QOS_DEFEND_CB *cfg_cb = NULL;
 
 
-    for (cfg_cb = (SPM_QOS_DEFEND_CB*) AVLL_FIRST(v_spm_shared->qos_defend_tree); cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DEFEND_CB*) AVLL_FIRST(v_spm_shared->qos_defend_tree))
+    for (cfg_cb = (SPM_QOS_DEFEND_CB*) AVLL_FIRST(g_qos_defend_tree); cfg_cb != NULL;
+         cfg_cb = (SPM_QOS_DEFEND_CB*) AVLL_FIRST(g_qos_defend_tree))
     {
-        AVLL_DELETE(v_spm_shared->qos_defend_tree, cfg_cb->spm_defend_node);
+        AVLL_DELETE(g_qos_defend_tree, cfg_cb->spm_defend_node);
         spm_free_defend_cb(cfg_cb);   
     }
 
@@ -6637,6 +6721,342 @@ NBB_VOID spm_qos_clear_all_defend_switch()
 
 
 #if 20
+
+/*****************************************************************************
+   函 数 名  : qos_show_defend_switch
+   功能描述  : 查找classify模板相关配置
+   输入参数  : classify模板的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID  qos_show_defend_switch(NBB_ULONG slot)
+{
+    SPM_QOS_DEFEND_CB *pstCb = NULL;
+
+    pstCb = AVLL_FIND(g_qos_defend_tree, &slot);
+
+    if(NULL == pstCb)
+    {
+        printf("can't find defend switch cfg\n");
+        return;
+    }
+
+    printf("slot=%ld,defend policy idex=%ld,arp=%s\n\n",slot,
+        pstCb->basic.defend_switch_index,pstCb->basic.arp_defend_switch?"开":"关");
+
+    return;
+}
+
+/*****************************************************************************
+   函 数 名  : spm_qos_find_classify_cb
+   功能描述  : 查找classify模板相关配置
+   输入参数  : classify模板的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID  qos_show_defend_policy(NBB_ULONG index)
+{
+    SPM_QOS_DEFEND_POLICY_CB *pstCb = NULL;
+    SPM_QOS_DEFEND_APPERC_CB  *pstAp = NULL;
+    SPM_QOS_DEFEND_USER_DEF_CB *pstNUsr = NULL;
+    NBB_USHORT acl_id = 0;
+    NBB_USHORT rule_id = 0;
+    NBB_USHORT num = 0;
+    NBB_BYTE flag = 0;
+    NBB_BYTE slot = 0;
+    NBB_USHORT i = 0;
+
+
+    pstCb = AVLL_FIND(g_qos_defend_policy_tree, &index);
+
+    if(NULL == pstCb)
+    {
+        printf("can't find defend policy cfg\n");
+        return;
+    }
+
+    slot = v_spm_shared->local_slot_id;
+    flag = pstCb->defend_slot[slot];
+    printf("local_slot=%d,defend state=%s\n",slot,(flag)?"开":"关");
+    printf("apperc_policy_switch=%s\n\n",(pstCb->apperc_policy_switch.switch_flag)?"关":"开");
+    printf("white acl_id=%ld,prio=%d,queue_prio=%d,cir=%ld,cbs=%d,meter=%ld\n\n",
+        pstCb->white_policy.acl_index,
+        pstCb->white_policy.prio,
+        pstCb->white_policy.queue_prio,
+        pstCb->white_policy.cir,
+        pstCb->white_policy.cbs,
+        pstCb->white_meter);
+    printf("black acl_id=%ld,prio=%d,queue_prio=%d,cir=%ld,cbs=%d,meter=%ld\n\n",
+        pstCb->black_policy.acl_index,
+        pstCb->black_policy.prio,
+        pstCb->black_policy.queue_prio,
+        pstCb->black_policy.cir,
+        pstCb->black_policy.cbs,
+        pstCb->black_meter);
+
+    for (pstAp = (SPM_QOS_DEFEND_APPERC_CB *)AVLL_FIRST(pstCb->apperc_tree); pstAp != NULL;
+         pstAp = (SPM_QOS_DEFEND_APPERC_CB *)AVLL_NEXT(pstCb->apperc_tree, pstAp->spm_defend_apperc_node))
+    {
+        acl_id = (index) + DEFEND_ACL_ID_APPRE_OFFSET;
+        
+        if(pstAp->apperc_key.l3_protoc <= SIGNAL_NUM)
+        {
+            rule_id = g_qos_defend_offset[pstAp->apperc_key.l3_protoc];
+            num = g_qos_defend_num[pstAp->apperc_key.l3_protoc];
+            printf("apper acl id=%d,rule id=%d,num=%d\n",acl_id,rule_id,num);
+            printf("l3_protoc=%s,prio=%d,queue_prio=%d,cir=%ld,cbs=%d,meter=%ld\n\n",
+            defend_protcal_string[pstAp->apperc_key.l3_protoc],
+            pstAp->apperc_key.prio,
+            pstAp->apperc_key.queue_prio,
+            pstAp->apperc_key.cir,
+            pstAp->apperc_key.cbs,
+            pstAp->meter_id);  
+        }
+        else
+        {
+            rule_id = DEFEND_DEFAULT_RULE_ID;
+            num = 1;
+            printf("apper acl id=%d,rule id=%d,num=%d\n",acl_id,rule_id,num);
+            printf("l3_protoc=%s,prio=%d,queue_prio=%d,cir=%ld,cbs=%d,meter=%ld\n\n",
+            "DEFAULT_RULE",
+            pstAp->apperc_key.prio,
+            pstAp->apperc_key.queue_prio,
+            pstAp->apperc_key.cir,
+            pstAp->apperc_key.cbs,
+            pstAp->meter_id);  
+        }
+              
+    }
+
+    for (pstNUsr = (SPM_QOS_DEFEND_USER_DEF_CB *)AVLL_FIRST(pstCb->user_def_tree); pstNUsr != NULL;
+         pstNUsr = (SPM_QOS_DEFEND_USER_DEF_CB *)AVLL_NEXT(pstCb->user_def_tree,pstNUsr->spm_defend_user_def_node))
+    {
+        acl_id = (index) + DEFEND_ACL_ID_USR_OFFSET;
+        rule_id = pstNUsr->user_def_key.rule_id;
+        printf("usr acl id=%d,rule id=%d\n",acl_id,rule_id);
+        printf("action=%s,prio=%d,queue_prio=%d,l3protocol=%d,l3protocol_mask=0x%x\n "
+        "port_dst=%d,port_dst_mask=0x%x,port_src=%d,port_src_mask=0x%x,cir=%ld,cbs=%d,meter=%ld\n",
+           (pstNUsr->user_def_key.action)?"拒绝":"通过",
+            pstNUsr->user_def_key.prio,
+            pstNUsr->user_def_key.queue_prio,
+            pstNUsr->user_def_key.l3protoco,
+            pstNUsr->user_def_key.l3protoco_mask,
+            pstNUsr->user_def_key.port_dst,
+            pstNUsr->user_def_key.port_dst_mask,
+            pstNUsr->user_def_key.port_src,
+            pstNUsr->user_def_key.port_src_mask,
+            pstNUsr->user_def_key.cir,
+            pstNUsr->user_def_key.cbs,
+            pstNUsr->meter_id); 
+        if(0 == pstNUsr->user_def_key.ip_type)
+        {
+           printf("dst ipv4 address mask_len=%d,dst ipv4 address:",pstNUsr->user_def_key.dstip_mask_len);
+           spm_print_ipv4(pstNUsr->user_def_key.ip_dst[3]);
+           printf("src ipv4 address mask_len=%d,src ipv4 address:",pstNUsr->user_def_key.srcip_mask_len);
+           spm_print_ipv4(pstNUsr->user_def_key.ip_src[3]);
+        }
+        else
+        {
+           printf("dst ipv6 address mask_len=%d,dst ipv6 address:",pstNUsr->user_def_key.dstip_mask_len);
+
+           /* ipv4的地址存放在数组的最高位 */
+           spm_print_ipv6(&(pstNUsr->user_def_key.ip_dst[0]));
+           printf("src ipv6 address mask_len=%d,src ipv6 address:",pstNUsr->user_def_key.srcip_mask_len);
+           spm_print_ipv6(&(pstNUsr->user_def_key.ip_src[0]));
+           printf("\n");
+        }
+    }
+
+    acl_id = (index) + DEFEND_ACL_ID_USR_OFFSET;
+    printf("abnormal_switch=%s,acl id=%d,start rule id=%d,rule num=%d\n\n",
+        pstCb->abnormal_switch.switch_flag?"开":"关",acl_id,
+        DEFEND_ABNORMAL_RULE_OFFSET,DEFEND_ABNORMAL_RULE_NUM);
+
+    printf("UDP switch=%s,acl id=%d,start rule id=%d,rule num=%d\n\n",
+        pstCb->udp_swtich.switch_flag?"开":"关",acl_id,
+        DEFEND_UDP_RULE_OFFSET,DEFEND_UDP_RULE_NUM);
+
+    printf("total_packet_signaling_bandwidth=%ld kpbs\n\n",pstCb->total_pkt.pir);
+
+    printf("start defend slot=");
+
+    for(i = 1; i< MAX_SLOT_NUM + 1;i++)
+    {        
+        if(ATG_DCI_RC_OK != pstCb->defend_slot[i])
+        {
+            printf(" %d",i);
+        } 
+    }
+    printf("\n\n");
+    return;
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_qos_find_classify_cb
+   功能描述  : 查找classify模板相关配置
+   输入参数  : classify模板的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID  qos_show_defend_policy_usernum(NBB_ULONG index)
+{
+    SPM_QOS_DEFEND_POLICY_CB *pstCb = NULL;
+    SPM_QOS_DEFEND_USER_DEF_CB *pstNUsr = NULL;
+    NBB_ULONG count = 0;
+
+
+    pstCb = AVLL_FIND(g_qos_defend_policy_tree, &index);
+    if(NULL == pstCb)
+    {
+        printf("can't find defend policy cfg\n");
+        return;
+    }
+    for (pstNUsr = (SPM_QOS_DEFEND_USER_DEF_CB *)AVLL_FIRST(pstCb->user_def_tree); pstNUsr != NULL;
+         pstNUsr = (SPM_QOS_DEFEND_USER_DEF_CB *)AVLL_NEXT(pstCb->user_def_tree,pstNUsr->spm_defend_user_def_node))
+    {
+        count++;
+    }
+    printf("Total defend_policy_userdefind_num = %ld.\n\n",count);
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_qos_find_classify_cb
+   功能描述  : 查找classify模板相关配置
+   输入参数  : classify模板的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID  qos_show_defend_policy_userdefind(NBB_ULONG index, NBB_ULONG RuleId)
+{
+    SPM_QOS_DEFEND_POLICY_CB *pstCb = NULL;
+    SPM_QOS_DEFEND_USER_DEF_CB *pstNUsr = NULL;
+    NBB_USHORT acl_id = 0;
+    NBB_USHORT rule_id = 0;
+    NBB_BYTE flag = 0;
+    NBB_BYTE slot = 0;
+    NBB_USHORT i = 0;
+
+
+    pstCb = AVLL_FIND(g_qos_defend_policy_tree, &index);
+
+    if(NULL == pstCb)
+    {
+        printf("can't find defend policy cfg\n");
+        return;
+    }
+    slot = v_spm_shared->local_slot_id;
+    flag = pstCb->defend_slot[slot];
+    printf("local_slot=%d,defend state=%s\n",slot,(flag)?"开":"关");
+    for (pstNUsr = (SPM_QOS_DEFEND_USER_DEF_CB *)AVLL_FIRST(pstCb->user_def_tree); pstNUsr != NULL;
+         pstNUsr = (SPM_QOS_DEFEND_USER_DEF_CB *)AVLL_NEXT(pstCb->user_def_tree,pstNUsr->spm_defend_user_def_node))
+    {
+        if(RuleId == pstNUsr->user_def_key.rule_id)
+        {
+            acl_id = (index) + DEFEND_ACL_ID_USR_OFFSET;
+            rule_id = pstNUsr->user_def_key.rule_id;
+            printf("usr acl id=%d,rule id=%d\n",acl_id,rule_id);
+            printf("action=%s,prio=%d,queue_prio=%d,l3protocol=%d,l3protocol_mask=0x%x\n "
+            "port_dst=%d,port_dst_mask=0x%x,port_src=%d,port_src_mask=0x%x,cir=%ld,cbs=%d,meter=%ld\n",
+               (pstNUsr->user_def_key.action)?"拒绝":"通过",
+                pstNUsr->user_def_key.prio,
+                pstNUsr->user_def_key.queue_prio,
+                pstNUsr->user_def_key.l3protoco,
+                pstNUsr->user_def_key.l3protoco_mask,
+                pstNUsr->user_def_key.port_dst,
+                pstNUsr->user_def_key.port_dst_mask,
+                pstNUsr->user_def_key.port_src,
+                pstNUsr->user_def_key.port_src_mask,
+                pstNUsr->user_def_key.cir,
+                pstNUsr->user_def_key.cbs,
+                pstNUsr->meter_id); 
+            if(0 == pstNUsr->user_def_key.ip_type)
+            {
+               printf("dst ipv4 address mask_len=%d,dst ipv4 address:",pstNUsr->user_def_key.dstip_mask_len);
+               spm_print_ipv4(pstNUsr->user_def_key.ip_dst[3]);
+               printf("src ipv4 address mask_len=%d,src ipv4 address:",pstNUsr->user_def_key.srcip_mask_len);
+               spm_print_ipv4(pstNUsr->user_def_key.ip_src[3]);
+            }
+            else
+            {
+               printf("dst ipv6 address mask_len=%d,dst ipv6 address:",pstNUsr->user_def_key.dstip_mask_len);
+
+               /* ipv4的地址存放在数组的最高位 */
+               spm_print_ipv6(&(pstNUsr->user_def_key.ip_dst[0]));
+               printf("src ipv6 address mask_len=%d,src ipv6 address:",pstNUsr->user_def_key.srcip_mask_len);
+               spm_print_ipv6(&(pstNUsr->user_def_key.ip_src[0]));
+               printf("\n");
+            }
+        break;
+        } 
+    }
+    printf("start defend slot=");
+    for(i = 1; i< MAX_SLOT_NUM + 1;i++)
+    {        
+        if(ATG_DCI_RC_OK != pstCb->defend_slot[i])
+        {
+            printf(" %d",i);
+        } 
+    }
+    printf("\n\n");
+
+    return;
+}
+
+
+NBB_VOID qos_defend_help()
+{
+    NBB_CHAR **ppc_msg;
+
+    static NBB_CHAR *p_help_msg[] = {       
+    "qos_show_defend_switch(slot)",                     "show slot defend policy index",
+    "qos_show_defend_policy(index)",                    "show defend policy cfg",
+    "qos_show_defend_policy_userdefind(index,RuleId)",  "show userdefine cfg of defend policy",
+    "qos_show_defend_policy_userdefind(index)",         "show total number of userdefine cfg",
+    NULL
+    };
+
+    printf("\n");
+
+    for (ppc_msg = p_help_msg; *ppc_msg != NULL; ppc_msg += 2)
+    {
+        if (strlen(*(ppc_msg)) > 45)
+        {
+            printf(" %s %s\n", *ppc_msg, *(ppc_msg + 1));
+        }
+        else
+        {
+            printf(" %-40s %s\n", *ppc_msg, *(ppc_msg + 1));
+        }
+    }
+
+    printf("\n");
+}
 
 NBB_VOID spm_cfg_defend_policy_cb_verify()
 {
@@ -6650,9 +7070,9 @@ NBB_VOID spm_cfg_defend_policy_cb_verify()
 
     NBB_TRC_ENTRY("spm_cfg_defend_policy_cb_verify");
 
-    for (cfg_cb = (SPM_QOS_DEFEND_POLICY_CB*) AVLL_FIRST(SHARED.qos_defend_policy_tree);
+    for (cfg_cb = (SPM_QOS_DEFEND_POLICY_CB*) AVLL_FIRST(g_qos_defend_policy_tree);
          cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DEFEND_POLICY_CB*) AVLL_NEXT(SHARED.qos_defend_policy_tree,
+         cfg_cb = (SPM_QOS_DEFEND_POLICY_CB*) AVLL_NEXT(g_qos_defend_policy_tree,
                        cfg_cb->spm_defend_policy_node))
     {
         NBB_TRC_FLOW((NBB_FORMAT "Verify SPM_QOS_DEFEND_POLICY_CB %p", cfg_cb));
@@ -6691,9 +7111,9 @@ NBB_VOID spm_cfg_defend_cb_verify()
 
     NBB_TRC_ENTRY("spm_cfg_defend_cb_verify");
 
-    for (cfg_cb = (SPM_QOS_DEFEND_CB*) AVLL_FIRST(SHARED.qos_defend_tree);
+    for (cfg_cb = (SPM_QOS_DEFEND_CB*) AVLL_FIRST(g_qos_defend_tree);
          cfg_cb != NULL;
-         cfg_cb = (SPM_QOS_DEFEND_CB*) AVLL_NEXT(SHARED.qos_defend_tree,
+         cfg_cb = (SPM_QOS_DEFEND_CB*) AVLL_NEXT(g_qos_defend_tree,
                        cfg_cb->spm_defend_node))
     {
         NBB_TRC_FLOW((NBB_FORMAT "Verify cfg_cb %p", cfg_cb));
@@ -6725,41 +7145,41 @@ void spm_qos_defend_init()
 
     /* 防攻击树初始化 */
     avll_key_offset = NBB_OFFSETOF(SPM_QOS_DEFEND_POLICY_CB, policy_key);
-    AVLL_INIT_TREE(SHARED.qos_defend_policy_tree, compare_ulong,
+    AVLL_INIT_TREE(g_qos_defend_policy_tree, compare_ulong,
             (NBB_USHORT)avll_key_offset,
             (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DEFEND_POLICY_CB,spm_defend_policy_node));
 
     /* 存放防攻击开关配置 */
     avll_key_offset = NBB_OFFSETOF(SPM_QOS_DEFEND_CB, key);
-    AVLL_INIT_TREE(SHARED.qos_defend_tree, compare_ulong,
+    AVLL_INIT_TREE(g_qos_defend_tree, compare_ulong,
             (NBB_USHORT)avll_key_offset,
             (NBB_USHORT)NBB_OFFSETOF(SPM_QOS_DEFEND_CB,spm_defend_node));
 
     /**********防攻击初始化***********/
-    OS_MEMSET(&(SHARED.qos_defend_num[0]),1,SIGNAL_NUM + 1);
-    SHARED.qos_defend_num[0] = 0;
-    SHARED.qos_defend_num[DEFEND_LDPUDP] = 2;
-    SHARED.qos_defend_num[DEFEND_LDP] = 4;
-    SHARED.qos_defend_num[DEFEND_BGP] = 2;
-    SHARED.qos_defend_num[DEFEND_BGPV6] = 2;
-    SHARED.qos_defend_num[DEFEND_DHCP] = 2;
-    SHARED.qos_defend_num[DEFEND_DHCPV6] = 2;
-    SHARED.qos_defend_num[DEFEND_SNMP] = 2;
-    SHARED.qos_defend_num[DEFEND_FTP_S] = 4;
-    SHARED.qos_defend_num[DEFEND_FTP_C] = 4;
-    SHARED.qos_defend_num[DEFEND_TELNET_S] = 6;
-    SHARED.qos_defend_num[DEFEND_TELNET_C] = 6;
-    SHARED.qos_defend_num[DEFEND_SSH_S] = 4;
-    SHARED.qos_defend_num[DEFEND_SSH_C] = 4;
-    SHARED.qos_defend_num[DEFEND_MLD] = 4;
-    SHARED.qos_defend_num[DEFEND_TCPSYN] = 2;  
-    SHARED.qos_defend_num[DEFEND_TACACS] = 4;
-    SHARED.qos_defend_num[DEFEND_RADIUS] = 2;
+    OS_MEMSET(&(g_qos_defend_num[0]),1,SIGNAL_NUM + 1);
+    g_qos_defend_num[0] = 0;
+    g_qos_defend_num[DEFEND_LDPUDP] = 2;
+    g_qos_defend_num[DEFEND_LDP] = 4;
+    g_qos_defend_num[DEFEND_BGP] = 2;
+    g_qos_defend_num[DEFEND_BGPV6] = 2;
+    g_qos_defend_num[DEFEND_DHCP] = 2;
+    g_qos_defend_num[DEFEND_DHCPV6] = 2;
+    g_qos_defend_num[DEFEND_SNMP] = 2;
+    g_qos_defend_num[DEFEND_FTP_S] = 4;
+    g_qos_defend_num[DEFEND_FTP_C] = 4;
+    g_qos_defend_num[DEFEND_TELNET_S] = 6;
+    g_qos_defend_num[DEFEND_TELNET_C] = 6;
+    g_qos_defend_num[DEFEND_SSH_S] = 4;
+    g_qos_defend_num[DEFEND_SSH_C] = 4;
+    g_qos_defend_num[DEFEND_MLD] = 4;
+    g_qos_defend_num[DEFEND_TCPSYN] = 2;  
+    g_qos_defend_num[DEFEND_TACACS] = 4;
+    g_qos_defend_num[DEFEND_RADIUS] = 2;
     
-    SHARED.qos_defend_offset[0] = 1;
+    g_qos_defend_offset[0] = 1;
     for(i = DEFEND_OSPF; i < SIGNAL_NUM + 1;i++)
     {
-        SHARED.qos_defend_offset[i] = SHARED.qos_defend_offset[i - 1] + SHARED.qos_defend_num[i - 1];
+        g_qos_defend_offset[i] = g_qos_defend_offset[i - 1] + g_qos_defend_num[i - 1];
     }
 }
 

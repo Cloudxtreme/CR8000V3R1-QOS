@@ -125,7 +125,7 @@ NBB_BOOL spm_create_proc(NBB_PROC_ID our_pid,
   /***************************************************************************/
   /* 初始化设备端口归零 Added by xiaoxiang, 2013/5/13*/
   /***************************************************************************/
-  spm_init_dev_port_info(NBB_CXT);
+  //spm_init_dev_port_info(NBB_CXT);
 
   /***************************************************************************/
   /* 初始化VC的next_hop_id Added by xiaoxiang, 2014/2/17*/
@@ -279,7 +279,7 @@ NBB_BOOL spm_create_proc(NBB_PROC_ID our_pid,
 
   /***************************************************************************/
 
-  spm_ds_init();
+  //spm_ds_init();
 
   spm_qos_init();
 

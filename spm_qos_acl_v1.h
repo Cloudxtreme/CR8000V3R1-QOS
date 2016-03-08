@@ -22,6 +22,7 @@
 #include <c3api.h>
 #include <a0dciif.h>
 
+#define MEM_SPM_QOS_ACL_LOGIC_CB                     ((NBB_LONG)(PCT_SPM | 0x0000111A))
 #define MEM_SPM_ACL_CB                           ((NBB_LONG)(PCT_SPM | 0x00002300))
 #define MEM_SPM_ACL_BASIC_CB                     ((NBB_LONG)(PCT_SPM | 0x00002301))
 #define MEM_SPM_ACL_PORT_CB                     ((NBB_LONG)(PCT_SPM | 0x00002302))

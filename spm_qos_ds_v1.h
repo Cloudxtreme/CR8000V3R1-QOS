@@ -49,6 +49,15 @@
 #define PHB2PRI_ASSIGN_OFFSET      16
 
 
+#define MEM_SPM_DS_DOMAIN_CB                     ((NBB_LONG)(PCT_SPM | 0x00002100))
+#define MEM_SPM_DS_DOMAIN_D2P_CB                     ((NBB_LONG)(PCT_SPM | 0x00002101))
+#define MEM_SPM_DS_DOMAIN_TC2P_CB                     ((NBB_LONG)(PCT_SPM | 0x00002102))
+#define MEM_SPM_DS_DOMAIN_VLAN2P_CB                     ((NBB_LONG)(PCT_SPM | 0x00002103))
+#define MEM_SPM_DS_DOMAIN_EXP2P_CB                     ((NBB_LONG)(PCT_SPM | 0x00002104))
+#define MEM_SPM_DS_DOMAIN_P2D_CB                     ((NBB_LONG)(PCT_SPM | 0x00002105))
+#define MEM_SPM_DS_DOMAIN_P2TC_CB                     ((NBB_LONG)(PCT_SPM | 0x00002106))
+#define MEM_SPM_DS_DOMAIN_P2VLAN_CB                     ((NBB_LONG)(PCT_SPM | 0x00002107))
+#define MEM_SPM_DS_DOMAIN_P2EXP_CB                     ((NBB_LONG)(PCT_SPM | 0x00002108))
 
 
 /* QoS模块相关信息 */
@@ -210,6 +219,20 @@ NBB_LONG spm_ds_add_tx_lsp_node (SPM_QOS_TUNNEL_KEY *lspkey,
 NBB_LONG spm_add_ilm_ds_node(NBB_ULONG label,ATG_DCI_ILM_DIFF_SERV_DATA *diff,NBB_ULONG posid,
                                 NBB_ULONG eposid,NBB_BYTE type) ;
 
+
+
+
+
+
+
+
+
+/*给hqos模块调用*/
+void qos_log_lsp_key(SPM_QOS_TUNNEL_KEY *lsp_key);
+
+void qos_log_vrf_key(SPM_QOS_VRF_INSTANSE_KEY *vrf_key);
+
+void qos_log_vc_key(ATG_DCI_VC_KEY *vc_key);
 
 
 #endif 

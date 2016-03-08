@@ -326,7 +326,6 @@ NBB_VOID spm_rcv_dci_set_wred(ATG_DCI_SET_WRED *pst_set_ips)
     /* 增加或者更新 */
     else
     {
-
         ret = spm_set_wred_basic_cfg(key,oper_basic,basic_date_start);
         pst_set_ips->basic_return_code = ret;
         pst_set_ips->return_code = ret;

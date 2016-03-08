@@ -426,6 +426,211 @@ NBB_VOID spm_api_c3_del_acl_error_log(NBB_ULONG unit, ACL_T *acl,
     }  
 }
 
+#if 2
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : usr group引用计数减1
+   输入参数  : usr group的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID spm_hqos_almpm_addline_vc_log(
+    ATG_DCI_VC_KEY *pkey, NBB_ULONG voq, const NBB_CHAR *FUNCTION, 
+    NBB_ULONG LINE, NBB_LONG ret)
+{
+    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+
+    if((NULL != FUNCTION) && (NULL != pkey))
+    {
+        OS_PRINTF("%s line=%ld almpm_addline_hqos_vc ret =%ld,VC (vc_id=%ld,"
+				   "peer_ip=0x%lx,vc_type=%d) voq =%ld\n",FUNCTION,LINE,ret,
+				   pkey->vc_id,pkey->peer_ip,pkey->vc_type,voq);
+        OS_SPRINTF(ucMessage,"%s line=%ld almpm_addline_hqos_vc ret =%ld, VC "
+				   "(vc_id=%ld,peer_ip=0x%lx,vc_type=%d) voq =%ld\n",FUNCTION,
+				   LINE,ret,pkey->vc_id,pkey->peer_ip,pkey->vc_type,voq);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);  
+        NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
+        			HQOS_BMU_ERROR,ret,
+        			ucMessage,FUNCTION,"LINE","",
+        			0,0,LINE,0)); 
+    }
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : usr group引用计数减1
+   输入参数  : usr group的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID spm_hqos_almpm_delline_vc_log(ATG_DCI_VC_KEY *pkey, 
+    const NBB_CHAR *FUNCTION,NBB_ULONG LINE,NBB_LONG ret)
+{
+    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+
+    if((NULL != FUNCTION) && (NULL != pkey))
+    {
+        OS_PRINTF("%s line=%ld almpm_delline_hqos_vc ret =%ld,VC (vc_id=%ld,"
+				   "peer_ip=0x%lx,vc_type=%d)\n",FUNCTION,LINE,ret,pkey->vc_id,
+				   pkey->peer_ip,pkey->vc_type);
+        OS_SPRINTF(ucMessage,"%s line=%ld almpm_delline_hqos_vc ret =%ld,VC (vc_id=%ld,"
+				   "peer_ip=0x%lx,vc_type=%d)\n",FUNCTION,LINE,ret,pkey->vc_id,
+				   pkey->peer_ip,pkey->vc_type);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);  
+        NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
+        				HQOS_BMU_ERROR,ret,ucMessage,FUNCTION,"LINE","",
+        				0,0,LINE,0)); 
+    }
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : usr group引用计数减1
+   输入参数  : usr group的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID spm_hqos_almpm_addline_vrf_log(
+    SPM_QOS_VRF_INSTANSE_KEY *pkey, NBB_ULONG voq, 
+    const NBB_CHAR *FUNCTION, NBB_ULONG LINE, NBB_LONG ret)
+{
+    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+
+    if((NULL != FUNCTION) && (NULL != pkey))
+    {
+        OS_PRINTF("%s line=%ld almpm_addline_hqos_vrf ret = %ld,VRF (vrf_id=%d,"
+				   "peer_ip=0x%lx,label=%ld), voq = %ld\n",FUNCTION,LINE,ret,
+				   pkey->vrf_id,pkey->peer_ip,pkey->label,voq);
+        OS_SPRINTF(ucMessage,"%s line=%ld almpm_addline_hqos_vrf ret = %ld,"
+				   "VRF (vrf_id=%d,peer_ip=0x%lx,label=%ld), voq = %ld\n",
+				   FUNCTION,LINE,ret,pkey->vrf_id,pkey->peer_ip,pkey->label,voq);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);  
+        NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
+        				HQOS_BMU_ERROR,ret,ucMessage,FUNCTION,"LINE","",
+        				0,0,LINE,0)); 
+    }
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : usr group引用计数减1
+   输入参数  : usr group的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID spm_hqos_almpm_delline_vrf_log(SPM_QOS_VRF_INSTANSE_KEY *pkey, 
+    const NBB_CHAR *FUNCTION,NBB_ULONG LINE,NBB_LONG ret )
+{
+    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+
+    if((NULL != FUNCTION) && (NULL != pkey))
+    {
+        OS_PRINTF("%s line=%ld almpm_delline_hqos_vrf ret = %ld,VRF (vrf_id=%d,"
+				   "peer_ip=0x%lx,label=%ld)\n",FUNCTION,LINE,ret,pkey->vrf_id,
+				   pkey->peer_ip,pkey->label);
+        OS_SPRINTF(ucMessage,"%s line=%ld almpm_delline_hqos_vrf ret = %ld,"
+				   "VRF (vrf_id=%d,peer_ip=0x%lx,label=%ld)\n",FUNCTION,LINE,
+				   ret,pkey->vrf_id,pkey->peer_ip,pkey->label);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);  
+        NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
+        				HQOS_BMU_ERROR,ret,ucMessage,FUNCTION,"LINE","",
+        				0,0,LINE,0)); 
+    }
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : usr group引用计数减1
+   输入参数  : usr group的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID spm_hqos_almpm_addline_intf_log(NBB_ULONG logic_key, 
+    NBB_ULONG voq, const NBB_CHAR *FUNCTION, NBB_ULONG LINE, 
+    NBB_LONG ret )
+{
+    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+
+    if((NULL != FUNCTION) && (0 != logic_key))
+    {
+        OS_PRINTF("%s line=%ld spm_hqos_almpm_addline_intf ret = %ld,INTF "
+				   "(logic_key=%ld), voq = %ld\n",FUNCTION,LINE,ret,logic_key,voq);
+        OS_SPRINTF(ucMessage,"%s line=%ld spm_hqos_almpm_addline_intf ret = %ld,INTF "
+				   "(logic_key=%ld), voq = %ld\n",FUNCTION,LINE,ret,logic_key,voq);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);  
+        NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
+        				HQOS_BMU_ERROR,ret,ucMessage,FUNCTION,"LINE","",
+        				0,0,LINE,0)); 
+    }
+}
+
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : usr group引用计数减1
+   输入参数  : usr group的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
+NBB_VOID spm_hqos_almpm_delline_intf_log(NBB_ULONG logic_key, 
+    const NBB_CHAR *FUNCTION,NBB_ULONG LINE,NBB_LONG ret)
+{
+    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+
+    if((NULL != FUNCTION) && (0 != logic_key))
+    {
+        OS_PRINTF("%s line=%ld almpm_delline_hqos_intf ret = %ld,INTF "
+				   "(logic_key=%ld)\n",FUNCTION,LINE,ret,logic_key);
+        OS_SPRINTF(ucMessage,"%s line=%ld almpm_delline_hqos_intf ret = %ld,INTF "
+				   "(logic_key=%ld)\n",FUNCTION,LINE,ret,logic_key);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);  
+        NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
+        				HQOS_BMU_ERROR,ret,ucMessage,FUNCTION,"LINE","",
+        				0,0,LINE,0)); 
+    }
+}
+
+#endif
 
 
 

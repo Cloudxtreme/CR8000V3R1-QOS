@@ -78,6 +78,8 @@
 #define DEFEND_DEFAULT_RULE_ID             10000
 
 
+#define SIGNAL_NUM  46
+
 /* QoS模块相关信息 */
 typedef struct spm_qos_defend_apperc_cb
 {

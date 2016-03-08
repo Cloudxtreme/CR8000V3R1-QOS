@@ -366,7 +366,7 @@ NBB_VOID spm_cfg_phy_port_cb_verify(NBB_CXT_T NBB_CXT)
         /*************************************************************************/
         /* 对SDH段开销配置块进行验证。                                       */
         /*************************************************************************/
-        sdh_sovhd_cfg_cb = phy_port_cb->sdh_sovhd_cfg_cb;
+        sdh_sovhd_cfg_cb = phy_port_cb->stm1_sovhd_cfg_cb;
         if(sdh_sovhd_cfg_cb != NULL)
         {
             NBB_TRC_FLOW((NBB_FORMAT "Verify sdh_sovhd_cfg_cb cb %p", sdh_sovhd_cfg_cb));
@@ -509,7 +509,7 @@ NBB_VOID spm_cfg_phy_port_cb_verify(NBB_CXT_T NBB_CXT)
         /*************************************************************************/
         /* 对SDH通道开销配置块进行验证。                                       */
         /*************************************************************************/
-        sdh_tovhd_cfg_cb = phy_port_cb->sdh_tovhd_cfg_cb;
+        sdh_tovhd_cfg_cb = phy_port_cb->stm1_tovhd_cfg_cb;
         if(sdh_tovhd_cfg_cb != NULL)
         {
             NBB_TRC_FLOW((NBB_FORMAT "Verify sdh_tovhd_cfg_cb cb %p", sdh_tovhd_cfg_cb));
@@ -1086,6 +1086,8 @@ NBB_VOID spm_cfg_vc_cb_verify(NBB_CXT_T NBB_CXT)
     ATG_DCI_VC_DIFF_SERV_DATA *diff_serv_cfg_cb;
     ATG_DCI_VC_UP_VPN_QOS_POLICY *up_vpn_cfg_cb;
 	ATG_DCI_VC_VPN_DATA *vpn_cfg_cb;
+	ATG_DCI_VC_CONNECT_DETECT *connect_detect_cfg_cb;
+	
 
     NBB_TRC_ENTRY("spm_cfg_vc_cb_verify");
 
@@ -1105,7 +1107,7 @@ NBB_VOID spm_cfg_vc_cb_verify(NBB_CXT_T NBB_CXT)
         /*********************************************************************/
 
         /*************************************************************************/
-        /* 对基础配置块进行验证。                                                */
+        /* 对基础配置块进行验证。                                               */
         /*************************************************************************/
         basic_cfg_cb = vc_cb->basic_cfg_cb;
         if(basic_cfg_cb != NULL)
@@ -1116,7 +1118,7 @@ NBB_VOID spm_cfg_vc_cb_verify(NBB_CXT_T NBB_CXT)
         }
 
         /*************************************************************************/
-        /* 对Diff-Serv配置块进行验证。                                                */
+        /* 对Diff-Serv配置块进行验证。                                         */
         /*************************************************************************/
         diff_serv_cfg_cb = vc_cb->diff_serv_cfg_cb;
         if(diff_serv_cfg_cb != NULL)
@@ -1127,7 +1129,7 @@ NBB_VOID spm_cfg_vc_cb_verify(NBB_CXT_T NBB_CXT)
         }
 
         /*************************************************************************/
-        /* 对上话VPN QOS策略配置块进行验证。                                                */
+        /* 对上话VPN QOS策略配置块进行验证。                                   */
         /*************************************************************************/
         up_vpn_cfg_cb = vc_cb->up_vpn_cfg_cb;
         if(up_vpn_cfg_cb != NULL)
@@ -1138,7 +1140,7 @@ NBB_VOID spm_cfg_vc_cb_verify(NBB_CXT_T NBB_CXT)
         }
 
 		/*************************************************************************/
-        /* 对VPN 属性配置块进行验证。                                                */
+        /* 对VPN 属性配置块进行验证。                                          */
         /*************************************************************************/
         vpn_cfg_cb = vc_cb->vpn_property_cfg_cb;
         if(vpn_cfg_cb != NULL)
@@ -1148,6 +1150,16 @@ NBB_VOID spm_cfg_vc_cb_verify(NBB_CXT_T NBB_CXT)
                               MEM_SPM_VC_VPN_PROPER_CB);
         }
 
+		/*************************************************************************/
+        /* 对联通新检测配置块进行验证。                                        */
+        /*************************************************************************/
+		connect_detect_cfg_cb = vc_cb->connect_detect_cfg_cb;
+		if(connect_detect_cfg_cb != NULL)
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Verify connect_detect_cfg_cb %p", connect_detect_cfg_cb));
+            NBB_VERIFY_MEMORY(connect_detect_cfg_cb, sizeof(ATG_DCI_VC_CONNECT_DETECT),
+                              MEM_SPM_VC_CONNECT_DETECT_CB);
+        }
 		
     }
 
@@ -2730,92 +2742,7 @@ NBB_VOID spm_cfg_pw_car_cb_verify(NBB_CXT_T NBB_CXT)
 
 #endif
 
-/**PROC+**********************************************************************/
-/* Name:                                                                     */
-/*                                                                           */
-/* Purpose:                                .                                 */
-/*                                                                           */
-/* Returns:   Nothing.                                                       */
-/*                                                                           */
-/* Params:    None.                                                          */
-/*                                                                           */
-/**PROC-**********************************************************************/
-NBB_VOID spm_cfg_hqos_cb_verify(NBB_CXT_T NBB_CXT)
-{
-    /*************************************************************************/
-    /* Local Variables                                                       */
-    /*************************************************************************/
-    SPM_HQOS_LSP_TX_CB *lsp_cb = NULL;
-    SPM_HQOS_VRF_CB *vrf_cb = NULL;
-    SPM_HQOS_VC_CB *vc_cb = NULL;
-    SPM_HQOS_LOG_GROUP_CB *group_cb = NULL;
-    SPM_HQOS_LOG_USR_CB *usr_cb = NULL;
-    NBB_USHORT i = 0;
-    NBB_USHORT j = 0;
 
-    NBB_TRC_ENTRY("spm_cfg_hqos_cb_verify");
-
-    for(j = 0;j < MAX_SLOT_NUM;j++)
-    {
-        for (i = 0; i < MAX_PHYSIC_PORT_NUM; i++)
-        {
-            for (lsp_cb = (SPM_HQOS_LSP_TX_CB*) AVLL_FIRST(SHARED.qos_port_cb[j][i].lsp_tree);
-                 lsp_cb != NULL;
-                 lsp_cb = (SPM_HQOS_LSP_TX_CB*) AVLL_NEXT(SHARED.qos_port_cb[j][i].lsp_tree,
-                               lsp_cb->spm_hqos_lsp_tx_node))
-            {
-
-                NBB_VERIFY_MEMORY(lsp_cb, sizeof(SPM_HQOS_LSP_TX_CB), MEM_SPM_HQOS_LSP_TX_CB);
-
-
-                 for(vrf_cb = (SPM_HQOS_VRF_CB*) AVLL_FIRST(lsp_cb->vrf_tree);
-                     vrf_cb != NULL;
-                     vrf_cb = (SPM_HQOS_VRF_CB*) AVLL_NEXT(lsp_cb->vrf_tree,
-                                   vrf_cb->spm_hqos_vrf_node))
-                 {
-                     NBB_TRC_FLOW((NBB_FORMAT "Verify vrf_cb cb %p", vrf_cb));
-                     NBB_VERIFY_MEMORY(vrf_cb, sizeof(SPM_HQOS_VRF_CB),
-                                      MEM_SPM_HQOS_VRF_CB);
-                 }
-
-                 for(vc_cb = (SPM_HQOS_VC_CB*) AVLL_FIRST(lsp_cb->vc_tree);
-                     vc_cb != NULL;
-                     vc_cb = (SPM_HQOS_VC_CB*) AVLL_NEXT(lsp_cb->vc_tree,
-                                   vc_cb->spm_hqos_vc_node))
-                 {
-                     NBB_TRC_FLOW((NBB_FORMAT "Verify vc_cb cb %p", vc_cb));
-                     NBB_VERIFY_MEMORY(vc_cb, sizeof(SPM_HQOS_VC_CB),
-                                      MEM_SPM_HQOS_VC_CB);
-                 }
-            }
-
-            for (group_cb = (SPM_HQOS_LOG_GROUP_CB*) AVLL_FIRST(SHARED.qos_port_cb[j][i].group_tree);
-                 group_cb != NULL;
-                 group_cb = (SPM_HQOS_LOG_GROUP_CB*) AVLL_NEXT(SHARED.qos_port_cb[j][i].group_tree,
-                               group_cb->spm_hqos_group_node))
-             {
-                NBB_TRC_FLOW((NBB_FORMAT "Verify group_cb %p", group_cb));
-                NBB_VERIFY_MEMORY(group_cb, sizeof(SPM_HQOS_LOG_GROUP_CB), MEM_SPM_HQOS_LOG_GROUP_CB);
-
-
-                 for(usr_cb = (SPM_HQOS_LOG_USR_CB*) AVLL_FIRST(group_cb->usr_tree);
-                     usr_cb != NULL;
-                     usr_cb = (SPM_HQOS_LOG_USR_CB*) AVLL_NEXT(group_cb->usr_tree,
-                                   usr_cb->spm_hqos_usr_node))
-                 {
-                     NBB_TRC_FLOW((NBB_FORMAT "Verify vrf_cb cb %p", usr_cb));
-                     NBB_VERIFY_MEMORY(usr_cb, sizeof(SPM_HQOS_LOG_USR_CB),
-                                      MEM_SPM_HQOS_LOG_USR_CB);
-                 }  
-             }
-        }
-    }
-    
-
-    NBB_TRC_EXIT();
-
-    return;
-}
 
 
 NBB_VOID spm_cfg_logic_acl_cb_verify(NBB_CXT_T NBB_CXT)
@@ -3005,47 +2932,6 @@ NBB_VOID spm_cfg_defend_policy_cb_verify(NBB_CXT_T NBB_CXT)
     return;
 }
 
-NBB_VOID spm_twamp_ipv4_cb_verfify(NBB_CXT_T NBB_CXT)
-{
-    /*************************************************************************/
-    /* Local Variables                                                       */
-    /*************************************************************************/
-    SPM_TWAMP_IPV4_CB *pstCb = NULL;
-
-    NBB_TRC_ENTRY("spm_twamp_ipv4_cb_verfify");
-
-    for (pstCb = (SPM_TWAMP_IPV4_CB*) AVLL_FIRST(SHARED.twamp_ipv4_tree);pstCb != NULL;
-         pstCb = (SPM_TWAMP_IPV4_CB*) AVLL_NEXT(SHARED.twamp_ipv4_tree,pstCb->spm_twamp_ipv4_node))
-    {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify twamp_ipv4_Cb %p", pstCb));
-        NBB_VERIFY_MEMORY(pstCb, sizeof(SPM_TWAMP_IPV4_CB), MEM_SPM_TWAMP_IPV4_CB);
-    }
-
-    NBB_TRC_EXIT();
-
-    return;
-}
-
-NBB_VOID spm_twamp_ipv6_cb_verfify(NBB_CXT_T NBB_CXT)
-{
-    /*************************************************************************/
-    /* Local Variables                                                       */
-    /*************************************************************************/
-    SPM_TWAMP_IPV6_CB *pstCb = NULL;
-
-    NBB_TRC_ENTRY("spm_twamp_ipv6_cb_verfify");
-
-    for (pstCb = (SPM_TWAMP_IPV6_CB*)AVLL_FIRST(SHARED.twamp_ipv6_tree);pstCb != NULL;
-         pstCb = (SPM_TWAMP_IPV6_CB*)AVLL_NEXT(SHARED.twamp_ipv6_tree,pstCb->spm_twamp_ipv6_node))
-    {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify twamp_ipv6_Cb %p", pstCb));
-        NBB_VERIFY_MEMORY(pstCb, sizeof(SPM_TWAMP_IPV6_CB), MEM_SPM_TWAMP_IPV6_CB);
-    }
-
-    NBB_TRC_EXIT();
-
-    return;
-}
 
 #endif
 
@@ -3083,7 +2969,6 @@ NBB_VOID spm_qos_cfg_cb_verfify(NBB_CXT_T NBB_CXT)
     spm_cfg_pw_car_cb_verify( NBB_CXT);
 #endif
 
-    spm_cfg_logic_acl_cb_verify( NBB_CXT);
 
     spm_cfg_up_usr_verify(NBB_CXT);
 
@@ -3091,20 +2976,20 @@ NBB_VOID spm_qos_cfg_cb_verfify(NBB_CXT_T NBB_CXT)
 
     spm_cfg_port_wred_cb_verify(NBB_CXT);
 
-    spm_cfg_logic_classify_cb_verify( NBB_CXT);
 
     spm_cfg_hqos_cb_verify(NBB_CXT);
-
-    spm_twamp_ipv4_cb_verfify(NBB_CXT);
     
-    spm_twamp_ipv6_cb_verfify(NBB_CXT);
 */
+    spm_twamp_ipv4_cb_verfify();
+    spm_twamp_ipv6_cb_verfify();
+    
     spm_cfg_acl_cb_verify();
     spm_cfg_logic_acl_cb_verify();
     spm_cfg_policy_cb_verify();
     spm_cfg_logic_classify_cb_verify();
     spm_cfg_classify_cb_verify();
     spm_cfg_action_cb_verify();
+    
     spm_qos_defend_verify();
 
     NBB_TRC_EXIT();

@@ -998,7 +998,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取接口物理配置.                                                   */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_PHYSICAL_PORT"));
-      spm_rcv_dci_set_physical_port((ATG_DCI_SET_PHYSICAL_PORT *) ips NBB_CCXT);
+      spm_physical_port_proc((ATG_DCI_SET_PHYSICAL_PORT *) ips NBB_CCXT);
       break;
 
     case IPS_ATG_DCI_SET_LOGICAL_PORT:
@@ -1006,7 +1006,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取端口逻辑配置.                                                   */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_LOGICAL_PORT"));
-      spm_rcv_dci_set_logical_port((ATG_DCI_SET_LOGICAL_PORT *) ips NBB_CCXT);
+      spm_logical_port_proc((ATG_DCI_SET_LOGICAL_PORT *) ips NBB_CCXT);
       break;
 
     case IPS_ATG_DCI_SET_LINK_AGGR:
@@ -1023,7 +1023,16 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_VC"));
       spm_vc_process((ATG_DCI_SET_VC *) ips NBB_CCXT);
-      break;  
+      break;
+
+    case IPS_ATG_DCI_SET_VPLS:
+        
+      /***********************************************************************/
+      /* 获取VC表配置.                                                       */
+      /***********************************************************************/
+      NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_VPLS"));
+      spm_rcv_dci_set_vpls((ATG_DCI_SET_VPLS *) ips NBB_CCXT);
+      break;    
 
     case IPS_ATG_DCI_SET_VPLS_MC:
       /***********************************************************************/

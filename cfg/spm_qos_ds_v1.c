@@ -79,35 +79,7 @@ NBB_VOID qos_set_ds_log(NBB_BYTE set)
     g_qos_ds_log = set;
 }
 
-NBB_VOID qos_ds_help()
-{
-    NBB_CHAR **ppc_msg;
 
-    static NBB_CHAR *p_help_msg[] = {       
-        "---------------------------DS-----------------------------------", "",
-        "qos_set_ds_print(set)",                   "set all ds cfg print",
-        "qos_set_ds_log(set)",                     "set all ds log print",
-        "qos_show_phb2pri_ds_offset(dsptr,phb,color)",  "show ds offset",
-        "qos_show_pri2phb_ds_offset(dsptr,pri)",        "show ds offset",   
-        NULL
-    };
-
-    printf("\n");
-
-    for (ppc_msg = p_help_msg; *ppc_msg != NULL; ppc_msg += 2)
-    {
-        if (strlen(*(ppc_msg)) > 45)
-        {
-            printf(" %s %s\n", *ppc_msg, *(ppc_msg + 1));
-        }
-        else
-        {
-            printf(" %-40s %s\n", *ppc_msg, *(ppc_msg + 1));
-        }
-    }
-
-    printf("\n");
-}
 
 #if 1
 
@@ -3237,15 +3209,46 @@ static void qos_print_vc_diff_serv_cfg(ATG_DCI_VC_DIFF_SERV_DATA *diff)
     修改内容   : 新生成函数
 
 *****************************************************************************/
+void qos_print_vc_key(ATG_DCI_VC_KEY *vc_key)
+{
+    NBB_CHAR uc_message[DS_MSG_INFO_LEN];
+        
+    if(NULL != vc_key)
+    {
+        printf("vc_id=%ld,vc_type=%d,peer_ip=%ld\n",
+                  vc_key->vc_id,vc_key->vc_type,vc_key->peer_ip);
+
+    }
+   
+}
+
+/*****************************************************************************
+   函 数 名  : spm_ds_add_logic_intf_node
+   功能描述  : 逻辑端口优先级映射的接口函数
+   输入参数  : ds模板的index  ,逻辑端口的key,驱动结构体指针
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年1月15日 星期二
+    作    者   : zenglu
+    修改内容   : 新生成函数
+
+*****************************************************************************/
 void qos_log_vc_key(ATG_DCI_VC_KEY *vc_key)
 {
     NBB_CHAR uc_message[DS_MSG_INFO_LEN];
         
     if(NULL != vc_key)
     {
-        OS_SPRINTF(uc_message,"vc_id=%ld,vc_type=%d,peer_ip=%ld\n",
+        if(ATG_DCI_RC_OK != g_qos_ds_log)
+        {
+            OS_SPRINTF(uc_message,"vc_id=%ld,vc_type=%d,peer_ip=%ld\n",
                   vc_key->vc_id,vc_key->vc_type,vc_key->peer_ip);
-        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
+        } 
 
     }
    
@@ -3478,7 +3481,29 @@ static void qos_print_vrf_diff_serv_cfg(ATG_DCI_VRF_INSTANCE_DIFF_SERV *diff)
     
 }
 
+/*****************************************************************************
+   函 数 名  : spm_ds_add_logic_intf_node
+   功能描述  : 逻辑端口优先级映射的接口函数
+   输入参数  : ds模板的index  ,逻辑端口的key,驱动结构体指针
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
 
+   修改历史      :
+   1.日    期   : 2013年1月15日 星期二
+    作    者   : zenglu
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+void qos_print_vrf_key(SPM_QOS_VRF_INSTANSE_KEY *vrf_key)
+{        
+    if(NULL != vrf_key)
+    {        
+        printf("vrf_id=%d,label=%d,peer_ip=%ld\n",
+                  vrf_key->vrf_id,vrf_key->label,vrf_key->peer_ip);
+    } 
+}
 
 /*****************************************************************************
    函 数 名  : spm_ds_add_logic_intf_node
@@ -3653,6 +3678,40 @@ static void qos_print_lsp_diff_serv_cfg(ATG_DCI_LSP_TX_PROT_DIFF_SERV *diff)
         } 
     }
     
+}
+
+/*****************************************************************************
+   函 数 名  : spm_ds_add_logic_intf_node
+   功能描述  : 逻辑端口优先级映射的接口函数
+   输入参数  : ds模板的index  ,逻辑端口的key,驱动结构体指针
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年1月15日 星期二
+    作    者   : zenglu
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+void qos_print_lsp_key(SPM_QOS_TUNNEL_KEY *lsp_key)
+{   
+    if(NULL != lsp_key)
+    {     
+        if(0 == lsp_key->type)/*FTN*/
+        {
+            printf("ftn.vrfid=%d,ftn.fec=%ld,ftn.mask=%d\n",
+                  lsp_key->ftn.vrfid,lsp_key->ftn.fec,lsp_key->ftn.mask);
+        }
+        else
+        {
+            printf("tunnelid=%ld,lspid=%ld,ingress=%ld,egress=%d\n",
+                  lsp_key->tx_lsp.tunnelid,lsp_key->tx_lsp.lspid,
+                  lsp_key->tx_lsp.ingress,lsp_key->tx_lsp.egress);
+        }   
+    }
+   
 }
 
 /*****************************************************************************
@@ -4212,4 +4271,35 @@ NBB_LONG spm_add_ilm_ds_node(NBB_ULONG label,ATG_DCI_ILM_DIFF_SERV_DATA *diff,NB
     return ret;
 }
 #endif
+
+
+NBB_VOID qos_ds_help()
+{
+    NBB_CHAR **ppc_msg;
+
+    static NBB_CHAR *p_help_msg[] = {       
+        "---------------------------DS-----------------------------------", "",
+        "qos_set_ds_print(set)",                   "set all ds cfg print",
+        "qos_set_ds_log(set)",                     "set all ds log print",
+        "qos_show_phb2pri_ds_offset(dsptr,phb,color)",  "show ds offset",
+        "qos_show_pri2phb_ds_offset(dsptr,pri)",        "show ds offset",   
+        NULL
+    };
+
+    printf("\n");
+
+    for (ppc_msg = p_help_msg; *ppc_msg != NULL; ppc_msg += 2)
+    {
+        if (strlen(*(ppc_msg)) > 45)
+        {
+            printf(" %s %s\n", *ppc_msg, *(ppc_msg + 1));
+        }
+        else
+        {
+            printf(" %-40s %s\n", *ppc_msg, *(ppc_msg + 1));
+        }
+    }
+
+    printf("\n");
+}
 

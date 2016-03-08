@@ -16,13 +16,56 @@
     修改内容   : 创建文件
 ******************************************************************************/
 
-#ifndef SPM_QOS_WRED_H
-#define SPM_QOS_WRED_H
+#ifndef SPM_QOS_HQOS_H
+#define SPM_QOS_HQOS_H
 
 
 
+#define MEM_SPM_USER_GROUP_CB                     ((NBB_LONG)(PCT_SPM | 0x00002700))
+#define MEM_SPM_BASIC_USER_GROUP_CB                ((NBB_LONG)(PCT_SPM | 0x00002701))
+#define MEM_SPM_UP_USER_GROUP_CB                ((NBB_LONG)(PCT_SPM | 0x00002702))
+#define MEM_SPM_DOWN_USER_GROUP_CB                ((NBB_LONG)(PCT_SPM | 0x00002703))
 
 
+#define MEM_SPM_HQOS_LSP_TX_CB                     ((NBB_LONG)(PCT_SPM | 0x0000111D))
+#define MEM_SPM_HQOS_VRF_CB                     ((NBB_LONG)(PCT_SPM | 0x0000111E))
+#define MEM_SPM_HQOS_VC_CB                     ((NBB_LONG)(PCT_SPM | 0x0000111F))
+#define MEM_SPM_HQOS_LOG_USR_CB                     ((NBB_LONG)(PCT_SPM | 0x00001120))
+
+/*HQOS最大LSP条目数*/
+#define HQOS_MIN_LSP_ID 85
+
+/*HQOS最大LSP条目数*/
+#define HQOS_MAX_LSP_ID 4096
+
+/*HQOS最大pw条目数*/
+#define HQOS_MAX_PW_ID   4096
+
+/**STRUCT*********************************************************************/
+/* Structure: SPM_QOS_PORT_CB                                           */
+/*                                                                           */
+/* Description: qos物理端口        */
+/*                                                                           */
+/*****************************************************************************/
+typedef struct spm_qos_port_cb
+{
+    /***************************************************************************/
+    /* The AVLL node.                                                          */
+    /***************************************************************************/
+    AVLL_NODE spm_qos_port_node;
+
+    /* key值: 物理端口*/
+    NBB_USHORT port_key;
+
+    /* LSP policy索引*/
+    AVLL_TREE lsp_tree;
+
+
+    //AVLL_TREE pw_vrf_tree;
+    //AVLL_TREE pw_vc_tree;
+    //AVLL_TREE group_tree;
+
+} SPM_QOS_PORT_CB;
 
 
 /* QoS模块相关信息 */
@@ -39,18 +82,23 @@ typedef struct spm_hqos_usr_cb
     /***************************************************************************/
     NBB_ULONG index;
 
-    /*PW id*/
-    NBB_ULONG pw_id;
+    ATG_DCI_LOG_DOWN_USER_QUEUE_QOS data;
 
-    NBB_LONG flow_id;
-
-    ATG_DCI_VPN_HQOS_POLICY data;
+    /***************************************************************************/
+    /* SDK resource    time sorted                                             */
+    /***************************************************************************/
+    NBB_ULONG pw_id;//ARAD
+    NBB_LONG voq_id;//ARAD
+    NBB_LONG tm_vc;//ARAD
+    NBB_LONG vc_id[MAX_HQOS_SLOT_NUM];//ARAD
+    NBB_LONG np_flow_id;//c3
+    TX_PORT_T l3uni;
 } SPM_HQOS_LOG_USR_CB;
 
 
 
 /* QoS模块相关信息 */
-typedef struct spm_qos_user_group_cb
+typedef struct spm_hqos_user_group_cb
 {
     /***************************************************************************/
     /* The AVLL node.                                                          */
@@ -66,7 +114,7 @@ typedef struct spm_qos_user_group_cb
 
     //ATG_DCI_USER_GROUP_UP_QOS *up_cfg_cb;
 
-    ATG_DCI_VPN_HQOS_POLICY data;//全FF代表删除不限速
+    ATG_DCI_TX_LSP_QOS data;//全FF代表删除不限速
 
     NBB_ULONG lsp_id;
 
@@ -74,7 +122,7 @@ typedef struct spm_qos_user_group_cb
 
     NBB_USHORT port;
 
-} SPM_QOS_USER_GROUP_CB;
+} SPM_HQOS_USER_GROUP_CB;
 
 
 
@@ -99,7 +147,7 @@ typedef struct spm_hqos_lsp_cb
 
     NBB_USHORT port;
 
-    ATG_DCI_VPN_HQOS_POLICY data;
+    ATG_DCI_TX_LSP_QOS data;
 
     /***************************************************************************/
     /* SDK resource    time sorted                                             */
@@ -127,7 +175,7 @@ typedef struct spm_hqos_vc_cb
     /***************************************************************************/
     ATG_DCI_VC_KEY vc_key;
 
-    ATG_DCI_VPN_HQOS_POLICY vc_data;
+    ATG_DCI_TX_LSP_QOS vc_data;
 
     /***************************************************************************/
     /* SDK resource    time sorted                                             */
@@ -153,7 +201,7 @@ typedef struct spm_hqos_vrf_cb
     /* key值: index */
     SPM_QOS_VRF_INSTANSE_KEY vrf_key;
 
-    ATG_DCI_VPN_HQOS_POLICY vrf_data;
+    ATG_DCI_TX_LSP_QOS vrf_data;
 
     /***************************************************************************/
     /* SDK resource    time sorted                                             */
@@ -164,8 +212,39 @@ typedef struct spm_hqos_vrf_cb
     NBB_LONG vc_id[MAX_HQOS_SLOT_NUM];//ARAD
     NBB_LONG np_flow_id;//c3
     NBB_LONG posid;//c3
-    
-
+   
 } SPM_HQOS_VRF_CB;
+
+
+NBB_LONG spm_hqos_add_lsp_node(NBB_USHORT slot,
+    NBB_LONG port,
+    SPM_QOS_TUNNEL_KEY *lsp_key,
+    ATG_DCI_TX_LSP_QOS *data,
+    NBB_ULONG posid);
+
+NBB_LONG spm_hqos_del_lsp_node(SPM_HQOS_LSP_CB **plsp);
+
+NBB_LONG spm_hqos_add_vc_node(NBB_BYTE slot, NBB_USHORT port, NBB_ULONG posid, NBB_BYTE proflag,
+    SPM_QOS_TUNNEL_KEY *lsp_key, ATG_DCI_VC_KEY *vc_key,
+    ATG_DCI_VC_UP_VPN_QOS_POLICY *data);
+
+NBB_LONG spm_hqos_del_vc_node(SPM_HQOS_LSP_CB **plsp,SPM_HQOS_VC_CB **pcb);
+
+NBB_LONG spm_hqos_add_vrf_node(NBB_BYTE slot, NBB_USHORT port, NBB_ULONG posid,
+    SPM_QOS_TUNNEL_KEY *lsp_key, ATG_DCI_VRF_INSTANCE_KEY *vrf_key,
+    ATG_DCI_VRF_INSTANCE_UP_VPN_QOS *data);
+
+NBB_LONG spm_hqos_del_vrf_node(SPM_HQOS_LSP_CB **plsp,SPM_HQOS_VRF_CB **pcb);
+
+NBB_LONG spm_hqos_add_usr_node(SUB_PORT *sub_port,NBB_ULONG logic_key,
+    ATG_DCI_LOG_DOWN_USER_QUEUE_QOS *data);
+
+NBB_LONG spm_hqos_del_usr_node(SPM_HQOS_USER_GROUP_CB *group,SPM_HQOS_LOG_USR_CB **pcb);
+
+NBB_VOID spm_rcv_dci_set_user_group(ATG_DCI_SET_USER_GROUP *pst_set_ips);
+
+NBB_VOID spm_rcv_dci_set_hqos(ATG_DCI_SET_HQOS *pstSetIps);
+
+NBB_LONG spm_qos_hqos_init(void);
 
 #endif

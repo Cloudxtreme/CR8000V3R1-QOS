@@ -148,11 +148,7 @@
 
 #define MAX_PHYSIC_PORT_NUM                             128
 
-/*HQOS最大LSP条目数*/
-#define HQOS_MAX_LSP_ID 4096
 
-/*HQOS最大pw条目数*/
-#define HQOS_MAX_PW_ID   4096
 
 #define MAX_ACL_CFG_NUM          6000
 
@@ -165,7 +161,7 @@
 #define MAX_CLASSIFY_ETH_ACL_ID_NUM  99
 
 
-#define SIGNAL_NUM  46
+
 
 
 
@@ -255,12 +251,21 @@ typedef NBB_LONG (*SPM_PROC_DATA_FUNC)(NBB_CONST NBB_BYTE *rq_buf, NBB_CONST NBB
 #define VC_MAIN     1
 #define VC_BACK     2
 
+
+/***************************************************************************/
+/* 指明 VE 类型                                       */
+/***************************************************************************/
+#define L2_VE     1
+#define L3_VE     2
+
 /***************************************************************************/
 /* 条目增加/更新=0/1.                                       */
 /***************************************************************************/
-#define SPM_OPER_ADD    0
-#define SPM_OPER_UPD    1
-#define SPM_OPER_DEL    2
+#define SPM_OPER_ADD        0
+#define SPM_OPER_UPD        1
+#define SPM_OPER_DEL        2
+#define SPM_OPER_INIT_ADD   3
+#define SPM_OPER_FRESH      4
 
 /***************************************************************************/
 /* 条目增加/更新=0/1.                                       */
@@ -1064,40 +1069,7 @@ typedef struct spm_nf_ctrl_cb
 /**STRUCT-********************************************************************/
 
 
-/**STRUCT*********************************************************************/
-/* Structure: SPM_QOS_PORT_CB                                           */
-/*                                                                           */
-/* Description: qos物理端口        */
-/*                                                                           */
-/*****************************************************************************/
-typedef struct spm_qos_port_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_qos_port_node;
 
-    /***************************************************************************/
-    /* Handle for this control block, to be used as a correlator for           */
-    /* asynchronous message exchanges.                                         */
-    /***************************************************************************/
-    NBB_HANDLE spm_qos_port_handle;
-
-    /* key值: 物理端口*/
-    NBB_USHORT port_key;
-
-    /* LSP policy索引*/
-    AVLL_TREE lsp_tree;
-
-    /*pw policy索引*/
-    AVLL_TREE pw_vrf_tree;
-
-    /* pw policy索引*/
-    AVLL_TREE pw_vc_tree;
-
-    AVLL_TREE group_tree;
-
-} SPM_QOS_PORT_CB;
 
 
 
@@ -1644,32 +1616,8 @@ typedef struct spm_shared_local
     /***************************************************************************/
     AVLL_TREE ds_domain_tree;
 
-    /***************************************************************************/
-    /* 存放ds路由*/
-    /***************************************************************************/
-    AVLL_TREE ds_tree;
-
-    /***************************************************************************/
-    /* 存放逻辑端口L3 INTF ds配置*/
-    /***************************************************************************/
-    AVLL_TREE qos_ds_logic_intf_tree;
-
-    /***************************************************************************/
-    /* 存放逻辑端口L2 FLOW ds配置*/
-    /***************************************************************************/
-    AVLL_TREE qos_ds_logic_flow_tree;
-
-    /***************************************************************************/
-    /* 存放L2 FLOW VPUNI ds配置*/
-    /***************************************************************************/
-    AVLL_TREE qos_ds_logic_univp_tree;
-
-    /***************************************************************************/
-    /* 存放用户组配置*/
-    /***************************************************************************/
-    AVLL_TREE qos_user_group_tree;
     
-     /***************************************************************************/
+    /***************************************************************************/
     /* 存放ip nf配置*/
     /***************************************************************************/
     AVLL_TREE ip_nf_tree;
@@ -1816,15 +1764,7 @@ typedef struct spm_shared_local
     /***************************************************************************/
     AVLL_TREE qos_policy_tree;
 
-    /***************************************************************************/
-    /* 存放policy qos配置*/
-    /***************************************************************************/
-    AVLL_TREE qos_defend_policy_tree;
 
-    /***************************************************************************/
-    /* 存放policy qos配置*/
-    /***************************************************************************/
-    AVLL_TREE qos_defend_tree;
 
     /***************************************************************************/
     /* 存放wred qos配置*/
@@ -1847,35 +1787,9 @@ typedef struct spm_shared_local
     /***************************************************************************/
     AVLL_TREE qos_vrf_tree;
 
-    /***************************************************************************/
-    /* 存放Hqos LSPID*/
-    /***************************************************************************/
-    NBB_ULONG hqos_lspId;
-
-    /***************************************************************************/
-    /* 存放Hqos LSP 资源*/
-    /***************************************************************************/
-    NBB_BYTE hqos_lsp_pool[HQOS_MAX_LSP_ID];
-
-    /***************************************************************************/
-    /* 存放Hqos pwId*/
-    /***************************************************************************/
-    NBB_ULONG hqos_pwId;
-
-    /***************************************************************************/
-    /* 存放Hqos PW 资源*/
-    /***************************************************************************/
-    NBB_BYTE hqos_pw_pool[HQOS_MAX_PW_ID];
-
-    /***************************************************************************/
-    /* 存放防攻击的每个协议的rule个数*/
-    /***************************************************************************/
-    NBB_BYTE qos_defend_num[SIGNAL_NUM + 1];
     
-    /***************************************************************************/
-    /* 存放防攻击的每个协议的rule偏移*/
-    /***************************************************************************/
-    NBB_USHORT qos_defend_offset[SIGNAL_NUM + 1];
+
+    
 
     /*************定时器********************/
 
@@ -1989,18 +1903,20 @@ typedef struct spm_shared_local
 #define MEM_SPM_PHY_PORT_IPV4_SAMPLE_CB         ((NBB_LONG)(PCT_SPM | 0x0000010E))
 #define MEM_SPM_PHY_PORT_IPV6_NF_CB             ((NBB_LONG)(PCT_SPM | 0x0000010F))
 #define MEM_SPM_PHY_PORT_IPV6_SAMPLE_CB         ((NBB_LONG)(PCT_SPM | 0x00000110))
-#define MEM_SPM_PHY_PORT_COMMON_CB              ((NBB_LONG)(PCT_SPM | 0x00000111))
-#define MEM_SPM_PHY_PORT_SDH_TOVHD_CB           ((NBB_LONG)(PCT_SPM | 0x00000112))
-#define MEM_SPM_PHY_PORT_ALS_CB           ((NBB_LONG)(PCT_SPM | 0x00000113))
-#define MEM_SPM_PHY_PORT_POWER_THRESHOLD_CB           ((NBB_LONG)(PCT_SPM | 0x00000114))
+#define MEM_SPM_PHY_PORT_POVE_CB         ((NBB_LONG)(PCT_SPM | 0x00000111))
+#define MEM_SPM_PHY_PORT_COMMON_CB              ((NBB_LONG)(PCT_SPM | 0x00000112))
+#define MEM_SPM_PHY_PORT_SDH_TOVHD_CB           ((NBB_LONG)(PCT_SPM | 0x00000113))
+#define MEM_SPM_PHY_PORT_ALS_CB           ((NBB_LONG)(PCT_SPM | 0x00000114))
+#define MEM_SPM_PHY_PORT_THRES_CB           ((NBB_LONG)(PCT_SPM | 0x00000115))
+#define MEM_SPM_PHY_PORT_MCC_CB           ((NBB_LONG)(PCT_SPM | 0x00000116))
 
 #define MEM_SPM_LOGICAL_PORT_CB                 ((NBB_LONG)(PCT_SPM | 0x00000200))
 #define MEM_SPM_LOG_PORT_BASIC_CB               ((NBB_LONG)(PCT_SPM | 0x00000201))
 #define MEM_SPM_LOG_PORT_PHY_CB                 ((NBB_LONG)(PCT_SPM | 0x00000202))
 #define MEM_SPM_LOG_PORT_L3_CB                  ((NBB_LONG)(PCT_SPM | 0x00000203))
 #define MEM_SPM_LOG_PORT_L2_CB                  ((NBB_LONG)(PCT_SPM | 0x00000204))
-#define MEM_SPM_LOG_PORT_CES_CB                 ((NBB_LONG)(PCT_SPM | 0x00000205))
-#define MEM_SPM_LOG_PORT_FLOW_CB                ((NBB_LONG)(PCT_SPM | 0x00000206))
+#define MEM_SPM_LOG_PORT_L2VPN_CB                ((NBB_LONG)(PCT_SPM | 0x00000205))
+#define MEM_SPM_LOG_PORT_CES_CB                 ((NBB_LONG)(PCT_SPM | 0x00000206))
 #define MEM_SPM_LOG_PORT_IPV4_CB                ((NBB_LONG)(PCT_SPM | 0x00000207))
 #define MEM_SPM_LOG_PORT_IPV6_CB                ((NBB_LONG)(PCT_SPM | 0x00000208))
 #define MEM_SPM_LOG_PORT_MC_IPV4_CB             ((NBB_LONG)(PCT_SPM | 0x00000209))
@@ -2018,6 +1934,7 @@ typedef struct spm_shared_local
 #define MEM_SPM_LOG_PORT_TERMINAL_IF_CB      	((NBB_LONG)(PCT_SPM | 0x00000215))
 #define MEM_SPM_LOG_PORT_MC_IPV6_CB             ((NBB_LONG)(PCT_SPM | 0x00000216))
 #define MEM_SPM_LOG_PORT_DS_L2_CB               ((NBB_LONG)(PCT_SPM | 0x00000217))
+#define MEM_SPM_LOG_PORT_CAR_CB                 ((NBB_LONG)(PCT_SPM | 0x00000218))
 #define MEM_SPM_LOG_PORT_VIPV6_VMAC_CB            ((NBB_LONG)(PCT_SPM | 0x00000219))
 
 #define MEM_SPM_LAG_CB                          ((NBB_LONG)(PCT_SPM | 0x00000300))
@@ -2146,108 +2063,13 @@ typedef struct spm_shared_local
 
 #if 1
 /*QOS配置块内存宏*/
-#define MEM_SPM_DEFEND_POLICY_CB               ((NBB_LONG)(PCT_SPM | 0x00003100))
-#define MEM_SPM_DEFEND_APPERC_CB               ((NBB_LONG)(PCT_SPM | 0x000031004))
-#define MEM_SPM_DEFEND_USR_DEF_CB              ((NBB_LONG)(PCT_SPM | 0x00003105))
-
-#define MEM_SPM_DEFEND_CB               ((NBB_LONG)(PCT_SPM | 0x00003000))
-
-#define MEM_SPM_HQOS_CB                     ((NBB_LONG)(PCT_SPM | 0x00001100))
-#define MEM_SPM_HQOS_SLOT_CB                     ((NBB_LONG)(PCT_SPM | 0x00001102))
-
-#define MEM_SPM_WRED_CB                     ((NBB_LONG)(PCT_SPM | 0x00001f00))
-#define MEM_SPM_WRED_BASIC_CB                     ((NBB_LONG)(PCT_SPM | 0x00001f01))
-
-#define MEM_SPM_TWAMP_IPV4_CB               ((NBB_LONG)(PCT_SPM | 0x00003200))
-#define MEM_SPM_TWAMP_IPV4_BASIC_CB         ((NBB_LONG)(PCT_SPM | 0x00003201))
-#define MEM_SPM_TWAMP_IPV6_CB               ((NBB_LONG)(PCT_SPM | 0x00003300))
-#define MEM_SPM_TWAMP_IPV6_BASIC_CB         ((NBB_LONG)(PCT_SPM | 0x00003301))
-
-
-#define MEM_SPM_DS_DOMAIN_CB                     ((NBB_LONG)(PCT_SPM | 0x00002100))
-#define MEM_SPM_DS_DOMAIN_D2P_CB                     ((NBB_LONG)(PCT_SPM | 0x00002101))
-#define MEM_SPM_DS_DOMAIN_TC2P_CB                     ((NBB_LONG)(PCT_SPM | 0x00002102))
-#define MEM_SPM_DS_DOMAIN_VLAN2P_CB                     ((NBB_LONG)(PCT_SPM | 0x00002103))
-#define MEM_SPM_DS_DOMAIN_EXP2P_CB                     ((NBB_LONG)(PCT_SPM | 0x00002104))
-#define MEM_SPM_DS_DOMAIN_P2D_CB                     ((NBB_LONG)(PCT_SPM | 0x00002105))
-#define MEM_SPM_DS_DOMAIN_P2TC_CB                     ((NBB_LONG)(PCT_SPM | 0x00002106))
-#define MEM_SPM_DS_DOMAIN_P2VLAN_CB                     ((NBB_LONG)(PCT_SPM | 0x00002107))
-#define MEM_SPM_DS_DOMAIN_P2EXP_CB                     ((NBB_LONG)(PCT_SPM | 0x00002108))
-
-#define MEM_SPM_DS_CB                             ((NBB_LONG)(PCT_SPM | 0x00002000))
-#define MEM_SPM_DS_PRI2PHB_CB                     ((NBB_LONG)(PCT_SPM | 0x00002001))
-#define MEM_SPM_DS_PHB2PRI_CB                     ((NBB_LONG)(PCT_SPM | 0x00002002))
-
-#define MEM_SPM_ACL_CB                           ((NBB_LONG)(PCT_SPM | 0x00002300))
-#define MEM_SPM_ACL_BASIC_CB                     ((NBB_LONG)(PCT_SPM | 0x00002301))
-#define MEM_SPM_ACL_PORT_CB                     ((NBB_LONG)(PCT_SPM | 0x00002302))
-#define MEM_SPM_ACL_ETH_CB                     ((NBB_LONG)(PCT_SPM | 0x00002303))
-#define MEM_SPM_ACL_IPV4_CB                     ((NBB_LONG)(PCT_SPM | 0x00002304))
-#define MEM_SPM_ACL_IPTCP_CB                     ((NBB_LONG)(PCT_SPM | 0x00002305))
-#define MEM_SPM_ACL_IPV6_CB                     ((NBB_LONG)(PCT_SPM | 0x00002306))
-#define MEM_SPM_ACL_NOIP_CB                     ((NBB_LONG)(PCT_SPM | 0x00002307))
-#define MEM_SPM_ACL_IPUDP_CB                     ((NBB_LONG)(PCT_SPM | 0x00002308))
-
-#define MEM_SPM_POLICY_CB                     ((NBB_LONG)(PCT_SPM | 0x00002400))
-#define MEM_SPM_POLICY_BASIC_CB                     ((NBB_LONG)(PCT_SPM | 0x00002401))
-#define MEM_SPM_POLICY_C2B_CB                     ((NBB_LONG)(PCT_SPM | 0x00002402))
-
-#define MEM_SPM_CLASSIFY_CB                     ((NBB_LONG)(PCT_SPM | 0x00002500))
-#define MEM_SPM_CLASSIFY_BASIC_CB                     ((NBB_LONG)(PCT_SPM | 0x00002501))
-#define MEM_SPM_CLASSIFY_PORT_CB                     ((NBB_LONG)(PCT_SPM | 0x00002502))
-#define MEM_SPM_CLASSIFY_ETH_CB                     ((NBB_LONG)(PCT_SPM | 0x00002503))
-#define MEM_SPM_CLASSIFY_IPV4_CB                     ((NBB_LONG)(PCT_SPM | 0x00002504))
-#define MEM_SPM_CLASSIFY_IPTCP_CB                     ((NBB_LONG)(PCT_SPM | 0x00002505))
-#define MEM_SPM_CLASSIFY_IPV6_CB                     ((NBB_LONG)(PCT_SPM | 0x00002506))
-#define MEM_SPM_CLASSIFY_NOIP_CB                     ((NBB_LONG)(PCT_SPM | 0x00002507))
-#define MEM_SPM_CLASSIFY_IPUDP_CB                     ((NBB_LONG)(PCT_SPM | 0x00002508))
-#define MEM_SPM_CLASSIFY_POLICY_CB                     ((NBB_LONG)(PCT_SPM | 0x00002509))
-
-#define MEM_SPM_ACTION_CB                     ((NBB_LONG)(PCT_SPM | 0x00002600))
-#define MEM_SPM_ACTION_BASIC_CB                     ((NBB_LONG)(PCT_SPM | 0x00002601))
-#define MEM_SPM_ACTION_SHAPING_CB                     ((NBB_LONG)(PCT_SPM | 0x00002602))
-#define MEM_SPM_ACTION_SUPERVISE_CB                     ((NBB_LONG)(PCT_SPM | 0x00002603))
-#define MEM_SPM_ACTION_SCHEDULE_CB                     ((NBB_LONG)(PCT_SPM | 0x00002604))
-#define MEM_SPM_ACTION_FLOW_ACT_CB                     ((NBB_LONG)(PCT_SPM | 0x00002606))
-#define MEM_SPM_ACTION_FLOW_SAMPL_CB                     ((NBB_LONG)(PCT_SPM | 0x00002607))
-#define MEM_SPM_ACTION_REDIRECT_CB                     ((NBB_LONG)(PCT_SPM | 0x000026008))
-#define MEM_SPM_ACTION_POLCY_RT_CB                     ((NBB_LONG)(PCT_SPM | 0x00002609))
-#define MEM_SPM_ACTION_PHB_CB                     ((NBB_LONG)(PCT_SPM | 0x0000260a))
-#define MEM_SPM_ACTION_DOMAIN_CB                     ((NBB_LONG)(PCT_SPM | 0x0000260b))
-#define MEM_SPM_ACTION_URPF_CB                     ((NBB_LONG)(PCT_SPM | 0x0000260c))
-#define MEM_SPM_ACTION_POLICY_SUPERVISE_CB         ((NBB_LONG)(PCT_SPM | 0x0000260e))
-
-#define MEM_SPM_USER_GROUP_CB                     ((NBB_LONG)(PCT_SPM | 0x00002700))
-#define MEM_SPM_BASIC_USER_GROUP_CB                ((NBB_LONG)(PCT_SPM | 0x00002701))
-#define MEM_SPM_UP_USER_GROUP_CB                ((NBB_LONG)(PCT_SPM | 0x00002702))
-#define MEM_SPM_DOWN_USER_GROUP_CB                ((NBB_LONG)(PCT_SPM | 0x00002703))
 
 
 
-/*QOS子定义内存宏*/
-#define MEM_SPM_PORT_WRED_CB                     ((NBB_LONG)(PCT_SPM | 0x00001110))
 
-#define MEM_SPM_QOS_DS_LOGIC_CB                     ((NBB_LONG)(PCT_SPM | 0x00001111))
-#define MEM_SPM_QOS_DS_LOGIC_FLOW_CB                 ((NBB_LONG)(PCT_SPM | 0x00001112))
-#define MEM_SPM_QOS_DS_VC_CB                     ((NBB_LONG)(PCT_SPM | 0x00001113))
-#define MEM_SPM_QOS_DS_VRF_CB                     ((NBB_LONG)(PCT_SPM | 0x0001114))
-#define MEM_SPM_QOS_DS_ILM_CB                     ((NBB_LONG)(PCT_SPM | 0x00001115))
-#define MEM_SPM_QOS_DS_FTN_CB                     ((NBB_LONG)(PCT_SPM | 0x00001116))
-#define MEM_SPM_QOS_DS_RX_LSP_CB                     ((NBB_LONG)(PCT_SPM | 0x00001117))
-#define MEM_SPM_QOS_DS_TX_LSP_CB                     ((NBB_LONG)(PCT_SPM | 0x00001118))
-#define MEM_SPM_QOS_DS_TUNNEL_CB                     ((NBB_LONG)(PCT_SPM | 0x00001119))
 
-#define MEM_SPM_QOS_ACL_LOGIC_CB                     ((NBB_LONG)(PCT_SPM | 0x0000111A))
-#define MEM_SPM_QOS_FLOW_CLASSIFY_CB                     ((NBB_LONG)(PCT_SPM | 0x0000111B))
 #define MEM_SPM_QOS_UP_USR_CB                       ((NBB_LONG)(PCT_SPM | 0x0000111C))
-
-#define MEM_SPM_HQOS_LSP_TX_CB                     ((NBB_LONG)(PCT_SPM | 0x0000111D))
-#define MEM_SPM_HQOS_VRF_CB                     ((NBB_LONG)(PCT_SPM | 0x0000111E))
-#define MEM_SPM_HQOS_VC_CB                     ((NBB_LONG)(PCT_SPM | 0x0000111F))
-#define MEM_SPM_HQOS_LOG_GROUP_CB                     ((NBB_LONG)(PCT_SPM | 0x00001120))
-#define MEM_SPM_HQOS_LOG_USR_CB                     ((NBB_LONG)(PCT_SPM | 0x00001121))
 #define MEM_SPM_QOS_FLOW_UP_USR_CB                  ((NBB_LONG)(PCT_SPM | 0x00001122))
-#define MEM_SPM_QOS_DS_LOGIC_UNIVP_CB          ((NBB_LONG)(PCT_SPM | 0x00001123))
 #define MEM_SPM_QOS_TXLSP_CAR_CB               ((NBB_LONG)(PCT_SPM | 0x00001124))
 #define MEM_SPM_QOS_PW_CAR_CB                  ((NBB_LONG)(PCT_SPM | 0x00001125))
 #define MEM_SPM_QOS_INTF_PW_CB                 ((NBB_LONG)(PCT_SPM | 0x00001126))
@@ -2813,151 +2635,8 @@ typedef struct spm_vc_info_cb
 
 /**STRUCT-********************************************************************/
 
-
 /**STRUCT+********************************************************************/
-/* Structure: SPM_LOGICAL_PORT_INFO_CB                                       */
-/*                                                                           */
-/* Description: 逻辑端口维护的一些配置，包括驱动返回                         */
-/*                                                                           */
-/* Added by xiaoxiang, 2012/4/13                                            */
-/*****************************************************************************/
-typedef struct spm_logical_port_info_cb
-{
-
-    /***************************************************************************/
-    /* 驱动返回的VP pos_id，如果为0说明此端口未被加入到某VPWS/VPLS.            */
-    /***************************************************************************/
-    NBB_ULONG vp_idx;
-
-    /***************************************************************************/
-    /* vp_idx. 微码的index                                      */
-    /***************************************************************************/
-    //NBB_ULONG vp_api_idx;
-
-    /***************************************************************************/
-    /* VPN类型：1/2=VPWS/VPLS.                                         */
-    /***************************************************************************/
-    NBB_BYTE vpn_type;
-
-    /***************************************************************************/
-    /* VPN ID：VPWS=[1-16K] VPLS=[1-4K].                                       */
-    /***************************************************************************/
-    NBB_USHORT vpn_id;
-
-    /***************************************************************************/
-    /* 驱动返回的INTF pos_id, 如果为L3指三层INTF.        */
-    /***************************************************************************/
-    NBB_USHORT intf_pos_id;
-
-    /***************************************************************************/
-    /*  UNI对应的下一跳ID.                                       */
-    /***************************************************************************/
-    NBB_ULONG next_hop_id;
-
-    /***************************************************************************/
-    /*  MSP 保护时UNI对应的备用下一跳ID.                                       */
-    /***************************************************************************/
-    NBB_ULONG p_next_hop_id;    
-
-    /***************************************************************************/
-    /*  UNI对应的下一跳counter ID.                                       */
-    /***************************************************************************/
-    NBB_ULONG next_hop_counter_id;
-
-    /***************************************************************************/
-    /* 流的驱动返回值和是否配置了QoS等信息.        */
-    /***************************************************************************/
-    SPM_FLOW_INFO_CB flow_info_cb;
-	
-    /*  VRRP的MAC对应的pos_id.                                       */
-    /***************************************************************************/
-    NBB_ULONG ulVrrpMacPosId[ATG_DCI_LOG_PORT_VIP_VMAC_NUM];
-
-    /*  VRRP ipv6的MAC对应的pos_id.                                       */
-    /***************************************************************************/
-    NBB_ULONG vrrp_ipv6_posid[ATG_DCI_LOG_PORT_VIP_VMAC_NUM];    
-
-    /*  VRRP的MAC对应的pos_id.                                       */
-    /***************************************************************************/
-    NBB_ULONG vrrp_ipv4_posid2[ATG_DCI_LOG_PORT_VIP_VMAC_NUM];
-
-    /*  VRRP ipv6的MAC对应的pos_id.                                       */
-    /***************************************************************************/
-    NBB_ULONG vrrp_ipv6_posid2[ATG_DCI_LOG_PORT_VIP_VMAC_NUM];     
-} SPM_LOGICAL_PORT_INFO_CB;
-
-/**STRUCT-********************************************************************/
-
-
-/**STRUCT+********************************************************************/
-/* Structure: SPM_PORT_INFO_CB                                           */
-/*                                                                           */
-/* Description: PORT属性                         */
-/*                                                                           */
-/* Added by xiaoxiang, 2013/3/18                                            */
-/*****************************************************************************/
-typedef struct spm_port_info_cb
-{
-    /***************************************************************************/
-    /*  C3芯片号.                                       */
-    /***************************************************************************/
-    NBB_INT unit_id;
-    
-    /***************************************************************************/
-    /* 端口类型：0/1/2/3=接口/子接口/LAG/虚拟以太网口.                         */
-    /***************************************************************************/
-    NBB_BYTE port_type;
-
-    /***************************************************************************/
-    /*  port_id.                                       */
-    /***************************************************************************/
-    NBB_USHORT port_id;
-    
-    /***************************************************************************/
-    /*  物理端口号.                                       */
-    /***************************************************************************/
-    NBB_BYTE phy_port;
-    
-    /***************************************************************************/
-    /*  card_id.                                       */
-    /***************************************************************************/
-    NBB_USHORT card_id;
-    /***************************************************************************/
-    /*  slot_id.                                       */
-    /***************************************************************************/
-    NBB_BYTE slot_id;
-
-    /***************************************************************************/
-    /*  记录LAG口第一个成员端口的槽位，用于组播时FE1600增删槽位.               */
-    /***************************************************************************/
-    NBB_BYTE lag_slot_id;
-
-    NBB_USHORT lag_port_id;
-
-    /***************************************************************************/
-    /*  VE口的槽位.                                       */
-    /***************************************************************************/
-    NBB_BYTE ve_slot_id;
-    
-    /***************************************************************************/
-    /*  s-vlan.                                       */
-    /***************************************************************************/
-    NBB_USHORT svlan;
-
-    /***************************************************************************/
-    /*  c-vlan.                                       */
-    /***************************************************************************/
-    NBB_USHORT cvlan;
-
-    /***************************************************************************/
-    /*  UNI VP posid.                                       */
-    /***************************************************************************/
-    NBB_ULONG vp_pos_id;
-
-} SPM_PORT_INFO_CB;
-
-/**STRUCT+********************************************************************/
-/* Structure: SPM_PORT_INFO_CB                                           */
+/* Structure: spm_vp_info_cb                                           */
 /*                                                                           */
 /* Description: PORT属性                         */
 /*                                                                           */
@@ -3112,444 +2791,6 @@ typedef struct spm_vpws_nni_info_cb
 
 /**STRUCT-********************************************************************/
 
-
-/**STRUCT+********************************************************************/
-/* Structure: SPM_PHYSICAL_PORT_CB                                           */
-/*                                                                           */
-/* Description: 接口物理配置。                                               */
-/*                                                                           */
-/* Added by xiaoxiang, 2012/9/11                                             */
-/*****************************************************************************/
-typedef struct spm_physical_port_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_physical_port_node;
-
-    /***************************************************************************/
-    /* Handle for this control block, to be used as a correlator for           */
-    /* asynchronous message exchanges.                                         */
-    /***************************************************************************/
-    NBB_HANDLE spm_physical_port_handle;
-
-    /* key值: index */
-    NBB_ULONG port_index_key;
-
-    /* 基本配置。*/
-    ATG_DCI_PHY_PORT_BASIC_DATA *basic_cfg_cb;
-
-    /* 以太网接口物理配置。*/
-    ATG_DCI_PHY_PORT_PHY_DATA *phy_cfg_cb;
-
-    /* POS接口链路层配置。 */
-    ATG_DCI_PHY_PORT_POS_LINK_DATA *pos_link_cfg_cb;
-
-    /* SDH段开销配置。 */
-    ATG_DCI_PHY_PORT_SDH_SOVHD_DATA *sdh_sovhd_cfg_cb;
-
-    /* CES接口配置。 */
-    ATG_DCI_PHY_PORT_CES_DATA *ces_cfg_cb;
-
-    /* CEP接口开销配置。 */
-    ATG_DCI_PHY_PORT_CEP_OVHD_DATA *cep_ovhd_cfg_cb;
-
-    /***************************************************************************/
-    /* 以太网EFM OAM.                                                         */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_EFM_OAM_DATA *efm_oam_cfg_cb;
-
-    /***************************************************************************/
-    /* 时间同步端口配置.                                                       */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_TIME_SYNC_DATA *time_sync_cfg_cb;
-
-    /***************************************************************************/
-    /* 以太网接口报文抑制.                                                     */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_MSG_SUPPR_DATA *msg_suppr_cfg_cb;
-
-    /***************************************************************************/
-    /* 以太网接口流量整形.                                                     */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_FLOW_SHAPE *flow_shape_cfg_cb;
-
-    /***************************************************************************/
-    /* 以太网出口队列调度策略.                                                 */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_SCHEDUL_POLICY *schedule_policy_cfg_cb;
-
-    /***************************************************************************/
-    /* 以太网出口队列拥塞策略.                                                 */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_CONGEST_POLICY *congest_policy_cfg_cb;
-
-    /***************************************************************************/
-    /* IPV4流采样使能配置IPV4 NetFlow.                                         */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_IPV4NF_DATA *ipv4_nf_cfg_cb;
-
-    /***************************************************************************/
-    /* IPV4流采样镜像 IPV4 NetFlow sampler.                                    */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_IPNF_SAMPLER *ip_sample_cfg_cb;
-
-    /***************************************************************************/
-    /* IPV6流采样使能配置 IPV6 NetFlow.                                         */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_IPV6NF_DATA *ipv6_nf_cfg_cb;
-
-    /***************************************************************************/
-    /* 接口通用配置.                                    */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_COMMON_DATA *common_cfg_cb;
-
-    /***************************************************************************/
-    /* SDH通道开销配置.                                    */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_SDH_TOVHD_DATA *sdh_tovhd_cfg_cb;
-
-    /***************************************************************************/
-    /* ALS配置.                                    */
-    /***************************************************************************/
-    ATG_DCI_PHY_PORT_ALS_DATA *als_cfg_cb;
-
-    /***************************************************************************/
-    /* 光功率门限配置.                                    */
-    /***************************************************************************/
-    //ATG_DCI_PHY_PORT_POWER_THRESHOLD *threshold_cfg_cb;    
-    
-} SPM_PHYSICAL_PORT_CB;
-
-/**STRUCT-********************************************************************/
-
-/**STRUCT+********************************************************************/
-/* Structure: BMU_TERMINAL_IF_CB                                             */
-/*                                                                           */
-/* Description: 终结子接口配置块。                                           */
-/*                                                                           */
-/*****************************************************************************/
-typedef struct spm_terminal_if_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_terminal_if_node;
-
-    /***************************************************************************/
-    /* Handle for this control block, to be used as a correlator for           */
-    /* asynchronous message exchanges.                                         */
-    /***************************************************************************/
-    NBB_HANDLE spm_terminal_if_handle;
-
-    /* 终结子接口。 */
-    ATG_DCI_LOG_PORT_VLAN terminal_if_cfg;
-
-    /* 驱动返回值 ，非VE和LAG时可能为任意片C3的驱动返回值*/
-    NBB_ULONG intf_pos_id;
-
-      /* VE或者LAG时  第二片C3驱动返回值，其它情况下无此信息 */
-    NBB_ULONG intf2_pos_id;  
-
-} SPM_TERMINAL_IF_CB;
-
-/**STRUCT-********************************************************************/
-
-/**STRUCT+********************************************************************/
-/* Structure: SPM_DIFF_SERV_CB                                             */
-/*                                                                           */
-/* Description:DIFF SERV配置块。                                           */
-/*                                                                           */
-/*****************************************************************************/
-typedef struct spm_diffl_serv_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_diff_serv_node;
-
-    /***************************************************************************/
-    /* Handle for this control block, to be used as a correlator for           */
-    /* asynchronous message exchanges.                                         */
-    /***************************************************************************/
-    //NBB_HANDLE spm_diff_serv_handle;
-
-    /* DIFF_SERV */
-    ATG_DCI_LOG_PORT_DIFF_SERV_DATA diff_serv_cfg;
-
-    /* 驱动返回值 */
-    //NBB_ULONG pos_id;
-
-} SPM_DIFF_SERV_CB;
-
-/**STRUCT-********************************************************************/
-
-/**STRUCT+********************************************************************/
-/* Structure: SPM_FLOW_DIFF_SERV_CB                                             */
-/*                                                                           */
-/* Description:FLOW_DIFF SERV配置块。                                           */
-/*                                                                           */
-/*****************************************************************************/
-typedef struct spm_flow_diff_serv_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_flow_diff_serv_node;
-
-    /***************************************************************************/
-    /* Handle for this control block, to be used as a correlator for           */
-    /* asynchronous message exchanges.                                         */
-    /***************************************************************************/
-    //NBB_HANDLE spm_diff_serv_handle;
-     /* FLOW_DIFF_SERV  key*/
-    //ATG_DCI_LOG_PORT_VLAN key;
-
-    /* FLOW_DIFF_SERV */
-    ATG_DCI_LOG_PORT_FLOW_DIFF_SERV flow_diff_serv_cfg;
-
-    /* 驱动返回值 */
-    //NBB_ULONG pos_id;
-
-} SPM_FLOW_DIFF_SERV_CB;
-
-/**STRUCT-********************************************************************/
-
-/**STRUCT+********************************************************************/
-/* Structure: SPM_INCLASSIFY_QOS_CB                                             */
-/*                                                                           */
-/* Description:INCLASSIFY_QOS配置块。                                           */
-/*                                                                           */
-/*****************************************************************************/
-typedef struct spm_inclassify_qos_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_inclassify_qos_node;
-
-    /***************************************************************************/
-    /* Handle for this control block, to be used as a correlator for           */
-    /* asynchronous message exchanges.                                         */
-    /***************************************************************************/
-    //NBB_HANDLE spm_diff_serv_handle;
-     /* FLOW_DIFF_SERV  key*/
-    //ATG_DCI_LOG_PORT_VLAN key;
-    
-    /* INCLASSIFY_QOS */
-    ATG_DCI_LOG_PORT_INCLASSIFY_QOS inclassify_qos_cfg;
-
-    /* 驱动返回值 */
-    //NBB_ULONG pos_id;
-
-} SPM_INCLASSIFY_QOS_CB;
-
-/**STRUCT-********************************************************************/
-
-/**STRUCT+********************************************************************/
-/* Structure: SPM_TRAFFIC_FILTER_CB                                             */
-/*                                                                           */
-/* Description:TRAFFIC_FILTER配置块。                                           */
-/*                                                                           */
-/*****************************************************************************/
-typedef struct spm_traffic_filter_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_traffic_filter_node;
-
-    /***************************************************************************/
-    /* Handle for this control block, to be used as a correlator for           */
-    /* asynchronous message exchanges.                                         */
-    /***************************************************************************/
-    //NBB_HANDLE spm_diff_serv_handle;
-     /* FLOW_DIFF_SERV  key*/
-    //ATG_DCI_LOG_PORT_VLAN key;
-    
-    /* TRAFFIC_FILTER */
-    ATG_DCI_LOG_PORT_TRAFFIC_FILTER traffic_filter_cfg;
-
-    /* 驱动返回值 */
-    //NBB_ULONG pos_id;
-
-} SPM_TRAFFIC_FILTER_CB;
-
-/**STRUCT-********************************************************************/
-
-
-/**STRUCT+********************************************************************/
-/* Structure: SPM_PHYSICAL_PORT_CB                                           */
-/*                                                                           */
-/* Description: 端口逻辑配置。                                                 */
-/*                                                                           */
-/* Added by xiaoxiang, 2012/9/11                                             */
-/*****************************************************************************/
-typedef struct spm_logical_port_cb
-{
-    /***************************************************************************/
-    /* The AVLL node.                                                          */
-    /***************************************************************************/
-    AVLL_NODE spm_logical_port_node;
-
-    /***************************************************************************/
-    /* Handle for this control block, to be used as a correlator for           */
-    /* asynchronous message exchanges.                                         */
-    /***************************************************************************/
-    NBB_HANDLE spm_logical_port_handle;
-
-    /* key值: index */
-    NBB_ULONG port_index_key;
-
-    /* 基本配置。*/
-    ATG_DCI_LOG_PORT_BASIC_DATA *basic_cfg_cb;
-
-    /* 物理配置。*/
-    ATG_DCI_LOG_PORT_PHY_DATA *phy_cfg_cb;
-
-    /* 逻辑配置L3 */
-    ATG_DCI_LOG_PORT_LOGIC_L3_DATA *logic_l3_cfg_cb;
-
-    /* 逻辑配置L2 */
-    ATG_DCI_LOG_PORT_LOGIC_L2_DATA *logic_l2_cfg_cb;
-
-    /* 流相关配置L2 */
-    //ATG_DCI_LOG_PORT_FLOW_DATA *flow_cfg_cb;
-    //NBB_USHORT flow_num;
-    //ATG_DCI_LOG_PORT_FLOW_DATA *flow_cfg_cb[ATG_DCI_LOG_PORT_FLOW_NUM];
-
-    /* 逻辑配置CES */
-    ATG_DCI_LOG_PORT_CES_DATA *ces_cfg_cb;
-
-    /* Ipv4地址配置L3 */
-    NBB_USHORT ipv4_num;
-    ATG_DCI_LOG_PORT_IPV4_DATA *ipv4_cfg_cb[ATG_DCI_LOG_PORT_IPV4_NUM];
-
-    /* IPv6地址配置L3 */
-    NBB_USHORT ipv6_num;
-    ATG_DCI_LOG_PORT_IPV6_DATA *ipv6_cfg_cb[ATG_DCI_LOG_PORT_IPV6_NUM];
-
-    /* 组播组地址L3 */
-    NBB_USHORT mc_ipv4_num;
-    ATG_DCI_LOG_PORT_MC_IPV4_DATA *mc_ipv4_cfg_cb[ATG_DCI_LOG_PORT_MC_IPV4_NUM];
-
-    /* 虚拟MAC和IP地址配置L3 */
-    NBB_USHORT vip_vmac_num;
-    ATG_DCI_LOG_PORT_VIP_VMAC_DATA *vip_vmac_cfg_cb[ATG_DCI_LOG_PORT_VIP_VMAC_NUM];
-
-    /***************************************************************************/
-    /* VE MAC地址配置.                                                         */
-    /***************************************************************************/
-    ATG_DCI_LOG_PORT_VE_MAC_DATA *ve_mac_cfg_cb;
-
-    /***************************************************************************/
-    /* Diff-Serv配置.                                                          */
-    /***************************************************************************/
-    //ATG_DCI_LOG_PORT_DIFF_SERV_DATA *diff_serv_cfg_cb;
-
-    /***************************************************************************/
-    /* Diff-Serv配置.                                              */
-    /***************************************************************************/
-    NBB_USHORT diff_serv_num;
-    AVLL_TREE diff_serv_tree;
-
-    /***************************************************************************/
-    /* 流相关Diff-Serv配置L2.                                                  */
-    /***************************************************************************/
-    //NBB_USHORT flow_diff_serv_num;
-    //ATG_DCI_LOG_PORT_FLOW_DIFF_SERV *flow_diff_serv_cfg_cb[ATG_DCI_LOG_FLOW_DIFF_SERV_NUM];
-    //ATG_DCI_LOG_PORT_FLOW_DIFF_SERV *flow_diff_serv_cfg_cb;
-
-    /***************************************************************************/
-    /* 流相关Diff-Serv配置L2.                                                  */
-    /***************************************************************************/
-    NBB_USHORT flow_diff_serv_num;
-    AVLL_TREE flow_diff_serv_tree;
-
-    /***************************************************************************/
-    /* 上话复杂流分类QOS策略配置L3.                                                  */
-    /***************************************************************************/
-    //ATG_DCI_LOG_PORT_INCLASSIFY_QOS *inclassify_qos_cfg_cb;
-
-    /***************************************************************************/
-    /* 上话复杂流分类QOS策略配置                                                 */
-    /***************************************************************************/
-    NBB_USHORT inclassify_qos_num;
-    AVLL_TREE inclassify_qos_tree;
-
-    /***************************************************************************/
-    /* 上话用户QOS策略配置L3.                                                  */
-    /***************************************************************************/
-    //ATG_DCI_LOG_UP_USER_QOS_POLICY *up_user_qos_cfg_cb;
-
-    /***************************************************************************/
-    /* 上话用户组QOS策略配置.                                                  */
-    /***************************************************************************/
-    ATG_DCI_LOG_UP_USER_GROUP_QOS *up_user_group_qos_cfg_cb;
-
-    /***************************************************************************/
-    /* 下话用户队列QOS策略配置L3.                                              */
-    /***************************************************************************/
-    ATG_DCI_LOG_DOWN_USER_QUEUE_QOS *down_user_qos_cfg_cb;
-
-    /***************************************************************************/
-    /* 下话用户组QOS配置L3.                                                    */
-    /***************************************************************************/
-    ATG_DCI_LOG_DOWN_USER_GROUP_QOS *down_user_group_qos_cfg_cb;
-
-    /***************************************************************************/
-    /* 流相关上话用户QOS策略配置L2.                                            */
-    /***************************************************************************/
-    //ATG_DCI_LOG_FLOW_UP_USER_QOS *flow_up_user_qos_cfg_cb;
-
-    /***************************************************************************/
-    /* IPV6组播组地址L3.                                              */
-    /***************************************************************************/
-	NBB_USHORT mc_ipv6_num;
-    ATG_DCI_LOG_PORT_MC_IPV6_DATA *mc_ipv6_cfg_cb[ATG_DCI_LOG_PORT_MC_IPV6_NUM];
-
-    /***************************************************************************/
-    /* 端口逻辑配置-包过滤器。                                                  */
-    /***************************************************************************/
-    NBB_USHORT traffic_filter_num;
-    AVLL_TREE traffic_filter_tree;
-
-    /***************************************************************************/
-    /* Diff-Serv配置L2（VP下话UNI侧）.                                              */
-    /***************************************************************************/
-    ATG_DCI_LOG_PORT_DS_L2_DATA *ds_l2_cfg_cb;
-
-    /***************************************************************************/
-    /* 终结子接口。.                                              */
-    /***************************************************************************/
-    NBB_USHORT terminal_if_num;
-    //ATG_DCI_LOG_PORT_TERMINAL_IF *terminal_if_cfg_cb[ATG_DCI_LOG_TERMINAL_IF_NUM];
-    AVLL_TREE terminal_if_tree;
-
-    /* 虚拟MAC和IP地址配置L3 */
-    NBB_USHORT vipv6_vmac_num;
-    ATG_DCI_LOG_VRRP_IPV6_MAC_L3 *vipv6_vmac_cfg_cb[ATG_DCI_LOG_PORT_VIP_VMAC_NUM];    
-
-    /***************************************************************************/
-    /*  C3芯片号.                                       */
-    /***************************************************************************/
-    NBB_INT unit_id;
-
-    /***************************************************************************/
-    /* 表示C3物理端口，VE口index，LAG端口ID.                                 */
-    /***************************************************************************/
-    NBB_USHORT port_id;
-
-    /***************************************************************************/
-    /* 槽位号. VE和平LAG没有槽位                                */
-    /***************************************************************************/
-    NBB_BYTE slot_id;
-
-    SPM_LOGICAL_PORT_INFO_CB logic_port_info_cb;
-
-} SPM_LOGICAL_PORT_CB;
-
-/**STRUCT-********************************************************************/
 
 /**STRUCT+********************************************************************/
 /* Structure: SPM_LAG_CB                                                    */
@@ -4108,7 +3349,8 @@ typedef struct spm_lag_port_info_cb
 
 #define         BCMC31          0
 #define         BCMC32          1
-
+#define         SPM_INTF_TYPE_L2          0
+#define         SPM_INTF_TYPE_L3          1
 #define         SHASH
 #define         PUBLIC
 #define         ITERATION
