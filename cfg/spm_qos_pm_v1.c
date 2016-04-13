@@ -46,15 +46,15 @@ AVLL_TREE g_twamp_ipv6_tree;
 NBB_VOID spm_hqos_add_vc_pmline(ATG_DCI_VC_KEY *pkey,NBB_ULONG voq)
 {
     NBB_LONG ret = ATG_DCI_RC_OK;
-    SPM_LINEKEY_VC stKeyVc;
+    SPM_LINEKEY_VC st_key_vc;
 
     if(NULL != pkey)
     {
-        stKeyVc.iVcId 	 = pkey->vc_id;
-        stKeyVc.iPeerip  = pkey->peer_ip;
-        stKeyVc.usVcType = pkey->vc_type;
+        st_key_vc.iVcId 	 = pkey->vc_id;
+        st_key_vc.iPeerip  = pkey->peer_ip;
+        st_key_vc.usVcType = pkey->vc_type;
 #if defined (SPU) || defined (PTN690_CES)
-        ret = almpm_addline_hqos_vc(stKeyVc,voq);
+        ret = almpm_addline_hqos_vc(st_key_vc,voq);
 #endif
         if(ATG_DCI_RC_OK != ret)
         {
@@ -82,15 +82,15 @@ NBB_VOID spm_hqos_add_vc_pmline(ATG_DCI_VC_KEY *pkey,NBB_ULONG voq)
 NBB_VOID spm_hqos_del_vc_pmline(ATG_DCI_VC_KEY *pkey)
 {
     NBB_LONG ret = ATG_DCI_RC_OK;
-    SPM_LINEKEY_VC stKeyVc;
+    SPM_LINEKEY_VC st_key_vc;
 
     if(NULL != pkey)
     {
-        stKeyVc.iVcId 	 = pkey->vc_id;
-        stKeyVc.iPeerip  = pkey->peer_ip;
-        stKeyVc.usVcType = pkey->vc_type;
+        st_key_vc.iVcId 	 = pkey->vc_id;
+        st_key_vc.iPeerip  = pkey->peer_ip;
+        st_key_vc.usVcType = pkey->vc_type;
 #if defined (SPU) || defined (PTN690_CES)
-        ret = almpm_delline_hqos_vc(stKeyVc);
+        ret = almpm_delline_hqos_vc(st_key_vc);
 #endif
         if(ATG_DCI_RC_OK != ret)
         {
@@ -118,14 +118,14 @@ NBB_VOID spm_hqos_del_vc_pmline(ATG_DCI_VC_KEY *pkey)
 NBB_VOID spm_hqos_add_vrf_pmline(SPM_QOS_VRF_INSTANSE_KEY *pkey,NBB_ULONG voq)
 {
     NBB_LONG ret = ATG_DCI_RC_OK;
-    SPM_LINEKEY_L3VPN stKeyL3vpn;
+    SPM_LINEKEY_L3VPN st_key_l3vpn;
 
     if(NULL != pkey)
     {
-        stKeyL3vpn.usVrfid  = pkey->vrf_id;
-		stKeyL3vpn.uiPeerip = pkey->peer_ip;
+        st_key_l3vpn.usVrfid  = pkey->vrf_id;
+		st_key_l3vpn.uiPeerip = pkey->peer_ip;
 #if defined (SPU) || defined (PTN690_CES)
-		ret = almpm_addline_hqos_l3vpn(stKeyL3vpn, voq);
+		ret = almpm_addline_hqos_l3vpn(st_key_l3vpn, voq);
 #endif
         if(ATG_DCI_RC_OK != ret)
         {
@@ -153,14 +153,14 @@ NBB_VOID spm_hqos_add_vrf_pmline(SPM_QOS_VRF_INSTANSE_KEY *pkey,NBB_ULONG voq)
 NBB_VOID spm_hqos_del_vrf_pmline(SPM_QOS_VRF_INSTANSE_KEY *pkey )
 {
     NBB_LONG ret = ATG_DCI_RC_OK;
-    SPM_LINEKEY_L3VPN stKeyL3vpn;
+    SPM_LINEKEY_L3VPN st_key_l3vpn;
     
     if(NULL != pkey)
     {
-        stKeyL3vpn.usVrfid  = pkey->vrf_id;
-		stKeyL3vpn.uiPeerip = pkey->peer_ip;
+        st_key_l3vpn.usVrfid  = pkey->vrf_id;
+		st_key_l3vpn.uiPeerip = pkey->peer_ip;
 #if defined (SPU) || defined (PTN690_CES)
-		ret = almpm_delline_hqos_l3vpn(stKeyL3vpn);
+		ret = almpm_delline_hqos_l3vpn(st_key_l3vpn);
 #endif
         if(ATG_DCI_RC_OK != ret)
         {
@@ -188,13 +188,13 @@ NBB_VOID spm_hqos_del_vrf_pmline(SPM_QOS_VRF_INSTANSE_KEY *pkey )
 NBB_VOID spm_hqos_add_intf_pmline(NBB_ULONG logic_key,NBB_ULONG voq  )
 {
     NBB_LONG ret = ATG_DCI_RC_OK;
-    SPM_LINEKEY_INTF stKeyIntf;
+    SPM_LINEKEY_INTF st_key_intf;
     
     if(0 != logic_key)
     {
-		stKeyIntf.uiPortIndex = logic_key;
+		st_key_intf.uiPortIndex = logic_key;
 #if defined (SPU) || defined (PTN690_CES)
-        ret = almpm_addline_hqos_intf(stKeyIntf,voq);
+        ret = almpm_addline_hqos_intf(st_key_intf,voq);
 #endif
         if(ATG_DCI_RC_OK != ret)
         {
@@ -222,13 +222,13 @@ NBB_VOID spm_hqos_add_intf_pmline(NBB_ULONG logic_key,NBB_ULONG voq  )
 NBB_VOID spm_hqos_del_intf_pmline(NBB_ULONG logic_key )
 {
     NBB_LONG ret = ATG_DCI_RC_OK;
-    SPM_LINEKEY_INTF stKeyIntf;
+    SPM_LINEKEY_INTF st_key_intf;
     
     if(0 != logic_key)
     {
-		stKeyIntf.uiPortIndex = logic_key;
+		st_key_intf.uiPortIndex = logic_key;
 #if defined (SPU) || defined (PTN690_CES)
-		ret = almpm_delline_hqos_intf(stKeyIntf);
+		ret = almpm_delline_hqos_intf(st_key_intf);
 #endif
         if(ATG_DCI_RC_OK != ret)
         {
@@ -257,7 +257,7 @@ NBB_VOID spm_hqos_del_intf_pmline(NBB_ULONG logic_key )
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_LONG spm_get_poscnt_from_aclkey(NBB_ULONG ulAcl_Id, NBB_ULONG ulRule_Id, 
+NBB_LONG spm_get_poscnt_from_aclkey(NBB_ULONG acl_id, NBB_ULONG rule_id, 
     NBB_ULONG *posid NBB_CCXT_T NBB_CXT)
 {
     NBB_LONG ret = 0;
@@ -268,7 +268,7 @@ NBB_LONG spm_get_poscnt_from_aclkey(NBB_ULONG ulAcl_Id, NBB_ULONG ulRule_Id,
          pcb = (SPM_QOS_ACL_CB*) AVLL_NEXT(v_spm_shared->qos_acl_tree,
                        pcb->spm_acl_node))  
      {
-        if((ulAcl_Id == pcb->acl_key.acl_id) && (ulRule_Id == pcb->acl_key.rule_id))
+        if((acl_id == pcb->acl_key.acl_id) && (rule_id == pcb->acl_key.rule_id))
         {
             *posid = pcb->posid;
             return ret;
@@ -403,7 +403,7 @@ NBB_INT spm_twamp_ipv6_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 )
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_LONG spm_free_twamp_ipv4_cb(SPM_TWAMP_IPV4_CB *pstTbl)
+NBB_LONG spm_free_twamp_ipv4_cb(SPM_TWAMP_IPV4_CB *pst_tbl)
 {
     /***************************************************************************/
     /* Local Variables                                                         */
@@ -412,10 +412,10 @@ NBB_LONG spm_free_twamp_ipv4_cb(SPM_TWAMP_IPV4_CB *pstTbl)
     NBB_TRC_ENTRY("spm_free_twamp_ipv4_cb");
 
     /* 输入参数指针必须有效 */
-    NBB_ASSERT(NULL != pstTbl);
+    NBB_ASSERT(NULL != pst_tbl);
 
     /*释放内存失败*/
-    if (NULL == pstTbl)
+    if (NULL == pst_tbl)
     {
         ret = ATG_DCI_RC_UNSUCCESSFUL;
         goto EXIT_LABEL;
@@ -424,13 +424,13 @@ NBB_LONG spm_free_twamp_ipv4_cb(SPM_TWAMP_IPV4_CB *pstTbl)
     /***************************************************************************/
     /* 检查控制块的正确性。                                                    */
     /***************************************************************************/
-    NBB_ASSERT_MEMORY(pstTbl, sizeof(SPM_TWAMP_IPV4_CB), MEM_SPM_TWAMP_IPV4_CB);
+    NBB_ASSERT_MEMORY(pst_tbl, sizeof(SPM_TWAMP_IPV4_CB), MEM_SPM_TWAMP_IPV4_CB);
 
     /***************************************************************************/
     /* 现在释放单盘信息控制块。                                                */
     /***************************************************************************/
-    NBB_MM_FREE(pstTbl, MEM_SPM_TWAMP_IPV4_CB);
-    pstTbl = NULL;
+    NBB_MM_FREE(pst_tbl, MEM_SPM_TWAMP_IPV4_CB);
+    pst_tbl = NULL;
 
     EXIT_LABEL: NBB_TRC_EXIT();
 
@@ -451,7 +451,7 @@ NBB_LONG spm_free_twamp_ipv4_cb(SPM_TWAMP_IPV4_CB *pstTbl)
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_LONG spm_free_twamp_ipv6_cb(SPM_TWAMP_IPV6_CB *pstTbl)
+NBB_LONG spm_free_twamp_ipv6_cb(SPM_TWAMP_IPV6_CB *pst_tbl)
 {
     /***************************************************************************/
     /* Local Variables                                                         */
@@ -460,10 +460,10 @@ NBB_LONG spm_free_twamp_ipv6_cb(SPM_TWAMP_IPV6_CB *pstTbl)
     NBB_TRC_ENTRY("spm_free_twamp_ipv6_cb");
 
     /* 输入参数指针必须有效 */
-    NBB_ASSERT(NULL != pstTbl);
+    NBB_ASSERT(NULL != pst_tbl);
 
     /*释放内存失败*/
-    if (NULL == pstTbl)
+    if (NULL == pst_tbl)
     {
         ret = ATG_DCI_RC_UNSUCCESSFUL;
         goto EXIT_LABEL;
@@ -472,13 +472,13 @@ NBB_LONG spm_free_twamp_ipv6_cb(SPM_TWAMP_IPV6_CB *pstTbl)
     /***************************************************************************/
     /* 检查控制块的正确性。                                                    */
     /***************************************************************************/
-    NBB_ASSERT_MEMORY(pstTbl, sizeof(SPM_TWAMP_IPV6_CB), MEM_SPM_TWAMP_IPV6_CB);
+    NBB_ASSERT_MEMORY(pst_tbl, sizeof(SPM_TWAMP_IPV6_CB), MEM_SPM_TWAMP_IPV6_CB);
 
     /***************************************************************************/
     /* 现在释放单盘信息控制块。                                                */
     /***************************************************************************/
-    NBB_MM_FREE(pstTbl, MEM_SPM_TWAMP_IPV6_CB);
-    pstTbl = NULL;
+    NBB_MM_FREE(pst_tbl, MEM_SPM_TWAMP_IPV6_CB);
+    pst_tbl = NULL;
 
     EXIT_LABEL: NBB_TRC_EXIT();
 
@@ -504,28 +504,28 @@ SPM_TWAMP_IPV4_CB* spm_alloc_twamp_ipv4_cb(ATG_DCI_TWAMP_IPV4_KEY *ulkey)
     /***************************************************************************/
     /* Local Variables                                                         */
     /***************************************************************************/
-    SPM_TWAMP_IPV4_CB *pstTbl = NULL; 
+    SPM_TWAMP_IPV4_CB *pst_tbl = NULL; 
     NBB_TRC_ENTRY("spm_alloc_twamp_ipv4_cb");
     if(NULL == ulkey)
     {
         goto EXIT_LABEL;
     } 
-    pstTbl = (SPM_TWAMP_IPV4_CB*)NBB_MM_ALLOC(sizeof(SPM_TWAMP_IPV4_CB),
+    pst_tbl = (SPM_TWAMP_IPV4_CB*)NBB_MM_ALLOC(sizeof(SPM_TWAMP_IPV4_CB),
                         NBB_NORETRY_ACT,MEM_SPM_TWAMP_IPV4_CB);
-    if(NULL == pstTbl)
+    if(NULL == pst_tbl)
     {
         goto EXIT_LABEL;
     }
     
-    OS_MEMSET(pstTbl, 0, sizeof(SPM_TWAMP_IPV4_CB));
-    OS_MEMCPY(&(pstTbl->key), ulkey, sizeof(ATG_DCI_TWAMP_IPV4_KEY));
+    OS_MEMSET(pst_tbl, 0, sizeof(SPM_TWAMP_IPV4_CB));
+    OS_MEMCPY(&(pst_tbl->key), ulkey, sizeof(ATG_DCI_TWAMP_IPV4_KEY));
     
     /* Initialize the AVLL node. */
-    AVLL_INIT_NODE(pstTbl->spm_twamp_ipv4_node);
+    AVLL_INIT_NODE(pst_tbl->spm_twamp_ipv4_node);
     
     EXIT_LABEL: NBB_TRC_EXIT();
 
-    return(pstTbl);
+    return(pst_tbl);
 }
 
 
@@ -547,7 +547,7 @@ SPM_TWAMP_IPV6_CB *spm_alloc_twamp_ipv6_cb(ATG_DCI_TWAMP_IPV6_KEY *ulkey)
     /***************************************************************************/
     /* Local Variables                                                         */
     /***************************************************************************/
-    SPM_TWAMP_IPV6_CB *pstTbl = NULL;
+    SPM_TWAMP_IPV6_CB *pst_tbl = NULL;
     
     NBB_TRC_ENTRY("spm_alloc_twamp_ipv6_cb");
 
@@ -556,23 +556,23 @@ SPM_TWAMP_IPV6_CB *spm_alloc_twamp_ipv6_cb(ATG_DCI_TWAMP_IPV6_KEY *ulkey)
         goto EXIT_LABEL;
     }
     
-    pstTbl = (SPM_TWAMP_IPV6_CB *)NBB_MM_ALLOC(sizeof(SPM_TWAMP_IPV6_CB),
+    pst_tbl = (SPM_TWAMP_IPV6_CB *)NBB_MM_ALLOC(sizeof(SPM_TWAMP_IPV6_CB),
                         NBB_NORETRY_ACT,
                         MEM_SPM_TWAMP_IPV6_CB);
-    if(NULL == pstTbl)
+    if(NULL == pst_tbl)
     {
         goto EXIT_LABEL;
     }
     
-    OS_MEMSET(pstTbl, 0, sizeof(SPM_TWAMP_IPV6_CB));
-    OS_MEMCPY(&(pstTbl->key), ulkey, sizeof(ATG_DCI_TWAMP_IPV6_KEY));
+    OS_MEMSET(pst_tbl, 0, sizeof(SPM_TWAMP_IPV6_CB));
+    OS_MEMCPY(&(pst_tbl->key), ulkey, sizeof(ATG_DCI_TWAMP_IPV6_KEY));
     
     /* Initialize the AVLL node. */
-    AVLL_INIT_NODE(pstTbl->spm_twamp_ipv6_node);
+    AVLL_INIT_NODE(pst_tbl->spm_twamp_ipv6_node);
     
     EXIT_LABEL: NBB_TRC_EXIT();
 
-    return(pstTbl);
+    return(pst_tbl);
 }
 
 
@@ -589,7 +589,7 @@ SPM_TWAMP_IPV6_CB *spm_alloc_twamp_ipv6_cb(ATG_DCI_TWAMP_IPV6_KEY *ulkey)
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_LONG spm_set_twamp_ipv4_driver(SPM_TWAMP_IPV4_CB *pstCb)
+NBB_LONG spm_set_twamp_ipv4_driver(SPM_TWAMP_IPV4_CB *pst_cb)
 {
     NBB_LONG ret = 0;
     NBB_LONG unit = 0;
@@ -597,9 +597,9 @@ NBB_LONG spm_set_twamp_ipv4_driver(SPM_TWAMP_IPV4_CB *pstCb)
     
     NBB_TRC_ENTRY(__FUNCTION__);
     
-    if(NULL == pstCb)
+    if(NULL == pst_cb)
     {
-        printf("**TWAMP IPV4 ERROR**%s,%d pstCb == NULL\n",__FUNCTION__,__LINE__);
+        printf("**TWAMP IPV4 ERROR**%s,%d pst_cb == NULL\n",__FUNCTION__,__LINE__);
         NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
                 			"TWAMP IPV4 IPS = NULL",ATG_DCI_RC_UNSUCCESSFUL,
                 			"","","","",
@@ -607,12 +607,12 @@ NBB_LONG spm_set_twamp_ipv4_driver(SPM_TWAMP_IPV4_CB *pstCb)
         goto EXIT_LABEL;
     }
 
-    twampacl.vrfId     = pstCb->key.vrf_id;
+    twampacl.vrfId     = pst_cb->key.vrf_id;
     twampacl.ethType   = 0x0800;
-    twampacl.sip       = pstCb->key.sip;
-    twampacl.dip       = pstCb->key.dip;
-    twampacl.l4SrcPort = pstCb->key.sport;
-    twampacl.l4DstPort = pstCb->key.dport;
+    twampacl.sip       = pst_cb->key.sip;
+    twampacl.dip       = pst_cb->key.dip;
+    twampacl.l4SrcPort = pst_cb->key.sport;
+    twampacl.l4DstPort = pst_cb->key.dport;
 
     for(unit = 0;unit < SHARED.c3_num;unit++)
     {
@@ -631,9 +631,9 @@ NBB_LONG spm_set_twamp_ipv4_driver(SPM_TWAMP_IPV4_CB *pstCb)
     }
     
     /* 调用驱动成功后，将驱动返回值回写到twamp_ipv4树的节点中 */
-    pstCb->posId   = twampacl.posId;
-    pstCb->groupId = twampacl.groupId;
-    pstCb->entryId = twampacl.entryId;
+    pst_cb->posId   = twampacl.posId;
+    pst_cb->groupId = twampacl.groupId;
+    pst_cb->entryId = twampacl.entryId;
     
     /*异常跳出*/
     EXIT_LABEL: NBB_TRC_EXIT();
@@ -655,7 +655,7 @@ NBB_LONG spm_set_twamp_ipv4_driver(SPM_TWAMP_IPV4_CB *pstCb)
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_LONG spm_del_twamp_ipv4_driver(SPM_TWAMP_IPV4_CB *pstCb )
+NBB_LONG spm_del_twamp_ipv4_driver(SPM_TWAMP_IPV4_CB *pst_cb )
 {
     NBB_LONG ret = 0;
     NBB_LONG unit = 0;
@@ -663,24 +663,24 @@ NBB_LONG spm_del_twamp_ipv4_driver(SPM_TWAMP_IPV4_CB *pstCb )
     
     NBB_TRC_ENTRY(__FUNCTION__);
     
-    if(NULL == pstCb)
+    if(NULL == pst_cb)
     {
-        printf("**TWAMP IPV4 ERROR**%s,%d pstCb == NULL\n",__FUNCTION__,__LINE__);
+        printf("**TWAMP IPV4 ERROR**%s,%d pst_cb == NULL\n",__FUNCTION__,__LINE__);
         NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
                 			"TWAMP IPV4 IPS = NULL",ATG_DCI_RC_UNSUCCESSFUL,
                 			"","","","",
                 			0,0,0,0));
         goto EXIT_LABEL;
     }
-    twampacl.vrfId     = pstCb->key.vrf_id;
+    twampacl.vrfId     = pst_cb->key.vrf_id;
     twampacl.ethType   = 0x0800;
-    twampacl.sip       = pstCb->key.sip;
-    twampacl.dip       = pstCb->key.dip;
-    twampacl.l4SrcPort = pstCb->key.sport;
-    twampacl.l4DstPort = pstCb->key.dport;
-    twampacl.posId     = pstCb->posId;
-    twampacl.groupId   = pstCb->groupId;
-    twampacl.entryId   = pstCb->entryId;
+    twampacl.sip       = pst_cb->key.sip;
+    twampacl.dip       = pst_cb->key.dip;
+    twampacl.l4SrcPort = pst_cb->key.sport;
+    twampacl.l4DstPort = pst_cb->key.dport;
+    twampacl.posId     = pst_cb->posId;
+    twampacl.groupId   = pst_cb->groupId;
+    twampacl.entryId   = pst_cb->entryId;
     
     for(unit = 0;unit < SHARED.c3_num;unit++)
     {
@@ -717,7 +717,7 @@ NBB_LONG spm_del_twamp_ipv4_driver(SPM_TWAMP_IPV4_CB *pstCb )
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_VOID spm_rcv_dci_set_twamp_ipv4(ATG_DCI_SET_TWAMP_IPV4* pstSetIps)
+NBB_VOID spm_rcv_dci_set_twamp_ipv4(ATG_DCI_SET_TWAMP_IPV4 *pst_set_ips)
 {
     /***************************************************************************/
     /* Local Variables                                                         */
@@ -725,12 +725,12 @@ NBB_VOID spm_rcv_dci_set_twamp_ipv4(ATG_DCI_SET_TWAMP_IPV4* pstSetIps)
     ATG_DCI_TWAMP_IPV4_KEY ulkey = {0};
     NBB_LONG ret = ATG_DCI_RC_OK;
     NBB_LONG rv  = ATG_DCI_RC_OK;
-    SPM_TWAMP_IPV4_CB *pstCb = NULL;
-    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+    SPM_TWAMP_IPV4_CB *pst_cb = NULL;
+    NBB_CHAR uc_message[QOS_MSG_INFO_LEN];
 
     /*逻辑处理流程*/
     NBB_TRC_ENTRY(__FUNCTION__);
-    if(NULL == pstSetIps)
+    if(NULL == pst_set_ips)
     {
         printf("**TWAMP IPV4 ERROR**%s,%d IPS == NULL\n",__FUNCTION__,__LINE__);
         NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
@@ -741,42 +741,42 @@ NBB_VOID spm_rcv_dci_set_twamp_ipv4(ATG_DCI_SET_TWAMP_IPV4* pstSetIps)
     }
 
     /* 首先将IPS消息的返回值设置为OK，如果有一个子配置失败，则置为FAIL */
-    pstSetIps->return_code = ATG_DCI_RC_OK;
-    OS_MEMCPY(&ulkey, &(pstSetIps->key), sizeof(ATG_DCI_TWAMP_IPV4_KEY));
-    pstCb = AVLL_FIND(g_twamp_ipv4_tree, &ulkey);
+    pst_set_ips->return_code = ATG_DCI_RC_OK;
+    OS_MEMCPY(&ulkey, &(pst_set_ips->key), sizeof(ATG_DCI_TWAMP_IPV4_KEY));
+    pst_cb = AVLL_FIND(g_twamp_ipv4_tree, &ulkey);
 
     /*ips消息为删除*/
-    if (TRUE == pstSetIps->delete_struct)
+    if (TRUE == pst_set_ips->delete_struct)
     {
         /* 如果条目不存在，不删除 */
-        if (NULL == pstCb)
+        if (NULL == pst_cb)
         {
             printf("***DEL TWAMP_IPV4 ERROR:CAN'T FIND TWAMP_IPV4 NODE***\n"
                 "%s %s,%d,vrf_id=%d,sip=0x%lx,dip=0x%lx,sport=0x%x,dport=0x%x,\n\n",
                 QOS_CFG_STRING,__FUNCTION__,__LINE__,
                 ulkey.vrf_id,ulkey.sip,ulkey.dip,ulkey.sport,ulkey.dport);
-            OS_SPRINTF(ucMessage,"***DEL TWAMP_IPV4 ERROR:CAN'T FIND TWAMP_IPV4 NODE***\n"
+            OS_SPRINTF(uc_message,"***DEL TWAMP_IPV4 ERROR:CAN'T FIND TWAMP_IPV4 NODE***\n"
                 "%s %s,%d,vrf_id=%d,sip=0x%lx,dip=0x%lx,sport=0x%x,dport=0x%x,\n\n",
                 QOS_CFG_STRING,__FUNCTION__,__LINE__,
                 ulkey.vrf_id,ulkey.sip,ulkey.dip,ulkey.sport,ulkey.dport);
-            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
-            pstSetIps->return_code = ATG_DCI_RC_DEL_FAILED;
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
+            pst_set_ips->return_code = ATG_DCI_RC_DEL_FAILED;
             goto EXIT_LABEL;
         }
 
         /* 存在，删除 */
         else
         {
-            ret = spm_del_twamp_ipv4_driver(pstCb NBB_CCXT);
+            ret = spm_del_twamp_ipv4_driver(pst_cb NBB_CCXT);
             if(ATG_DCI_RC_OK != ret)
             {
-                pstSetIps->return_code = ATG_DCI_RC_DEL_FAILED;
+                pst_set_ips->return_code = ATG_DCI_RC_DEL_FAILED;
                 goto EXIT_LABEL;
             }
-            AVLL_DELETE(g_twamp_ipv4_tree, pstCb->spm_twamp_ipv4_node);
+            AVLL_DELETE(g_twamp_ipv4_tree, pst_cb->spm_twamp_ipv4_node);
             
             /* 释放twamp_ipv4表分配的内存空间 */
-            spm_free_twamp_ipv4_cb(pstCb NBB_CCXT);
+            spm_free_twamp_ipv4_cb(pst_cb NBB_CCXT);
         }
     }
     
@@ -785,28 +785,28 @@ NBB_VOID spm_rcv_dci_set_twamp_ipv4(ATG_DCI_SET_TWAMP_IPV4* pstSetIps)
     {
     
         /* 如果条目不存在，新申请内存空间保存数据 */
-        if (NULL == pstCb)
+        if (NULL == pst_cb)
         {
         
             /* 申请一个新条目的内存空间 */
-            pstCb = spm_alloc_twamp_ipv4_cb(&ulkey NBB_CCXT);
+            pst_cb = spm_alloc_twamp_ipv4_cb(&ulkey NBB_CCXT);
             
             /*申请内存失败*/
-            if (NULL == pstCb)
+            if (NULL == pst_cb)
             {
-                pstSetIps->return_code = ATG_DCI_RC_ALLOC_ERROR;
+                pst_set_ips->return_code = ATG_DCI_RC_ALLOC_ERROR;
                 goto EXIT_LABEL;
             }
-            ret = spm_set_twamp_ipv4_driver(pstCb NBB_CCXT);
+            ret = spm_set_twamp_ipv4_driver(pst_cb NBB_CCXT);
             if (ATG_DCI_RC_OK != ret)
             {
-                spm_free_twamp_ipv4_cb(pstCb NBB_CCXT);
-                pstSetIps->return_code = ATG_DCI_RC_ADD_FAILED;
+                spm_free_twamp_ipv4_cb(pst_cb NBB_CCXT);
+                pst_set_ips->return_code = ATG_DCI_RC_ADD_FAILED;
                 goto EXIT_LABEL;
             }
             
             //coverity[no_effect_test]
-            rv = AVLL_INSERT(g_twamp_ipv4_tree, pstCb->spm_twamp_ipv4_node);           
+            rv = AVLL_INSERT(g_twamp_ipv4_tree, pst_cb->spm_twamp_ipv4_node);           
         }
         else
         {
@@ -833,12 +833,12 @@ NBB_VOID spm_rcv_dci_set_twamp_ipv4(ATG_DCI_SET_TWAMP_IPV4* pstSetIps)
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_VOID spm_rcv_dci_set_twamp_ipv6(ATG_DCI_SET_TWAMP_IPV6* pstSetIps)
+NBB_VOID spm_rcv_dci_set_twamp_ipv6(ATG_DCI_SET_TWAMP_IPV6 *pst_set_ips)
 {
     /*逻辑处理流程*/
     NBB_TRC_ENTRY(__FUNCTION__);
 
-    if(NULL == pstSetIps)
+    if(NULL == pst_set_ips)
     {
         printf("**QOS ERROR**%s,%d IPS == NULL\n",__FUNCTION__,__LINE__);
         NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
@@ -849,7 +849,7 @@ NBB_VOID spm_rcv_dci_set_twamp_ipv6(ATG_DCI_SET_TWAMP_IPV6* pstSetIps)
     }
     else
     {
-        pstSetIps->return_code = ATG_DCI_RC_OK;
+        pst_set_ips->return_code = ATG_DCI_RC_OK;
         printf("**TWAMP IPV6 ERROR:Currently not supported IPV6**%s,%d\n",__FUNCTION__,__LINE__);
     }
     
@@ -922,6 +922,20 @@ NBB_VOID spm_qos_clear_all_twamp_ipv6_cb()
     return;
 }
 
+
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : usr group引用计数减1
+   输入参数  : usr group的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
 NBB_VOID spm_init_twamp()
 {
     NBB_BUF_SIZE avll_key_offset;
@@ -939,21 +953,33 @@ NBB_VOID spm_init_twamp()
             (NBB_USHORT)NBB_OFFSETOF(SPM_TWAMP_IPV6_CB, spm_twamp_ipv6_node));
 }
 
-
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : usr group引用计数减1
+   输入参数  : usr group的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
 NBB_VOID spm_twamp_ipv4_cb_verfify()
 {
     /*************************************************************************/
     /* Local Variables                                                       */
     /*************************************************************************/
-    SPM_TWAMP_IPV4_CB *pstCb = NULL;
+    SPM_TWAMP_IPV4_CB *pst_cb = NULL;
 
     NBB_TRC_ENTRY("spm_twamp_ipv4_cb_verfify");
 
-    for (pstCb = (SPM_TWAMP_IPV4_CB*) AVLL_FIRST(SHARED.twamp_ipv4_tree);pstCb != NULL;
-         pstCb = (SPM_TWAMP_IPV4_CB*) AVLL_NEXT(SHARED.twamp_ipv4_tree,pstCb->spm_twamp_ipv4_node))
+    for (pst_cb = (SPM_TWAMP_IPV4_CB*) AVLL_FIRST(SHARED.twamp_ipv4_tree);pst_cb != NULL;
+         pst_cb = (SPM_TWAMP_IPV4_CB*) AVLL_NEXT(SHARED.twamp_ipv4_tree,pst_cb->spm_twamp_ipv4_node))
     {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify twamp_ipv4_Cb %p", pstCb));
-        NBB_VERIFY_MEMORY(pstCb, sizeof(SPM_TWAMP_IPV4_CB), MEM_SPM_TWAMP_IPV4_CB);
+        NBB_TRC_FLOW((NBB_FORMAT "Verify twamp_ipv4_Cb %p", pst_cb));
+        NBB_VERIFY_MEMORY(pst_cb, sizeof(SPM_TWAMP_IPV4_CB), MEM_SPM_TWAMP_IPV4_CB);
     }
 
     NBB_TRC_EXIT();
@@ -961,20 +987,33 @@ NBB_VOID spm_twamp_ipv4_cb_verfify()
     return;
 }
 
+/*****************************************************************************
+   函 数 名  : spm_disconnect_usr_group_cnt
+   功能描述  : usr group引用计数减1
+   输入参数  : usr group的index
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+   修改历史  :
+   日    期  : 2013年1月15日 星期二
+   作    者  : zenglu
+   修改内容  : 新生成函数
+*****************************************************************************/
 NBB_VOID spm_twamp_ipv6_cb_verfify()
 {
     /*************************************************************************/
     /* Local Variables                                                       */
     /*************************************************************************/
-    SPM_TWAMP_IPV6_CB *pstCb = NULL;
+    SPM_TWAMP_IPV6_CB *pst_cb = NULL;
 
     NBB_TRC_ENTRY("spm_twamp_ipv6_cb_verfify");
 
-    for (pstCb = (SPM_TWAMP_IPV6_CB*)AVLL_FIRST(SHARED.twamp_ipv6_tree);pstCb != NULL;
-         pstCb = (SPM_TWAMP_IPV6_CB*)AVLL_NEXT(SHARED.twamp_ipv6_tree,pstCb->spm_twamp_ipv6_node))
+    for (pst_cb = (SPM_TWAMP_IPV6_CB*)AVLL_FIRST(SHARED.twamp_ipv6_tree);pst_cb != NULL;
+         pst_cb = (SPM_TWAMP_IPV6_CB*)AVLL_NEXT(SHARED.twamp_ipv6_tree,pst_cb->spm_twamp_ipv6_node))
     {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify twamp_ipv6_Cb %p", pstCb));
-        NBB_VERIFY_MEMORY(pstCb, sizeof(SPM_TWAMP_IPV6_CB), MEM_SPM_TWAMP_IPV6_CB);
+        NBB_TRC_FLOW((NBB_FORMAT "Verify twamp_ipv6_Cb %p", pst_cb));
+        NBB_VERIFY_MEMORY(pst_cb, sizeof(SPM_TWAMP_IPV6_CB), MEM_SPM_TWAMP_IPV6_CB);
     }
 
     NBB_TRC_EXIT();

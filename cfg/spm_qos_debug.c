@@ -3645,45 +3645,7 @@ NBB_VOID show_voq_info(NBB_LONG voq_id)
 #endif
 }
 
-/*****************************************************************************
-   函 数 名  : spm_qos_find_classify_cb
-   功能描述  : 查找classify模板相关配置
-   输入参数  : classify模板的index
-   输出参数  :
-   返 回 值  :
-   调用函数  :
-   被调函数  :
-   修改历史  :
-   日    期  : 2013年1月15日 星期二
-   作    者  : zenglu
-   修改内容  : 新生成函数
-*****************************************************************************/
-NBB_VOID show_hqos_lsp(NBB_LONG id)
-{
-#if defined (SPU) || defined (SRC)
-  DbgHQosLspInfoPrint(0, id);
-#endif
-}
 
-/*****************************************************************************
-   函 数 名  : spm_qos_find_classify_cb
-   功能描述  : 查找classify模板相关配置
-   输入参数  : classify模板的index
-   输出参数  :
-   返 回 值  :
-   调用函数  :
-   被调函数  :
-   修改历史  :
-   日    期  : 2013年1月15日 星期二
-   作    者  : zenglu
-   修改内容  : 新生成函数
-*****************************************************************************/
-NBB_VOID show_hqos_pw(NBB_LONG id)
-{
-#if defined (SPU) || defined (SRC)
-  DbgHQosInfoPrint(0, id);
-#endif
-}
 
 /*****************************************************************************
    函 数 名  : spm_qos_find_classify_cb
@@ -3811,8 +3773,7 @@ NBB_VOID qoshelp(NBB_VOID)
         "show_arad_packet()",               "show last packet ITMH head",
         "show_port_qos_info(desPort)",      "show port qos",
         "show_port_wred(slot,dstport)",     "show port wred",
-        "show_hqos_lsp(id)",                "show hqos lsp info",
-        "show_hqos_pw(id)",                 "show hqos pw info",
+        
         "show_voq_info(voq_id)",            "show voq info",
         "show_arad_noempty_voq()",          "show no empty que",
         "show_arad_port_bandwith(port)",    "show arad port bandwith",

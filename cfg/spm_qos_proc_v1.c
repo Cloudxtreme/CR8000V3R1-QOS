@@ -24,7 +24,7 @@
 
 
 /* 全局打印变量qos_phy_cfg_print */
-NBB_BYTE qos_phy_cfg_print = ATG_DCI_RC_OK;
+NBB_BYTE g_qos_phy_cfg_print = ATG_DCI_RC_OK;
 
 /*****************************************************************************
    函 数 名  : spm_qos_logic_flow_key_compare
@@ -48,16 +48,27 @@ NBB_INT spm_qos_logic_flow_key_compare(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_
     SPM_QOS_LOGIC_FLOW_KEY *key2 = (SPM_QOS_LOGIC_FLOW_KEY *)keyarg2;
     NBB_INT ret = 0;
 
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ulong(&key1->index, &key2->index NBB_CCXT);
     if (0 != ret)
     {
         goto EXIT_LABEL;
     }
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ushort(&key1->svlan, &key2->svlan NBB_CCXT);
     if (0 != ret)
     {
         goto EXIT_LABEL;
     }
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ushort(&key1->cvlan, &key2->cvlan NBB_CCXT);
     if (0 != ret)
     {
@@ -90,16 +101,28 @@ NBB_INT spm_qos_vrf_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 )
     key1 = (SPM_QOS_VRF_INSTANSE_KEY *)(keyarg1);
     key2 = (SPM_QOS_VRF_INSTANSE_KEY *)(keyarg2);
 
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ushort(&key1->vrf_id, &key2->vrf_id );
     if (0 != ret)
     {
         goto EXIT_LABEL;
     }
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ulong(&key1->peer_ip, &key2->peer_ip );
     if (0 != ret)
     {
         goto EXIT_LABEL;
     }
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ulong(&key1->label, &key2->label);
     if (0 != ret)
     {
@@ -133,11 +156,18 @@ NBB_INT spm_qos_port_wred_key_compare(NBB_VOID *keyarg1,
     SPM_PORT_WRED_KEY *key2 = (SPM_PORT_WRED_KEY *)keyarg2;
     NBB_INT ret = 0;
 
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ulong(&key1->index, &key2->index );
     if (0 != ret)
     {
         goto EXIT_LABEL;
     }
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_byte(&key1->cos, &key2->cos);
     if (0 != ret)
     {
@@ -168,6 +198,9 @@ NBB_INT spm_qos_ftn_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2)
     FTN_KEY *key2 = (FTN_KEY *)keyarg2;
     NBB_INT rv = 0;
 
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     rv = compare_ushort(&key1->vrfid, &key2->vrfid);
     if (rv != 0)
     {
@@ -213,11 +246,18 @@ NBB_INT spm_qos_tx_lsp_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 )
     lsp_key1 = (CRTXLSP_KEY *)(keyarg1);
     lsp_key2 = (CRTXLSP_KEY *)(keyarg2);
 
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ulong(&(lsp_key1->ingress), &(lsp_key2->ingress));
     if (0 != ret)
     {
         goto EXIT_LABEL;
     }
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ulong(&(lsp_key1->egress), &(lsp_key2->egress) );
     if (0 != ret)
     {
@@ -228,6 +268,10 @@ NBB_INT spm_qos_tx_lsp_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 )
     {
         goto EXIT_LABEL;
     }
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ulong(&(lsp_key1->tunnelid), &(lsp_key2->tunnelid) );
     if (0 != ret)
     {
@@ -258,16 +302,27 @@ NBB_INT spm_qos_tunnel_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2  )
     SPM_QOS_TUNNEL_KEY *key2 = (SPM_QOS_TUNNEL_KEY *)keyarg2;
     NBB_INT rv = 0;
 
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     rv = compare_ushort(&key1->type, &key2->type );
     if (rv != 0)
     {
         goto EXIT_LABEL;
     }
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     rv = compare_ushort(&key1->flag, &key2->flag );
     if (rv != 0)
     {
         goto EXIT_LABEL;
     }
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     if(1 == key1->type)
     {
         rv = spm_qos_tx_lsp_comp(&key1->tx_lsp, &key2->tx_lsp );
@@ -319,16 +374,28 @@ NBB_INT spm_qos_logic_key_compare(NBB_VOID *keyarg1, NBB_VOID *keyarg2)
     SPM_QOS_LOGIC_INTF_KEY *key2 = (SPM_QOS_LOGIC_INTF_KEY *)keyarg2;
     NBB_INT ret = 0;
 
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ulong(&key1->index, &key2->index);
     if (0 != ret)
     {
         goto EXIT_LABEL;
     }
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ushort(&key1->svlan, &key2->svlan);
     if (0 != ret)
     {
         goto EXIT_LABEL;
     }
+
+    /***************************************************************/
+    /***************************************************************/
+    /***************************************************************/
     ret = compare_ushort(&key1->cvlan, &key2->cvlan);
     if (0 != ret)
     {
@@ -371,6 +438,7 @@ void spm_qos_init()
     spm_init_twamp();
     
     spm_qos_defend_init();
+    spm_qos_hqos_init();
 
 
 
@@ -401,8 +469,8 @@ NBB_LONG spm_qos_voq_init()
     NBB_LONG slot = 0;
     NBB_LONG portnum = 0;
     NBB_BYTE fapid = 0; /* 本槽位 */
-    NBB_LONG baseQueue = 0;
-    NBB_LONG baseVCId = 0;
+    NBB_LONG base_queue = 0;
+    NBB_LONG base_vcid = 0;
     NBB_INT rv = 0;
     
     //NBB_USHORT i = 0;
@@ -421,8 +489,8 @@ NBB_LONG spm_qos_voq_init()
     /********************************************************************************/
     for (portnum = MIN_PHYSIC_PORT; portnum < MAX_PHYSIC_PORT; portnum++)
     {
-        baseQueue = offset * (portnum - PTN_690_PORT_OFFSET) + VOQ_OFFSET;
-        baseVCId = fapid * NUM_COS + offset * (portnum - PTN_690_PORT_OFFSET) + VOQ_OFFSET;
+        base_queue = offset * (portnum - PTN_690_PORT_OFFSET) + VOQ_OFFSET;
+        base_vcid = fapid * NUM_COS + offset * (portnum - PTN_690_PORT_OFFSET) + VOQ_OFFSET;
 
         for (slot = 0; slot < MAX_SLOT_NUM; slot++) /* R8000中的arad最多支持32个槽位 */
         {
@@ -435,7 +503,7 @@ NBB_LONG spm_qos_voq_init()
                     ApiAradCheckPortValid(0, 0, &rv);
                     if (0 == rv)
                     {
-                        baseQueue += NUM_COS;
+                        base_queue += NUM_COS;
                         continue;
                     }
 #endif
@@ -446,7 +514,7 @@ NBB_LONG spm_qos_voq_init()
                     ApiAradCheckPortValid(0, portnum, &rv);
                     if (0 == rv)
                     {
-                        baseQueue += NUM_COS;
+                        base_queue += NUM_COS;
                         continue;
                     }
 #endif
@@ -456,7 +524,7 @@ NBB_LONG spm_qos_voq_init()
                 ApiAradCheckPortValid(0, portnum, &rv);
                 if (0 == rv)
                 {
-                    baseQueue += NUM_COS;
+                    base_queue += NUM_COS;
                     continue;
                 }
 #endif
@@ -466,11 +534,11 @@ NBB_LONG spm_qos_voq_init()
             if(PTN_690_PORT_OFFSET == portnum) /* ARAD cpu端口号 */
             {
 #if defined (SPU) || defined (SRC)
-                rv = ApiSetupItm(0, baseQueue, NUM_COS, slot + 1, 0, baseVCId);
+                rv = ApiSetupItm(0, base_queue, NUM_COS, slot + 1, 0, base_vcid);
                 if (rv != 0)
                 {
-                    printf("Error! ApiSetupItm err: %d (baseQueue=%ld,slot=%ld,port=%ld,"
-                           "vc=%ld)\n", rv,baseQueue, slot + 1, portnum, baseVCId);
+                    printf("Error! ApiSetupItm err: %d (base_queue=%ld,slot=%ld,port=%ld,"
+                           "vc=%ld)\n", rv,base_queue, slot + 1, portnum, base_vcid);
                     goto EXIT_LABEL;
                 }
 #endif
@@ -478,22 +546,22 @@ NBB_LONG spm_qos_voq_init()
             else
             {
 #if defined (SPU) || defined (SRC)
-                rv = ApiSetupItm(0, baseQueue, NUM_COS, slot + 1, portnum, baseVCId);
+                rv = ApiSetupItm(0, base_queue, NUM_COS, slot + 1, portnum, base_vcid);
                 if (rv != 0)
                 {
-                    printf("Error! ApiSetupItm err: %d (baseQueue=%ld,slot=%ld,port=%ld,"
-                           "vc=%ld)\n", rv,baseQueue, slot + 1, portnum, baseVCId);
+                    printf("Error! ApiSetupItm err: %d (base_queue=%ld,slot=%ld,port=%ld,"
+                           "vc=%ld)\n", rv,base_queue, slot + 1, portnum, base_vcid);
                     goto EXIT_LABEL;
                 }
 #endif
             }
 #else
 #if defined (SPU) || defined (SRC)
-            rv = ApiSetupItm(0, baseQueue, NUM_COS, slot + 1, portnum, baseVCId);
+            rv = ApiSetupItm(0, base_queue, NUM_COS, slot + 1, portnum, base_vcid);
             if (rv != 0)
             {
-                printf("Error! ApiSetupItm err: %d (baseQueue=%ld,slot=%ld,port=%ld,"
-                       "vc=%ld)\n", rv,baseQueue, slot + 1, portnum, baseVCId);
+                printf("Error! ApiSetupItm err: %d (base_queue=%ld,slot=%ld,port=%ld,"
+                       "vc=%ld)\n", rv,base_queue, slot + 1, portnum, base_vcid);
                 goto EXIT_LABEL;
             }
 #endif
@@ -509,28 +577,28 @@ NBB_LONG spm_qos_voq_init()
                 if(PTN_690_PORT_OFFSET == portnum) /* ARAD cpu端口号 */
                 {
 #if defined (SPU) || defined (SRC)
-                    rv = ApiAradSetQueueTailDrop(0, baseQueue, i, -1, buf_size);
+                    rv = ApiAradSetQueueTailDrop(0, base_queue, i, -1, buf_size);
 #endif
                 }
                 else
                 {
 #if defined (SPU) || defined (SRC)
-                    rv = ApiAradSetQueueTailDrop(0, baseQueue, i, -1, buf_size);
+                    rv = ApiAradSetQueueTailDrop(0, base_queue, i, -1, buf_size);
 #endif
                 }
 #else
 #if defined (SPU) || defined (SRC)
-                rv = ApiAradSetQueueTailDrop(0, baseQueue, i, -1, buf_size);
+                rv = ApiAradSetQueueTailDrop(0, base_queue, i, -1, buf_size);
 #endif
 #endif
                 if (rv != 0)
                 {
-                    printf("Error! ApiAradSetQueueTailDrop err: %d (baseQueue=%ld,cos=%ld)\n", rv, baseQueue, i);
+                    printf("Error! ApiAradSetQueueTailDrop err: %d (base_queue=%ld,cos=%ld)\n", rv, base_queue, i);
                     goto EXIT_LABEL;
                 }
             }
 #endif
-            baseQueue += NUM_COS;
+            base_queue += NUM_COS;
         }
     }
 
@@ -608,8 +676,8 @@ NBB_LONG spm_qos_voq_init()
     /************************************************************************/
     for (portnum = MIN_PHYSIC_PORT; portnum < MAX_PHYSIC_PORT; portnum++)
     {
-        baseQueue = fapid * NUM_COS + offset * (portnum - PTN_690_PORT_OFFSET) + VOQ_OFFSET;
-        baseVCId = offset * (portnum - PTN_690_PORT_OFFSET) + VOQ_OFFSET;
+        base_queue = fapid * NUM_COS + offset * (portnum - PTN_690_PORT_OFFSET) + VOQ_OFFSET;
+        base_vcid = offset * (portnum - PTN_690_PORT_OFFSET) + VOQ_OFFSET;
         for (slot = 0; slot < MAX_SLOT_NUM; slot++)
         {
 #ifdef PTN690 
@@ -619,7 +687,7 @@ NBB_LONG spm_qos_voq_init()
                 ApiAradCheckPortValid(0, 0, &rv);
                 if (0 == rv)
                 {
-                    baseVCId += NUM_COS;
+                    base_vcid += NUM_COS;
                     continue;
                 }
 #endif
@@ -630,7 +698,7 @@ NBB_LONG spm_qos_voq_init()
                 ApiAradCheckPortValid(0, portnum, &rv);
                 if (0 == rv)
                 {
-                    baseVCId += NUM_COS;
+                    base_vcid += NUM_COS;
                     continue;
                 }
 #endif
@@ -640,7 +708,7 @@ NBB_LONG spm_qos_voq_init()
             ApiAradCheckPortValid(0, portnum, &rv);
             if (0 == rv)
             {
-                baseVCId += NUM_COS;
+                base_vcid += NUM_COS;
                 continue;
             }
 #endif
@@ -649,11 +717,11 @@ NBB_LONG spm_qos_voq_init()
             if(PTN_690_PORT_OFFSET == portnum) /* arad CPU端口号 */
             {
 #if defined (SPU) || defined (SRC)
-                rv = ApiSetupBaseEtm(0, baseQueue, NUM_COS, slot + 1, 0, baseVCId);
+                rv = ApiSetupBaseEtm(0, base_queue, NUM_COS, slot + 1, 0, base_vcid);
                 if (rv != 0)    
                 {
                     printf("Error! ApiSetupBaseEtm err: %d(voq=%ld,slot=%ld,port=%ld,"
-                           "vc=%ld)\n", rv,baseQueue, slot + 1, portnum, baseVCId);
+                           "vc=%ld)\n", rv,base_queue, slot + 1, portnum, base_vcid);
                     goto EXIT_LABEL;
                 }
 #endif
@@ -661,27 +729,27 @@ NBB_LONG spm_qos_voq_init()
             else
             {
 #if defined (SPU) || defined (SRC)
-                rv = ApiSetupBaseEtm(0, baseQueue, NUM_COS, slot + 1, portnum, baseVCId);
+                rv = ApiSetupBaseEtm(0, base_queue, NUM_COS, slot + 1, portnum, base_vcid);
                 if (rv != 0)    
                 {
                     printf("Error! ApiSetupBaseEtm err: %d(voq=%ld,slot=%ld,port=%ld,"
-                           "vc=%ld)\n", rv,baseQueue, slot + 1, portnum, baseVCId);
+                           "vc=%ld)\n", rv,base_queue, slot + 1, portnum, base_vcid);
                     goto EXIT_LABEL;
                 }
 #endif
             }
 #else
 #if defined (SPU) || defined (SRC)
-            rv = ApiSetupBaseEtm(0, baseQueue, NUM_COS, slot + 1, portnum, baseVCId);
+            rv = ApiSetupBaseEtm(0, base_queue, NUM_COS, slot + 1, portnum, base_vcid);
             if (rv != 0)    
             {
                 printf("Error! ApiSetupBaseEtm err: %d(voq=%ld,slot=%ld,port=%ld,"
-                       "vc=%ld)\n", rv,baseQueue, slot + 1, portnum, baseVCId);
+                       "vc=%ld)\n", rv,base_queue, slot + 1, portnum, base_vcid);
                 goto EXIT_LABEL;
             }
 #endif
 #endif
-            baseVCId += NUM_COS;
+            base_vcid += NUM_COS;
         }
     }
 
@@ -726,22 +794,22 @@ NBB_LONG spm_init_hqos_lsp()
         if(PTN_690_PORT_OFFSET < i)
         {
 #if defined (SPU) || defined (SRC)
-            ret = ApiAradHqosLspCreate(UNIT_0, i, i - MIN_PHYSIC_PORT + 1);
+            ret = ApiAradHqosLspCreate(UNIT_0, i, i - MIN_PHYSIC_PORT);
             if (ATG_DCI_RC_OK != ret)
             {
                 printf("**QOS ERROR**%s,line=%d,port=%ld,lsp id=%ld\n",
-                          __FUNCTION__,__LINE__,i,i - MIN_PHYSIC_PORT + 1);
+                          __FUNCTION__,__LINE__,i,i - MIN_PHYSIC_PORT);
                 return ret;
             }
 #endif
         }
 #else
 #if defined (SPU) || defined (SRC)
-        ret = ApiAradHqosLspCreate(UNIT_0, i, i - MIN_PHYSIC_PORT + 1);
+        ret = ApiAradHqosLspCreate(UNIT_0, i, i - MIN_PHYSIC_PORT);
         if (ATG_DCI_RC_OK != ret)
         {
             printf("**QOS ERROR**%s,line=%d,port=%ld,lsp id=%ld\n",
-                      __FUNCTION__,__LINE__,i,i - MIN_PHYSIC_PORT + 1);
+                      __FUNCTION__,__LINE__,i,i - MIN_PHYSIC_PORT);
             return ret; 
         }
 #endif
@@ -806,7 +874,7 @@ NBB_LONG spm_init_rcu_cir_pir()
 #endif
     }
 
-    //ret = spm_init_hqos_lsp();
+    ret = spm_init_hqos_lsp();
 
 #if defined (SPU) || defined (SRC)
     EXIT_LABEL:
@@ -876,9 +944,9 @@ NBB_LONG spm_set_ipv4_sampler(SUB_PORT *sub_port, ATG_DCI_PHY_PORT_IPNF_SAMPLER 
 {
     NBB_LONG ret = ATG_DCI_RC_OK;
     NBB_LONG rv = ATG_DCI_RC_OK;
-    NBB_ULONG cntId = 0;
+    NBB_ULONG cnt_id = 0;
     NBB_USHORT port_id = 0;
-    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+    NBB_CHAR uc_message[QOS_MSG_INFO_LEN];
 
     NBB_TRC_ENTRY("spm_set_ipv4_sampler");
 
@@ -892,7 +960,7 @@ NBB_LONG spm_set_ipv4_sampler(SUB_PORT *sub_port, ATG_DCI_PHY_PORT_IPNF_SAMPLER 
         goto EXIT_LABEL;
     }
 
-    if(ATG_DCI_RC_OK != qos_phy_cfg_print)
+    if(ATG_DCI_RC_OK != g_qos_phy_cfg_print)
     {
         printf("%s %s,%d slot=%d,port=%d,ovlan=%d,in_enable_flag=%s\n"
                   "in_mode=%s,in_sample_ratio=%d,eg_enable_flag=%s\n"
@@ -903,7 +971,7 @@ NBB_LONG spm_set_ipv4_sampler(SUB_PORT *sub_port, ATG_DCI_PHY_PORT_IPNF_SAMPLER 
                   (cfg->in_mode)?"fix":"random",cfg->in_sample_ratio,
                   (cfg->eg_enable_flag)?"enable":"disable",
                   (cfg->eg_mode)?"fix":"random",cfg->eg_sample_ratio);
-        OS_SPRINTF(ucMessage,"%s %s,%d slot=%d,port=%d,ovlan=%d,in_enable_flag=%s\n"
+        OS_SPRINTF(uc_message,"%s %s,%d slot=%d,port=%d,ovlan=%d,in_enable_flag=%s\n"
                    "in_mode=%s,in_sample_ratio=%d,eg_enable_flag=%s\n"
                    "eg_mode=%s,eg_sample_ratio=%d\n\n",
                    QOS_CFG_STRING,__FUNCTION__,__LINE__,sub_port->slot,
@@ -912,7 +980,7 @@ NBB_LONG spm_set_ipv4_sampler(SUB_PORT *sub_port, ATG_DCI_PHY_PORT_IPNF_SAMPLER 
                    (cfg->in_mode)?"fix":"random",cfg->in_sample_ratio,
                    (cfg->eg_enable_flag)?"enable":"disable",
                    (cfg->eg_mode)?"fix":"random",cfg->eg_sample_ratio);
-        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
     }
 
     if((0 != sub_port->slot) && (sub_port->slot != v_spm_shared->local_slot_id))
@@ -928,10 +996,10 @@ NBB_LONG spm_set_ipv4_sampler(SUB_PORT *sub_port, ATG_DCI_PHY_PORT_IPNF_SAMPLER 
         port_id = ((sub_port->port&0x60)*(sub_port->port&0x1f));
     }
 
-    cntId = (sub_port->slot - 1) * 50 + port_id + 1024;
+    cnt_id = (sub_port->slot - 1) * 50 + port_id + 1024;
 
 #if defined (SPU) || defined (PTN690_CES)
-    rv = ApiC3SetFlowSample(sub_port->unit,sub_port->port, 0, cfg->in_enable_flag, cfg->in_sample_ratio,cntId);
+    rv = ApiC3SetFlowSample(sub_port->unit,sub_port->port, 0, cfg->in_enable_flag, cfg->in_sample_ratio,cnt_id);
 #endif  
     if(ATG_DCI_RC_OK != rv)
     {
@@ -940,14 +1008,14 @@ NBB_LONG spm_set_ipv4_sampler(SUB_PORT *sub_port, ATG_DCI_PHY_PORT_IPNF_SAMPLER 
         NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
     				   "QOS ipv4_sampler",rv,"phyPort","unit","in_enable_flag","in_sample_ratio",
     				   sub_port->port,sub_port->unit,cfg->in_enable_flag,cfg->in_sample_ratio));
-        OS_SPRINTF(ucMessage,"%s %s,%d ING ApiC3SetFlowSample unit=%d, ret=%ld,port=%d\n\n",
+        OS_SPRINTF(uc_message,"%s %s,%d ING ApiC3SetFlowSample unit=%d, ret=%ld,port=%d\n\n",
                    QOS_ERROR_STRING,__FUNCTION__,__LINE__,sub_port->unit,rv,sub_port->port);
-        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
         ret = rv;
     }
      
 #if defined (SPU) || defined (PTN690_CES)
-    rv = ApiC3SetFlowSample(sub_port->unit,sub_port->port, 1, cfg->eg_enable_flag, cfg->eg_sample_ratio,cntId);
+    rv = ApiC3SetFlowSample(sub_port->unit,sub_port->port, 1, cfg->eg_enable_flag, cfg->eg_sample_ratio,cnt_id);
 #endif
     if(ATG_DCI_RC_OK != rv)
     {
@@ -955,9 +1023,9 @@ NBB_LONG spm_set_ipv4_sampler(SUB_PORT *sub_port, ATG_DCI_PHY_PORT_IPNF_SAMPLER 
         NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
     				   "QOS ipv4_sampler",rv,"phyPort","unit","eg_enable_flag","eg_sample_ratio",
     				   sub_port->port,sub_port->unit,cfg->in_enable_flag,cfg->in_sample_ratio));
-        OS_SPRINTF(ucMessage,"%s %s,%d EGR ApiC3SetFlowSample unit=%d, ret=%ld,port=%d\n\n",
+        OS_SPRINTF(uc_message,"%s %s,%d EGR ApiC3SetFlowSample unit=%d, ret=%ld,port=%d\n\n",
                    QOS_ERROR_STRING,__FUNCTION__,__LINE__,sub_port->unit,rv,sub_port->port);
-        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
         ret = rv;
     }
 
@@ -983,9 +1051,9 @@ NBB_LONG spm_set_lag_sampler(SUB_PORT *sub_port, ATG_DCI_LAG_IPNF_SAMPLER_DATA *
 {
     NBB_LONG ret = ATG_DCI_RC_OK;
     NBB_LONG rv = ATG_DCI_RC_OK;
-    NBB_ULONG cntId = 0;
+    NBB_ULONG cnt_id = 0;
     NBB_USHORT port_id = 0;
-    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+    NBB_CHAR uc_message[QOS_MSG_INFO_LEN];
     NBB_BYTE unit = 0;
 
     NBB_TRC_ENTRY("spm_set_lag_sampler");
@@ -1000,7 +1068,7 @@ NBB_LONG spm_set_lag_sampler(SUB_PORT *sub_port, ATG_DCI_LAG_IPNF_SAMPLER_DATA *
         goto EXIT_LABEL;
     }
 
-    if(ATG_DCI_RC_OK != qos_phy_cfg_print)
+    if(ATG_DCI_RC_OK != g_qos_phy_cfg_print)
     {
         printf("%s %s,LINE=%d slot=%d,port=%d,ovlan=%d,in_enable_flag=%s\n"
                   "in_mode=%s,in_sample_ratio=%d,eg_enable_flag=%s\n"
@@ -1011,7 +1079,7 @@ NBB_LONG spm_set_lag_sampler(SUB_PORT *sub_port, ATG_DCI_LAG_IPNF_SAMPLER_DATA *
                   (cfg->ingress_mode)?"fix":"random",cfg->ingress_sampling,
                   (cfg->engress_flag)?"enable":"disable",
                   (cfg->engress_mode)?"fix":"random",cfg->engress_sampling);
-        OS_SPRINTF(ucMessage,"%s %s,LINE=%d slot=%d,port=%d,ovlan=%d,in_enable_flag=%s\n"
+        OS_SPRINTF(uc_message,"%s %s,LINE=%d slot=%d,port=%d,ovlan=%d,in_enable_flag=%s\n"
                    "in_mode=%s,in_sample_ratio=%d,eg_enable_flag=%s\n"
                    "eg_mode=%s,eg_sample_ratio=%d\n\n",
                    QOS_CFG_STRING,__FUNCTION__,__LINE__,sub_port->slot,
@@ -1020,16 +1088,16 @@ NBB_LONG spm_set_lag_sampler(SUB_PORT *sub_port, ATG_DCI_LAG_IPNF_SAMPLER_DATA *
                    (cfg->ingress_mode)?"fix":"random",cfg->ingress_sampling,
                    (cfg->engress_flag)?"enable":"disable",
                    (cfg->engress_mode)?"fix":"random",cfg->engress_sampling);
-        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
     }
 
     if((sub_port->slot != 0) || (sub_port->port < 0x80))
     {
         printf("%s %s,LINE=%d,spm_set_lag_sampler ERROR\n",
                   QOS_CFG_STRING,__FUNCTION__,__LINE__);
-        OS_SPRINTF(ucMessage,"%s %s,LINE=%d,spm_set_lag_sampler ERROR\n",
+        OS_SPRINTF(uc_message,"%s %s,LINE=%d,spm_set_lag_sampler ERROR\n",
                    QOS_CFG_STRING,__FUNCTION__,__LINE__);
-        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
         ret = ATG_DCI_RC_UNSUCCESSFUL;
         goto EXIT_LABEL;
     }
@@ -1043,11 +1111,11 @@ NBB_LONG spm_set_lag_sampler(SUB_PORT *sub_port, ATG_DCI_LAG_IPNF_SAMPLER_DATA *
         port_id = ((sub_port->port&0x60) * (sub_port->port&0x1f));
     }
     
-    cntId = (sub_port->slot - 1) * 50 + port_id + 1024;
+    cnt_id = (sub_port->slot - 1) * 50 + port_id + 1024;
     for(unit = 0;unit < SHARED.c3_num;unit++)
     {
 #if defined (SPU) || defined (PTN690_CES)
-        rv = ApiC3SetFlowSample(unit,sub_port->port, 0, cfg->ingress_flag, cfg->ingress_sampling,cntId);
+        rv = ApiC3SetFlowSample(unit,sub_port->port, 0, cfg->ingress_flag, cfg->ingress_sampling,cnt_id);
 #endif
         if(ATG_DCI_RC_OK != rv)
         {
@@ -1055,14 +1123,14 @@ NBB_LONG spm_set_lag_sampler(SUB_PORT *sub_port, ATG_DCI_LAG_IPNF_SAMPLER_DATA *
             NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
         				   "QOS ipv6_sampler",rv,"phyPort","unit","in_enable_flag","in_sample_ratio",
         				   sub_port->port,unit,cfg->ingress_flag,cfg->ingress_sampling));
-            OS_SPRINTF(ucMessage,"%s %s,%d ING ApiC3SetFlowSample unit=%d, ret=%ld,port=%d\n\n",
+            OS_SPRINTF(uc_message,"%s %s,%d ING ApiC3SetFlowSample unit=%d, ret=%ld,port=%d\n\n",
                        QOS_ERROR_STRING,__FUNCTION__,__LINE__,unit,rv,sub_port->port);
-            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
             ret = rv;
         }
        
 #if defined (SPU) || defined (PTN690_CES)
-        rv = ApiC3SetFlowSample(unit,sub_port->port, 1, cfg->engress_flag, cfg->engress_sampling,cntId);
+        rv = ApiC3SetFlowSample(unit,sub_port->port, 1, cfg->engress_flag, cfg->engress_sampling,cnt_id);
 #endif
         if(ATG_DCI_RC_OK != rv)
         {
@@ -1070,9 +1138,9 @@ NBB_LONG spm_set_lag_sampler(SUB_PORT *sub_port, ATG_DCI_LAG_IPNF_SAMPLER_DATA *
             NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
         				   "QOS ipv6_sampler",rv,"phyPort","unit","eg_enable_flag","eg_sample_ratio",
         				   sub_port->port,unit,cfg->engress_flag,cfg->engress_sampling));
-            OS_SPRINTF(ucMessage,"%s %s,%d EGR ApiC3SetFlowSample unit=%d, ret=%ld,port=%d\n\n",
+            OS_SPRINTF(uc_message,"%s %s,%d EGR ApiC3SetFlowSample unit=%d, ret=%ld,port=%d\n\n",
                        QOS_ERROR_STRING,__FUNCTION__,__LINE__,unit,rv,sub_port->port);
-            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
             ret = rv;
         } 
     }
@@ -1109,7 +1177,7 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
     
     /*驱动讨论后默认填写的值出问题mantis给驱动*/
     NBB_ULONG default_cbs = 2048;
-    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+    NBB_CHAR uc_message[QOS_MSG_INFO_LEN];
 
     NBB_TRC_ENTRY("spm_set_port_cir_pir");
 
@@ -1129,7 +1197,7 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
         goto EXIT_LABEL;
     }
 
-    if(ATG_DCI_RC_OK != qos_phy_cfg_print)
+    if(ATG_DCI_RC_OK != g_qos_phy_cfg_print)
     {
         printf("%s %s,%d slot=%d,port=%d,ovlan=%d\n"
                   "%s,%s,%s\n"
@@ -1140,7 +1208,7 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
                   mc_swtich?"组播抑制开":"组播抑制关",
                   fd_swtich?"洪泛抑制开":"洪泛抑制关",
                   bc_bandwith,mc_bandwith,fd_bandwith);
-        OS_SPRINTF(ucMessage,"%s %s,%d slot=%d,port=%d,ovlan=%d\n"
+        OS_SPRINTF(uc_message,"%s %s,%d slot=%d,port=%d,ovlan=%d\n"
                    "%s,%s,%s\n"
                    "bc_bandwith=%ld,mc_bandwith=%ld,fd_bandwith=%ld\n\n",
                    QOS_CFG_STRING,__FUNCTION__,__LINE__,sub_port->slot,
@@ -1149,7 +1217,7 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
                    mc_swtich?"组播抑制开":"组播抑制关",
                    fd_swtich?"洪泛抑制开":"洪泛抑制关",
                    bc_bandwith,mc_bandwith,fd_bandwith);
-        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
     }
 
     if (bc_swtich + mc_swtich + fd_swtich)
@@ -1164,9 +1232,9 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
             NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
 						   "QOS port flood",ret,"port","unit","","",
 						   sub_port->port,sub_port->unit,0,0));
-            OS_SPRINTF(ucMessage,"%s %s,%d ret=%ld port=%d ApiC3SetPortFCEnable\n\n",
+            OS_SPRINTF(uc_message,"%s %s,%d ret=%ld port=%d ApiC3SetPortFCEnable\n\n",
                        QOS_ERROR_STRING,__FUNCTION__,__LINE__,ret,sub_port->port);
-            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
             goto EXIT_LABEL;
         }
 
@@ -1188,9 +1256,9 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
             NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
 						   "QOS port flood",ret,"port","unit","meterId","",
 						   sub_port->port,sub_port->unit,meter.meterId,0));
-            OS_SPRINTF(ucMessage,"%s %s,%d ret=%ld port=%d meterId=%ld ApiC3SetMeter\n\n",
+            OS_SPRINTF(uc_message,"%s %s,%d ret=%ld port=%d meterId=%ld ApiC3SetMeter\n\n",
                        QOS_ERROR_STRING,__FUNCTION__,__LINE__,ret,sub_port->port,meter.meterId);
-            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
             goto EXIT_LABEL;
         }
 
@@ -1204,9 +1272,9 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
             NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
 						   "QOS port flood",ret,"port","unit","","",
 						   sub_port->port,sub_port->unit,0,0));
-            OS_SPRINTF(ucMessage,"%s %s,%d ret=%ld port=%d ApiC3SetPortFC\n\n",
+            OS_SPRINTF(uc_message,"%s %s,%d ret=%ld port=%d ApiC3SetPortFC\n\n",
                        QOS_ERROR_STRING,__FUNCTION__,__LINE__,ret,sub_port->port);
-            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
             goto EXIT_LABEL;
         }
 
@@ -1223,9 +1291,9 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
             NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
 						   "QOS port flood",ret,"port","unit","meterId","",
 						   sub_port->port,sub_port->unit,meter.meterId,0));
-            OS_SPRINTF(ucMessage,"%s %s,%d ret=%ld port=%d meterId=%ld ApiC3SetMeter\n\n",
+            OS_SPRINTF(uc_message,"%s %s,%d ret=%ld port=%d meterId=%ld ApiC3SetMeter\n\n",
                        QOS_ERROR_STRING,__FUNCTION__,__LINE__,ret,sub_port->port,meter.meterId);
-            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
             goto EXIT_LABEL;
         }
 #endif
@@ -1240,9 +1308,9 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
             NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
 						   "QOS port flood",ret,"port","unit","meter id","",
 						   sub_port->port,sub_port->unit,meter.meterId,0));
-            OS_SPRINTF(ucMessage,"%s %s,%d ret=%ld port=%d ApiC3SetPortFC\n\n",
+            OS_SPRINTF(uc_message,"%s %s,%d ret=%ld port=%d ApiC3SetPortFC\n\n",
                        QOS_ERROR_STRING,__FUNCTION__,__LINE__, ret, sub_port->port);
-            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
             goto EXIT_LABEL;
         }
 
@@ -1260,9 +1328,9 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
             NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
 						   "QOS port flood",ret,"port","unit","","",
 						   sub_port->port,sub_port->unit,0,0));
-            OS_SPRINTF(ucMessage,"%s %s,%d ret=%ld port=%d meterId=%ld ApiC3SetMeter\n\n",
+            OS_SPRINTF(uc_message,"%s %s,%d ret=%ld port=%d meterId=%ld ApiC3SetMeter\n\n",
                        QOS_ERROR_STRING,__FUNCTION__,__LINE__,ret,sub_port->port,meter.meterId);
-            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
             goto EXIT_LABEL;
         }
 #if defined (SPU) || defined (PTN690_CES)
@@ -1275,9 +1343,9 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
             NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
 						   "QOS port flood",ret,"port","unit","meter id","",
 						   sub_port->port,sub_port->unit,meter.meterId,0));
-            OS_SPRINTF(ucMessage,"%s %s,%d ret=%ld port=%d ApiC3SetPortFC\n\n",
+            OS_SPRINTF(uc_message,"%s %s,%d ret=%ld port=%d ApiC3SetPortFC\n\n",
                        QOS_ERROR_STRING,__FUNCTION__,__LINE__, ret, sub_port->port);
-            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
             goto EXIT_LABEL;
         }
     }
@@ -1294,9 +1362,9 @@ NBB_LONG spm_set_port_flood_control(SUB_PORT *sub_port,
 						   "QOS port flood",ret,
 						   "port","unit","ApiC3SetPortFCEnable","",
 						   sub_port->port,sub_port->unit,0,0));
-            OS_SPRINTF(ucMessage,"%s %s,%d ret=%ld port=%d ApiC3SetPortFCEnable\n\n",
+            OS_SPRINTF(uc_message,"%s %s,%d ret=%ld port=%d ApiC3SetPortFCEnable\n\n",
                        QOS_ERROR_STRING,__FUNCTION__,__LINE__, ret, sub_port->port);
-            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+            BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
             goto EXIT_LABEL;
         }
     }
@@ -1328,7 +1396,7 @@ NBB_LONG spm_set_port_cir_pir(SUB_PORT *sub_port, NBB_LONG cos,
     NBB_LONG unit = 0;
 #endif
     NBB_LONG eir;
-    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+    NBB_CHAR uc_message[QOS_MSG_INFO_LEN];
 
     NBB_TRC_ENTRY("spm_set_port_cir_pir");
 
@@ -1343,19 +1411,19 @@ NBB_LONG spm_set_port_cir_pir(SUB_PORT *sub_port, NBB_LONG cos,
         goto EXIT_LABEL;
     }
 
-    if(ATG_DCI_RC_OK != qos_phy_cfg_print)
+    if(ATG_DCI_RC_OK != g_qos_phy_cfg_print)
     {
         printf("%s %s,%d slot=%d,port=%d,ovlan=%d\n"
                   "cos=%ld,cir=%ld,pir=%ld,cbs=%d,pbs=%d\n",
                   QOS_CFG_STRING,__FUNCTION__,__LINE__,sub_port->slot,
                   sub_port->port + PTN_690_PORT_OFFSET,sub_port->ovlan,
                   cos,shape->cir,shape->pir,shape->cbs,shape->pbs);
-        OS_SPRINTF(ucMessage,"%s %s,%d slot=%d,port=%d,ovlan=%d\n"
+        OS_SPRINTF(uc_message,"%s %s,%d slot=%d,port=%d,ovlan=%d\n"
                    "cos=%ld,cir=%ld,pir=%ld,cbs=%d,pbs=%d\n\n",
                    QOS_CFG_STRING,__FUNCTION__,__LINE__,sub_port->slot,
                    sub_port->port + PTN_690_PORT_OFFSET,sub_port->ovlan,
                    cos,shape->cir,shape->pir,shape->cbs,shape->pbs);
-        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
     }
 
     spm_hardw_getslot(&fapid);
@@ -1393,10 +1461,10 @@ NBB_LONG spm_set_port_cir_pir(SUB_PORT *sub_port, NBB_LONG cos,
         NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
 					   "QOS port cir pir",ret,"slot","port","cos","",
 					   sub_port->slot,sub_port->port + PTN_690_PORT_OFFSET,cos,0));
-        OS_SPRINTF(ucMessage,"%s %s,%d ret=%ld port=%d cos=%ld ApiAradSetPortQueueCirEir\n\n",
+        OS_SPRINTF(uc_message,"%s %s,%d ret=%ld port=%d cos=%ld ApiAradSetPortQueueCirEir\n\n",
                    QOS_ERROR_STRING,__FUNCTION__,__LINE__, ret, 
                    sub_port->port + PTN_690_PORT_OFFSET,cos);
-        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
         goto EXIT_LABEL;
     }
 
@@ -1426,7 +1494,7 @@ NBB_LONG spm_set_port_sp_wfq(SUB_PORT *sub_port, NBB_BYTE cos,
     NBB_LONG unit = 0;
 #endif
     NBB_BYTE fapid = 0;
-    NBB_CHAR ucMessage[QOS_MSG_INFO_LEN];
+    NBB_CHAR uc_message[QOS_MSG_INFO_LEN];
 
     NBB_TRC_ENTRY("spm_set_port_sp_wfq");
 
@@ -1439,19 +1507,19 @@ NBB_LONG spm_set_port_sp_wfq(SUB_PORT *sub_port, NBB_BYTE cos,
         ret = ATG_DCI_RC_UNSUCCESSFUL;
         goto EXIT_LABEL;
     }
-    if(ATG_DCI_RC_OK != qos_phy_cfg_print)
+    if(ATG_DCI_RC_OK != g_qos_phy_cfg_print)
     {
         printf("%s %s,%d slot=%d,port=%d,ovlan=%d\n"
                   "cos=%d,mode=%s,weight=%d\n",
                   QOS_CFG_STRING,__FUNCTION__,__LINE__,sub_port->slot,
                   sub_port->port + PTN_690_PORT_OFFSET,sub_port->ovlan,
                   cos,(port_schedule->mode)?"WFQ":"SP",port_schedule->weight);
-        OS_SPRINTF(ucMessage,"%s %s,%d slot=%d,port=%d,ovlan=%d\n"
+        OS_SPRINTF(uc_message,"%s %s,%d slot=%d,port=%d,ovlan=%d\n"
                    "cos=%d,mode=%s,weight=%d\n\n",
                    QOS_CFG_STRING,__FUNCTION__,__LINE__,sub_port->slot,
                    sub_port->port + PTN_690_PORT_OFFSET,sub_port->ovlan,
                    cos,(port_schedule->mode)?"WFQ":"SP",port_schedule->weight);
-        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
     }
 
     spm_hardw_getslot(&fapid);
@@ -1480,10 +1548,10 @@ NBB_LONG spm_set_port_sp_wfq(SUB_PORT *sub_port, NBB_BYTE cos,
         NBB_EXCEPTION((PCT_SPM| QOS_PD, 1,  "s d s s s s d d d d", 
 					   "QOS port sp wfq",ret,"slot","port","cos","mode",
 					   sub_port->slot,sub_port->port,cos,port_schedule->mode));
-        OS_SPRINTF(ucMessage,"%s %s,%d ret=%ld port=%d cos=%d mode=%d set sp or wfq err\n\n",
+        OS_SPRINTF(uc_message,"%s %s,%d ret=%ld port=%d cos=%d mode=%d set sp or wfq err\n\n",
                    QOS_ERROR_STRING,__FUNCTION__,__LINE__, ret, 
                    sub_port->port + PTN_690_PORT_OFFSET,cos,port_schedule->mode);
-        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, ucMessage);
+        BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);
         goto EXIT_LABEL;
     }
 

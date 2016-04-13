@@ -3163,6 +3163,7 @@ NBB_LONG spm_ds_set_univp_node(NBB_ULONG logic_index,
 #endif
 
 #if 7
+
 /*****************************************************************************
    函 数 名  : spm_ds_add_logic_intf_node
    功能描述  : 逻辑端口优先级映射的接口函数
@@ -3397,7 +3398,7 @@ NBB_LONG spm_ds_set_vc_node(
     if (0 == diff_serve->out_ds_mod) /*指配exp*/
     {
         out_mod = PHB_TO_EXP;
-        out_dsptr = diff_serve->exp+ PHB2PRI_ASSIGN_OFFSET;
+        out_dsptr = diff_serve->exp + PHB2PRI_ASSIGN_OFFSET;
         
     }
     else if (1 == diff_serve->out_ds_mod) /* 映射 */
@@ -3453,6 +3454,7 @@ NBB_LONG spm_ds_set_vc_node(
 
 
 #if 8
+
 /*****************************************************************************
    函 数 名  : spm_ds_add_logic_intf_node
    功能描述  : 逻辑端口优先级映射的接口函数
@@ -3613,7 +3615,7 @@ NBB_LONG spm_ds_set_vrf_node(
     if (0 == diff_serve->out_ds_mod) /*指配exp*/
     {
         out_mod = PHB_TO_EXP;
-        out_dsptr = diff_serve->exp+ PHB2PRI_ASSIGN_OFFSET;
+        out_dsptr = diff_serve->exp + PHB2PRI_ASSIGN_OFFSET;
         
     }
     else if (1 == diff_serve->out_ds_mod) /* 映射 */
@@ -3652,6 +3654,7 @@ NBB_LONG spm_ds_set_vrf_node(
 #endif
 
 #if 9
+
 /*****************************************************************************
    函 数 名  : spm_ds_add_logic_intf_node
    功能描述  : 逻辑端口优先级映射的接口函数
@@ -3701,12 +3704,12 @@ void qos_print_lsp_key(SPM_QOS_TUNNEL_KEY *lsp_key)
     {     
         if(0 == lsp_key->type)/*FTN*/
         {
-            printf("ftn.vrfid=%d,ftn.fec=%ld,ftn.mask=%d\n",
+            printf("LSP KEY:ftn.vrfid=%d,ftn.fec=%ld,ftn.mask=%d\n",
                   lsp_key->ftn.vrfid,lsp_key->ftn.fec,lsp_key->ftn.mask);
         }
         else
         {
-            printf("tunnelid=%ld,lspid=%ld,ingress=%ld,egress=%d\n",
+            printf("LSP KEY:tunnelid=%ld,lspid=%ld,ingress=%ld,egress=%d\n",
                   lsp_key->tx_lsp.tunnelid,lsp_key->tx_lsp.lspid,
                   lsp_key->tx_lsp.ingress,lsp_key->tx_lsp.egress);
         }   
@@ -3787,6 +3790,22 @@ void qos_log_lsp_diff_serv_data(SPM_QOS_TUNNEL_KEY *lsp_key,ATG_DCI_LSP_TX_PROT_
    
 }
 
+
+/*****************************************************************************
+   函 数 名  : spm_ds_add_logic_intf_node
+   功能描述  : 逻辑端口优先级映射的接口函数
+   输入参数  : ds模板的index  ,逻辑端口的key,驱动结构体指针
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年1月15日 星期二
+    作    者   : zenglu
+    修改内容   : 新生成函数
+
+*****************************************************************************/
 NBB_LONG spm_ds_add_tx_lsp_node (SPM_QOS_TUNNEL_KEY *lspkey,
         ATG_DCI_LSP_TX_PROT_DIFF_SERV *diff_serve,
         NBB_ULONG posid,NBB_BYTE type)//type:(0:inlsp;1:outlsp)  
@@ -3814,6 +3833,7 @@ NBB_LONG spm_ds_add_tx_lsp_node (SPM_QOS_TUNNEL_KEY *lspkey,
     {
         exp = diff_serve->exp;
         out_mod = LSP_NO_ACTION;
+        
         //out_dsptr = diff_serve->exp+ PHB2PRI_ASSIGN_OFFSET;
         
     }
@@ -4270,14 +4290,30 @@ NBB_LONG spm_add_ilm_ds_node(NBB_ULONG label,ATG_DCI_ILM_DIFF_SERV_DATA *diff,NB
     EXIT_LABEL: NBB_TRC_EXIT();
     return ret;
 }
+
 #endif
 
 
+/*****************************************************************************
+   函 数 名  : spm_ds_add_logic_intf_node
+   功能描述  : 逻辑端口优先级映射的接口函数
+   输入参数  : ds模板的index  ,逻辑端口的key,驱动结构体指针
+   输出参数  :
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年1月15日 星期二
+    作    者   : zenglu
+    修改内容   : 新生成函数
+
+*****************************************************************************/
 NBB_VOID qos_ds_help()
 {
     NBB_CHAR **ppc_msg;
 
-    static NBB_CHAR *p_help_msg[] = {       
+    static NBB_CHAR *s_help_msg[] = {       
         "---------------------------DS-----------------------------------", "",
         "qos_set_ds_print(set)",                   "set all ds cfg print",
         "qos_set_ds_log(set)",                     "set all ds log print",
@@ -4288,7 +4324,7 @@ NBB_VOID qos_ds_help()
 
     printf("\n");
 
-    for (ppc_msg = p_help_msg; *ppc_msg != NULL; ppc_msg += 2)
+    for (ppc_msg = s_help_msg; *ppc_msg != NULL; ppc_msg += 2)
     {
         if (strlen(*(ppc_msg)) > 45)
         {

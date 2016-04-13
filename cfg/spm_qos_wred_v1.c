@@ -471,5 +471,6 @@ NBB_LONG spm_set_physical_port_wred(SUB_PORT *sub_port,NBB_BYTE cos,ATG_DCI_PHY_
     EXIT_LABEL: NBB_TRC_EXIT();
     return ret;
 }
+
 #endif
 

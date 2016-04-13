@@ -228,13 +228,15 @@ NBB_LONG spm_hqos_add_vc_node(NBB_BYTE slot, NBB_USHORT port, NBB_ULONG posid, N
     SPM_QOS_TUNNEL_KEY *lsp_key, ATG_DCI_VC_KEY *vc_key,
     ATG_DCI_VC_UP_VPN_QOS_POLICY *data);
 
-NBB_LONG spm_hqos_del_vc_node(SPM_HQOS_LSP_CB **plsp,SPM_HQOS_VC_CB **pcb);
+NBB_LONG spm_hqos_del_vc_node(NBB_LONG slot, NBB_USHORT port,
+        SPM_QOS_TUNNEL_KEY *lsp_key, ATG_DCI_VC_KEY *vc_key);
 
 NBB_LONG spm_hqos_add_vrf_node(NBB_BYTE slot, NBB_USHORT port, NBB_ULONG posid,
     SPM_QOS_TUNNEL_KEY *lsp_key, ATG_DCI_VRF_INSTANCE_KEY *vrf_key,
     ATG_DCI_VRF_INSTANCE_UP_VPN_QOS *data);
 
-NBB_LONG spm_hqos_del_vrf_node(SPM_HQOS_LSP_CB **plsp,SPM_HQOS_VRF_CB **pcb);
+NBB_LONG spm_hqos_del_vrf_node(NBB_LONG slot, NBB_USHORT port,
+        SPM_QOS_TUNNEL_KEY *lsp_key, ATG_DCI_VRF_INSTANCE_KEY *vrf_key);
 
 NBB_LONG spm_hqos_add_usr_node(SUB_PORT *sub_port,NBB_ULONG logic_key,
     ATG_DCI_LOG_DOWN_USER_QUEUE_QOS *data);
