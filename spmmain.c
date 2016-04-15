@@ -125,7 +125,7 @@ NBB_BOOL spm_create_proc(NBB_PROC_ID our_pid,
   /***************************************************************************/
   /* 初始化设备端口归零 Added by xiaoxiang, 2013/5/13*/
   /***************************************************************************/
-  //spm_init_dev_port_info(NBB_CXT);
+  spm_init_dev_port_info(NBB_CXT);
 
   /***************************************************************************/
   /* 初始化VC的next_hop_id Added by xiaoxiang, 2014/2/17*/
@@ -176,11 +176,6 @@ NBB_BOOL spm_create_proc(NBB_PROC_ID our_pid,
   /* 初始化用于存储SPM_VPLS_UC_CB的AVLL树 Added by xiaoxiang, 2013/4/18*/
   /***************************************************************************/
   spm_init_associate_if_tree(NBB_CXT);
-
-  /***************************************************************************/
-  /* 初始化用于存储SPM_L3_MC_CB的结构体 Added by zhangsen, 2014/04/10*/
-  /***************************************************************************/
-  spm_init_vpls_l3_mc_tree(NBB_CXT);
 
   
   /* add begin by limingming, 2013/1/17, Mantis号:HSD123456, 原因:BFD联调 */
@@ -281,7 +276,7 @@ NBB_BOOL spm_create_proc(NBB_PROC_ID our_pid,
 
   //spm_ds_init();
 
-  spm_qos_init();
+  spm_qos_init(NBB_CXT);
 
   //spm_qos_voq_init();
     /***************************************************************************/
@@ -720,7 +715,7 @@ NBB_VOID spm_free_all_cfg_cb(NBB_CXT_T NBB_CXT)
                        vc_cb->spm_vc_node))
     {
         NBB_TRC_FLOW((NBB_FORMAT "Delete vc_cb %p", vc_cb));
-        spm_vc_free_cb(vc_cb NBB_CCXT);
+        spm_free_vc_cb(vc_cb NBB_CCXT);
     }
 
     /*************************************************************************/
@@ -732,7 +727,7 @@ NBB_VOID spm_free_all_cfg_cb(NBB_CXT_T NBB_CXT)
                    vpws_cb->spm_vpws_node))
     {
         NBB_TRC_FLOW((NBB_FORMAT "Delete vpws_cb %p", vpws_cb));
-        spm_vpws_free_cb(vpws_cb NBB_CCXT);
+        spm_free_vpws_cb(vpws_cb NBB_CCXT);
     }
 
     /*************************************************************************/

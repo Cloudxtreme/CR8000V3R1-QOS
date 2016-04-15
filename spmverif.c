@@ -178,13 +178,23 @@ NBB_VOID spm_cfg_cb_verify(NBB_CXT_T NBB_CXT)
     /*************************************************************************/
     /* 遍历接口物理配置的树逐一进行验证。                                    */
     /*************************************************************************/
-    spm_cfg_phy_port_cb_verify(NBB_CXT);
+    spm_cfg_physical_port_cb_verify();
 
     /*************************************************************************/
     /* 遍历端口逻辑配置的树逐一进行验证。                                    */
     /*************************************************************************/
     spm_cfg_log_port_cb_verify(NBB_CXT);
-
+    
+    /*************************************************************************/
+    /* 遍历VP表配置的树逐一进行验证。                                        */
+    /*************************************************************************/
+    spm_cfg_vp_cb_verify();
+    
+    /*************************************************************************/
+    /* 遍历phy_port表配置的树逐一进行验证。                                 */
+    /*************************************************************************/
+    spm_cfg_phy_port_cb_verify();    
+    
     /*************************************************************************/
     /* 遍历链路聚合配置的树逐一进行验证。                                    */
     /*************************************************************************/
@@ -239,7 +249,12 @@ NBB_VOID spm_cfg_cb_verify(NBB_CXT_T NBB_CXT)
     /* 遍历Bypass保护配置的树逐一进行验证。                                 */
     /*************************************************************************/
 	spm_cfg_bypass_cb_verify(NBB_CXT);
-
+    
+    /*************************************************************************/
+    /* 遍历Bypass保护配置的树逐一进行验证。                                 */
+    /*************************************************************************/
+    spm_cfg_bypass_dh_cb_verify(NBB_CXT);   
+    
 	/*************************************************************************/
     /* 遍历MSP配置的树逐一进行验证。                                 */
     /*************************************************************************/
@@ -279,7 +294,7 @@ NBB_VOID spm_cfg_cb_verify(NBB_CXT_T NBB_CXT)
 
 
 /**PROC+**********************************************************************/
-/* Name:      spm_cfg_phy_port_cb_verify                                     */
+/* Name:      spm_cfg_physical_port_cb_verify                                     */
 /*                                                                           */
 /* Purpose:   遍历接口物理配置的树逐一进行验证。                             */
 /*                                                                           */
@@ -288,7 +303,7 @@ NBB_VOID spm_cfg_cb_verify(NBB_CXT_T NBB_CXT)
 /* Params:    None.                                                          */
 /*                                                                           */
 /**PROC-**********************************************************************/
-NBB_VOID spm_cfg_phy_port_cb_verify(NBB_CXT_T NBB_CXT)
+NBB_VOID spm_cfg_physical_port_cb_verify()
 {
     /*************************************************************************/
     /* Local Variables                                                       */
@@ -312,8 +327,9 @@ NBB_VOID spm_cfg_phy_port_cb_verify(NBB_CXT_T NBB_CXT)
     ATG_DCI_PHY_PORT_COMMON_DATA *common_cfg_cb = NULL;
     ATG_DCI_PHY_PORT_SDH_TOVHD_DATA *sdh_tovhd_cfg_cb = NULL;
     ATG_DCI_PHY_PORT_ALS_DATA *als_cfg_cb = NULL;
-
-    NBB_TRC_ENTRY("spm_cfg_phy_port_cb_verify");
+    ATG_DCI_PHY_PORT_DELAY_OPEN_TIME_DATA *delay_open_cfg_cb = NULL;
+    
+    NBB_TRC_ENTRY("spm_cfg_physical_port_cb_verify");
 
     /*************************************************************************/
     /* 遍历接口物理配置的树逐一进行验证。                                    */
@@ -323,7 +339,7 @@ NBB_VOID spm_cfg_phy_port_cb_verify(NBB_CXT_T NBB_CXT)
          phy_port_cb = (SPM_PHYSICAL_PORT_CB*) AVLL_NEXT(SHARED.physical_port_tree,
                        phy_port_cb->spm_physical_port_node))
     {
-        NBB_TRC_FLOW((NBB_FORMAT "Verify phy_port_cb %p", phy_port_cb));
+        NBB_TRC_FLOW((NBB_FORMAT "Verify physical_port_cb %p", phy_port_cb));
         NBB_VERIFY_MEMORY(phy_port_cb, sizeof(SPM_PHYSICAL_PORT_CB), MEM_SPM_PHYSICAL_PORT_CB);
 
         /*********************************************************************/
@@ -527,6 +543,19 @@ NBB_VOID spm_cfg_phy_port_cb_verify(NBB_CXT_T NBB_CXT)
             NBB_VERIFY_MEMORY(als_cfg_cb, sizeof(ATG_DCI_PHY_PORT_ALS_DATA),
                               MEM_SPM_PHY_PORT_ALS_CB);
         }
+        
+        /*************************************************************************/
+        /* 对端口延时开启配置块进行验证。                                       */
+        /*************************************************************************/
+        delay_open_cfg_cb = phy_port_cb->delay_open_cfg_cb;
+        
+        if(NULL != delay_open_cfg_cb)
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Verify delay_open_cfg_cb cb %p", delay_open_cfg_cb));
+            NBB_VERIFY_MEMORY(delay_open_cfg_cb, sizeof(ATG_DCI_PHY_PORT_DELAY_OPEN_TIME_DATA),
+                              MEM_SPM_PHY_PORT_DELAY_OPEN_CB);
+        }
+        
     }
 
     NBB_TRC_EXIT();
@@ -556,7 +585,7 @@ NBB_VOID spm_cfg_log_port_cb_verify(NBB_CXT_T NBB_CXT)
     ATG_DCI_LOG_PORT_PHY_DATA *phy_cfg_cb = NULL;
     ATG_DCI_LOG_PORT_LOGIC_L3_DATA *logic_l3_cfg_cb = NULL;
     ATG_DCI_LOG_PORT_LOGIC_L2_DATA *logic_l2_cfg_cb = NULL;
-    ATG_DCI_LOG_PORT_FLOW_DATA *flow_cfg_cb = NULL;
+    ATG_DCI_LOG_PORT_L2VPN_DATA *l2vpn_cfg_cb = NULL;
     ATG_DCI_LOG_PORT_CES_DATA *ces_cfg_cb = NULL;
     ATG_DCI_LOG_PORT_IPV4_DATA *ipv4_cfg_cb = NULL;
     ATG_DCI_LOG_PORT_IPV6_DATA *ipv6_cfg_cb = NULL;
@@ -575,6 +604,7 @@ NBB_VOID spm_cfg_log_port_cb_verify(NBB_CXT_T NBB_CXT)
     ATG_DCI_LOG_PORT_TRAFFIC_FILTER *traffic_filter_cfg_cb = NULL;
 	ATG_DCI_LOG_PORT_MC_IPV6_DATA *mc_ipv6_cfg_cb = NULL;
 	ATG_DCI_LOG_PORT_DS_L2_DATA *ds_l2_cfg_cb = NULL;
+    ATG_DCI_LOG_PORT_CAR_DATA *car_cfg_cb = NULL;
     SPM_DIFF_SERV_CB *diff_serv_cb = NULL;    
     SPM_FLOW_DIFF_SERV_CB *flow_diff_serv_cb = NULL;
     SPM_INCLASSIFY_QOS_CB *inclassify_qos_cb = NULL;
@@ -644,20 +674,17 @@ NBB_VOID spm_cfg_log_port_cb_verify(NBB_CXT_T NBB_CXT)
         }
 
         /*************************************************************************/
-        /* 对流相关配置L2配置块进行验证。                                        */
+        /* 对L2VPN配置块进行验证。                                        */
         /*************************************************************************/
-/*
-        for (i = 0; i < ATG_DCI_LOG_PORT_FLOW_NUM; i++)
+
+        l2vpn_cfg_cb = log_port_cb->l2vpn_cfg_cb;
+        if(l2vpn_cfg_cb != NULL)
         {
-            flow_cfg_cb = log_port_cb->flow_cfg_cb[i];
-            if(flow_cfg_cb != NULL)
-            {
-                NBB_TRC_FLOW((NBB_FORMAT "Verify flow_cfg_cb cb %p", flow_cfg_cb));
-                NBB_VERIFY_MEMORY(flow_cfg_cb, sizeof(ATG_DCI_LOG_PORT_FLOW_DATA),
-                                  MEM_SPM_LOG_PORT_FLOW_CB);
-            }
+            NBB_TRC_FLOW((NBB_FORMAT "Verify l2vpn_cfg_cb cb %p", l2vpn_cfg_cb));
+            NBB_VERIFY_MEMORY(l2vpn_cfg_cb, sizeof(ATG_DCI_LOG_PORT_L2VPN_DATA),
+                              MEM_SPM_LOG_PORT_L2VPN_CB);
         }
-*/
+
         /*************************************************************************/
         /* 对逻辑配置CES配置块进行验证。                                         */
         /*************************************************************************/
@@ -738,7 +765,7 @@ NBB_VOID spm_cfg_log_port_cb_verify(NBB_CXT_T NBB_CXT)
                                   MEM_SPM_LOG_PORT_VIPV6_VMAC_CB);
             }
         }
-
+                
         /*************************************************************************/
         /* 对VE MAC地址配置块进行验证。                                          */
         /*************************************************************************/
@@ -749,6 +776,18 @@ NBB_VOID spm_cfg_log_port_cb_verify(NBB_CXT_T NBB_CXT)
             NBB_VERIFY_MEMORY(ve_mac_cfg_cb, sizeof(ATG_DCI_LOG_PORT_VE_MAC_DATA),
                               MEM_SPM_LOG_PORT_VE_MAC_CB);
         }
+        
+        /*************************************************************************/
+        /* 对VE MAC地址配置块进行验证。                                          */
+        /*************************************************************************/
+        car_cfg_cb = log_port_cb->car_cfg;
+        
+        if(car_cfg_cb != NULL)
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Verify car_cfg_cb cb %p", car_cfg_cb));
+            NBB_VERIFY_MEMORY(car_cfg_cb, sizeof(ATG_DCI_LOG_PORT_CAR_DATA),
+                              MEM_SPM_LOG_PORT_CAR_CB);
+        } 
         
         /*************************************************************************/
         /* 对Diff-Serv配置块进行验证。                                          */
@@ -963,6 +1002,7 @@ NBB_VOID spm_cfg_lag_cb_verify(NBB_CXT_T NBB_CXT)
     ATG_DCI_LAG_IPV4NF_DATA *ipv4_nf_cb = NULL;
     ATG_DCI_LAG_IPV6NF_DATA *ipv6_nf_cb = NULL;
     ATG_DCI_LAG_IPNF_SAMPLER_DATA *ipnf_sampler_cb = NULL;
+    ATG_DCI_LAG_LINK_DETECT_DATA *link_detect_cb = NULL;
     NBB_ULONG i = 0;
 
     NBB_TRC_ENTRY("spm_cfg_link_aggr_cb_verify");
@@ -1058,6 +1098,17 @@ NBB_VOID spm_cfg_lag_cb_verify(NBB_CXT_T NBB_CXT)
             NBB_VERIFY_MEMORY(ipnf_sampler_cb, sizeof(ATG_DCI_LAG_IPNF_SAMPLER_DATA),
                               MEM_SPM_LAG_IPNF_SAMPLER);
         }
+
+        /*************************************************************************/
+        /* 对链路检测配置块进行验证。                                            */
+        /*************************************************************************/
+        link_detect_cb = lag_cb->link_detect_cfg;
+        if(ipnf_sampler_cb != NULL)
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Verify link_detect_cb %p", link_detect_cb));
+            NBB_VERIFY_MEMORY(link_detect_cb, sizeof(ATG_DCI_LAG_LINK_DETECT_DATA),
+                              MEM_SPM_LAG_LINK_DETECT_CB);
+        }
     }
 
     NBB_TRC_EXIT();
@@ -1065,6 +1116,92 @@ NBB_VOID spm_cfg_lag_cb_verify(NBB_CXT_T NBB_CXT)
     return;
 }
 
+/**PROC+**********************************************************************/
+/* Name:      spm_cfg_vp_cb_verify                                         */
+/*                                                                           */
+/* Purpose:   遍历VP配置的树逐一进行验证.                                  */
+/*                                                                           */
+/* Returns:   Nothing.                                                       */
+/*                                                                           */
+/* Params:    None.                                                          */
+/*                                                                           */
+/**PROC-**********************************************************************/
+NBB_VOID spm_cfg_vp_cb_verify()
+{
+	
+    /*************************************************************************/
+    /* Local Variables                                                       */
+    /*************************************************************************/
+    SPM_VP_CB *vp_cb = NULL;
+
+    NBB_TRC_ENTRY("spm_cfg_vp_cb_verify");
+
+    /*************************************************************************/
+    /* 遍历VPWS配置的树逐一进行验证。                                        */
+    /*************************************************************************/
+    for (vp_cb = (SPM_VP_CB*) AVLL_FIRST(SHARED.vp_tree);
+         vp_cb != NULL;
+         vp_cb = (SPM_VP_CB*) AVLL_NEXT(SHARED.vp_tree,
+                   vp_cb->spm_vp_node))
+    {
+        NBB_TRC_FLOW((NBB_FORMAT "Verify vp_cb %p", vp_cb));
+        NBB_VERIFY_MEMORY(vp_cb, sizeof(SPM_VP_CB), MEM_SPM_VP_CB);
+    }
+
+    NBB_TRC_EXIT();
+
+    return;
+}
+
+/**PROC+**********************************************************************/
+/* Name:      spm_cfg_phy_port_cb_verify                                         */
+/*                                                                           */
+/* Purpose:   遍历VP配置的树逐一进行验证.                                  */
+/*                                                                           */
+/* Returns:   Nothing.                                                       */
+/*                                                                           */
+/* Params:    None.                                                          */
+/*                                                                           */
+/**PROC-**********************************************************************/
+NBB_VOID spm_cfg_phy_port_cb_verify()
+{
+	
+    /*************************************************************************/
+    /* Local Variables                                                       */
+    /*************************************************************************/
+    SPM_PHY_PORT_CB *phy_port_cb = NULL;
+    SPM_L2_VP_CB *l2_vp_cb = NULL;    
+
+    NBB_TRC_ENTRY("spm_cfg_phy_port_cb_verify");
+
+    /*************************************************************************/
+    /* 遍历VPWS配置的树逐一进行验证。                                        */
+    /*************************************************************************/
+    for (phy_port_cb = (SPM_PHY_PORT_CB*) AVLL_FIRST(SHARED.phy_port_tree);
+         phy_port_cb != NULL;
+         phy_port_cb = (SPM_PHY_PORT_CB*) AVLL_NEXT(SHARED.phy_port_tree,
+                   phy_port_cb->spm_phy_port_node))
+    {
+        NBB_TRC_FLOW((NBB_FORMAT "Verify phy_port_cb %p", phy_port_cb));
+        NBB_VERIFY_MEMORY(phy_port_cb, sizeof(SPM_PHY_PORT_CB), MEM_SPM_PHY_PORT_CB);
+        
+        /*********************************************************************/
+        /* 对终结子接口配置进行验证。                                        */
+        /*********************************************************************/
+        for (l2_vp_cb = (SPM_L2_VP_CB*) AVLL_FIRST(phy_port_cb->l2_vp_tree);
+             l2_vp_cb != NULL;
+             l2_vp_cb = (SPM_L2_VP_CB*) AVLL_NEXT(phy_port_cb->l2_vp_tree,
+                           l2_vp_cb->spm_l2_vp_node))
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Verify l2_vp_cb %p", l2_vp_cb));
+            NBB_VERIFY_MEMORY(l2_vp_cb, sizeof(SPM_L2_VP_CB), MEM_SPM_PHY_PORT_L2_VP_CB);
+        }        
+    }
+
+    NBB_TRC_EXIT();
+
+    return;
+}
 
 /**PROC+**********************************************************************/
 /* Name:      spm_cfg_vc_cb_verify                                           */
@@ -1623,6 +1760,16 @@ NBB_VOID spm_cfg_switch_vc_cb_verify(NBB_CXT_T NBB_CXT)
     return;
 }
 
+/**PROC+**********************************************************************/
+/* Name:      spm_cfg_switch_vc_cb_verify                                    */
+/*                                                                           */
+/* Purpose:   遍历SWITCH VC表配置的树逐一进行验证.                            */
+/*                                                                           */
+/* Returns:   Nothing.                                                       */
+/*                                                                           */
+/* Params:    None.                                                          */
+/*                                                                           */
+/**PROC-**********************************************************************/
 NBB_VOID spm_associate_if_cb_verify(NBB_CXT_T NBB_CXT)
 {
     /*************************************************************************/
@@ -1743,6 +1890,58 @@ NBB_VOID spm_cfg_bypass_cb_verify(NBB_CXT_T NBB_CXT)
             NBB_TRC_FLOW((NBB_FORMAT "Verify basic_cfg_cb cb %p", basic_cfg_cb));
             NBB_VERIFY_MEMORY(basic_cfg_cb, sizeof(ATG_DCI_BYPASS_BASIC_DATA),
                               MEM_SPM_BYPASS_BASIC_CB);
+        }
+    }
+
+    NBB_TRC_EXIT();
+
+    return;
+}
+
+/**PROC+**********************************************************************/
+/* Name:      spm_cfg_bypass_dh_cb_verify                                    */
+/*                                                                           */
+/* Purpose:   遍历Bypass双归保护配置的树逐一进行验证.                            */
+/*                                                                           */
+/* Returns:   Nothing.                                                       */
+/*                                                                           */
+/* Params:    None.                                                          */
+/*                                                                           */
+/**PROC-**********************************************************************/
+NBB_VOID spm_cfg_bypass_dh_cb_verify(NBB_CXT_T NBB_CXT)
+{
+    /*************************************************************************/
+    /* Local Variables                                                       */
+    /*************************************************************************/
+    SPM_BYPASS_DH_CB *bypass_dh_cb = NULL;
+    SPM_BYPASS_VP_CB *bypass_vp_cb = NULL;    
+
+    NBB_TRC_ENTRY("spm_cfg_bypass_dh_cb_verify");
+
+    /*************************************************************************/
+    /* 遍历Bypass双归保护配置的树逐一进行验证。                                       */
+    /*************************************************************************/
+    for (bypass_dh_cb = (SPM_BYPASS_DH_CB*) AVLL_FIRST(SHARED.bypass_dh_tree);
+        bypass_dh_cb != NULL;
+        bypass_dh_cb = (SPM_BYPASS_DH_CB*) AVLL_NEXT(SHARED.bypass_dh_tree,
+        bypass_dh_cb->spm_bypass_dh_node))
+    {
+        NBB_TRC_FLOW((NBB_FORMAT "Verify bypass_dh_cb %p", bypass_dh_cb));
+        NBB_VERIFY_MEMORY(bypass_dh_cb, sizeof(SPM_BYPASS_DH_CB), MEM_SPM_BYPASS_DH_CB);
+
+        /*********************************************************************/
+        /* 验证Bypass双归保护配置控制块中的所有子配置。           */
+        /*********************************************************************/
+        /*********************************************************************/
+        /* 对终结子接口配置进行验证。                                        */
+        /*********************************************************************/
+        for (bypass_vp_cb = (SPM_BYPASS_VP_CB*) AVLL_FIRST(bypass_dh_cb->bypass_vp_tree);
+            bypass_vp_cb != NULL;
+            bypass_vp_cb = (SPM_BYPASS_VP_CB*) AVLL_NEXT(bypass_dh_cb->bypass_vp_tree,
+            bypass_vp_cb->spm_bypass_vp_node))
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Verify bypass_vp_cb %p", bypass_vp_cb));
+            NBB_VERIFY_MEMORY(bypass_vp_cb, sizeof(SPM_BYPASS_VP_CB), MEM_SPM_BYPASS_VP_CB);
         }
     }
 
@@ -2977,7 +3176,6 @@ NBB_VOID spm_qos_cfg_cb_verfify(NBB_CXT_T NBB_CXT)
     spm_cfg_port_wred_cb_verify(NBB_CXT);
 
 
-    spm_cfg_hqos_cb_verify(NBB_CXT);
     
 */
     spm_twamp_ipv4_cb_verfify();
@@ -2989,6 +3187,9 @@ NBB_VOID spm_qos_cfg_cb_verfify(NBB_CXT_T NBB_CXT)
     spm_cfg_logic_classify_cb_verify();
     spm_cfg_classify_cb_verify();
     spm_cfg_action_cb_verify();
+
+    spm_cfg_hqos_cb_verify();
+    
     
     spm_qos_defend_verify();
 

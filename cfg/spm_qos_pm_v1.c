@@ -115,7 +115,7 @@ NBB_VOID spm_hqos_del_vc_pmline(ATG_DCI_VC_KEY *pkey)
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_VOID spm_hqos_add_vrf_pmline(SPM_QOS_VRF_INSTANSE_KEY *pkey,NBB_ULONG voq)
+NBB_VOID spm_hqos_add_vrf_pmline(ATG_DCI_VRF_INSTANCE_KEY *pkey,NBB_ULONG voq)
 {
     NBB_LONG ret = ATG_DCI_RC_OK;
     SPM_LINEKEY_L3VPN st_key_l3vpn;
@@ -150,7 +150,7 @@ NBB_VOID spm_hqos_add_vrf_pmline(SPM_QOS_VRF_INSTANSE_KEY *pkey,NBB_ULONG voq)
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_VOID spm_hqos_del_vrf_pmline(SPM_QOS_VRF_INSTANSE_KEY *pkey )
+NBB_VOID spm_hqos_del_vrf_pmline(ATG_DCI_VRF_INSTANCE_KEY *pkey )
 {
     NBB_LONG ret = ATG_DCI_RC_OK;
     SPM_LINEKEY_L3VPN st_key_l3vpn;

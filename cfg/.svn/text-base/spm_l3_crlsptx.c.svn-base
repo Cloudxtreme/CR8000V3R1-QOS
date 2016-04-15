@@ -1,0 +1,868 @@
+
+/**MOD+***********************************************************************/
+/* Module:    spml3.c                                                      */
+/*                                                                           */
+/* Purpose:   R8000     L3    cfgprocess                        */
+/*                                                                           */
+/* FiberHome        2003-2012                                                */
+/*                                                                           */
+/* $Revision: 1.0       $ $Date: 2012/9/2 07:09:09 $             */
+/**MOD-***********************************************************************/
+
+
+
+#define SHARED_DATA_TYPE SPM_SHARED_LOCAL
+#include <nbase.h>
+#include <spmincl.h>
+
+
+/********************
+CR_LSP_TX配置块
+********************/
+#ifdef CR_LSP_TX
+
+/**PROC+****************************************************************************************/
+/* Name:      spm_l3_crlsptxhashkey                                        */
+/*                                                                              */
+/* Purpose:   计算 CR_LSP_TX配置块hash值      */
+/*                                                                              */
+/* Returns:                                             */
+/*                                                              */
+/*                                                              */
+/* Params:                                                              */
+/*                                                                              */
+/* Operation:                                                   */
+/*                                                                              */
+/**PROC-****************************************************************************************/
+NBB_ULONG  spm_l3_crlsptxhashkey(NBB_VOID *keyarg NBB_CCXT_T NBB_CXT)
+{
+    if( keyarg == NULL)
+    {
+        return 0;
+    }
+    else
+    {
+        return spm_hash_algorithm(keyarg, CRTXLSPKEYLGTH, 0 NBB_CCXT);
+    }
+}
+
+/**PROC+****************************************************************************************/
+/* Name:      spm_l3_crlsptxhashcomp                                      */
+/*                                                                              */
+/* Purpose:  CR_LSP_TX配置块hash比较            */
+/*                                                                              */
+/* Returns:                                             */
+/*                                                              */
+/*                                                              */
+/* Params:                                                              */
+/*                                                                              */
+/* Operation:                                                   */
+/*                                                                              */
+/**PROC-****************************************************************************************/
+NBB_ULONG  spm_l3_crlsptxhashcomp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
+{
+    CRTXLSP_KEY *lsp_key1;
+    CRTXLSP_KEY *lsp_key2;
+
+    lsp_key1 = (CRTXLSP_KEY *)(keyarg1);
+    lsp_key2 = (CRTXLSP_KEY *)(keyarg2);
+
+    if( lsp_key1->ingress == lsp_key2->ingress 
+    && lsp_key1->egress == lsp_key2->egress 
+    && lsp_key1->tunnelid == lsp_key2->tunnelid 
+    && lsp_key1->lspid == lsp_key2->lspid)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+/**PROC+****************************************************************************************/
+/* Name:      CrRcLspHashtableInit                                  */
+/*                                                                              */
+/* Purpose:  CR_LSP_TX   hash初始化             */
+/*                                                                              */
+/* Returns:                                             */
+/*                                                              */
+/*                                                              */
+/* Params:                                                              */
+/*                                                                              */
+/* Operation:                                                   */
+/*                                                                              */
+/**PROC-****************************************************************************************/
+NBB_VOID  spm_l3_crlsptxhashtableinit( NBB_ULONG num NBB_CCXT_T NBB_CXT)
+{
+
+    SHARED.crlsptxhash = (SHASH_TABLE *)
+                            spm_hashtab_create( num , spm_l3_crlsptxhashkey, spm_l3_crlsptxhashcomp NBB_CCXT);
+
+}
+
+/**PROC+****************************************************************************************/
+/* Name:      SpmCrLspTxProcess                                   */
+/*                                                                              */
+/* Purpose:  CR_LSP_TX   配置处理               */
+/*                                                                              */
+/* Returns:                                             */
+/*                                                              */
+/*                                                              */
+/* Params:  内存释放还需要考虑          */
+/*                                                                              */
+/* Operation:                                                   */
+/*                                                                              */
+/**PROC-****************************************************************************************/
+NBB_VOID spm_l3_crlsptxprocess(ATG_DCI_SET_CR_LSP_TX * crlsptxips NBB_CCXT_T NBB_CXT)
+{
+    NBB_INT         rv = 100;
+
+    NBB_INT         rv2 = 100;
+
+    SHASH_NODE      *node = NULL, *dnode = NULL;
+
+    NBB_BYTE        *ucdata = NULL;
+
+    NBB_BYTE        flag = 0;
+
+    NBB_ULONG       nhid = 0;
+
+    CRTXLSP_KEY     txlspkey;
+
+    CRTXLSP         *txlsp = NULL;
+
+    TX_LSP_T        lsptun;
+
+    SPM_PORT_INFO_CB    portfo;
+
+    NBB_ULONG       portindex;
+
+    DC_LSP          dclsp;
+
+    CRTXLSP_DIFSER  difser;
+
+    CRTXLSP_UPQOS   upqos;
+
+    ATG_DCI_LSP_TX_UP_TNNL_QOS txupqos;
+
+    SPM_QOS_TUNNEL_KEY      qoskey;
+    
+    NBB_CHAR            *errorlog = NULL;
+    NBB_ULONG           str_len = 0;
+
+    LSPPROT_KEY     tunlkey;
+
+    LSPPROT         *lspprot = NULL;
+        
+    NBB_TRC_ENTRY("spm_l3_crlsptxprocess");
+
+    errorlog = NBB_MM_ALLOC(300, NBB_NORETRY_ACT, 0);
+    if(NULL == errorlog)
+    {
+        goto EXIT_LABEL;
+    }
+
+        NBB_ASSERT(crlsptxips != NULL);
+
+    if(NULL == crlsptxips)
+    {
+        goto EXIT_LABEL;
+    }
+
+    crlsptxips->return_code = ATG_DCI_RC_OK;
+
+    OS_MEMSET(&lsptun , 0, sizeof(TX_LSP_T));
+    
+    OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+
+    OS_MEMSET( &txlspkey, 0, sizeof( CRTXLSP_KEY ) );
+    
+    NBB_MEMCPY( &txlspkey, &(crlsptxips->key), sizeof( CRTXLSP_KEY ) );
+
+    if(( txlspkey.ingress == 0 ) && ( txlspkey.egress == 0 ) && ( txlspkey.tunnelid == 0 ) && ( txlspkey.lspid == 0 ))
+    {
+        NBB_PRINTF("LSP TX data error txlspkey = 0 \n");
+        crlsptxips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+        goto  EXIT_LABEL;
+    }
+    
+    /**************************************************************/
+
+    NBB_TRC_DETAIL((NBB_FORMAT "LSP TX ingress =%x egress=%x tunnelid=%x lspid=%x\n",
+                                txlspkey.ingress ,txlspkey.egress, txlspkey.tunnelid,txlspkey.lspid));
+
+    NBB_SPRINTF(errorlog, "ingress =%x  egress=%x  tunnelid=%x lspid=%x\n",
+                                txlspkey.ingress ,txlspkey.egress, txlspkey.tunnelid,txlspkey.lspid);
+    str_len = OS_STRLEN(errorlog);
+
+    /**************************************************************/
+
+    /*操作之前，查看本地数据是否存在*/
+    node =  (SHASH_NODE *)spm_hashtab_search( SHARED.crlsptxhash ,&txlspkey  NBB_CCXT);    
+    
+    if( crlsptxips->delete_struct == 1) /*  删除*/
+    {
+        /*  删除整个条目*/
+        if( node == NULL )
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del LSP TX Error: node null"));
+            crlsptxips->return_code = ATG_DCI_RC_OK;  
+            rv = 0;
+            goto  EXIT_LABEL;
+        }
+        if( node->data == NULL )
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del LSP TX Error: data null"));
+            crlsptxips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+            
+            /**************************************************************/
+            
+            NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+            str_len =  OS_STRLEN(errorlog);
+            NBB_SPRINTF(errorlog + str_len, "Del Error: node->data = NULL\n");
+            str_len =  OS_STRLEN(errorlog);
+            
+            /**************************************************************/
+            goto  EXIT_LABEL;
+        }
+        txlsp = (CRTXLSP *)(node->data);
+        #ifdef SPU
+        if( txlsp->mdserid != 0 )
+        {
+            OS_MEMSET( &qoskey, 0, sizeof(SPM_QOS_TUNNEL_KEY));
+            qoskey.type = 1;
+            NBB_MEMCPY( &(qoskey.tx_lsp), &(txlsp->key), sizeof(CRTXLSP_KEY) ); 
+            rv = spm_ds_add_tx_lsp_node( 0, &qoskey, txlsp->dclsp.index, 0, NULL NBB_CCXT);
+            if( rv != 0)  
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Del LSP TX Error: Lsp DEV rv=%d ", rv));
+                crlsptxips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                
+                /**************************************************************/
+                
+                NBB_SPRINTF(errorlog + str_len, "Line=%d ds_tx_lsp_node rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Del Error: del txlsp ds\n");
+                str_len =  OS_STRLEN(errorlog);
+                
+                /**************************************************************/
+            }
+            else
+            {
+                txlsp->mdserid = 0;
+            }
+        }
+        if( txlsp->upqos.nodeindex != 0 )
+        {
+            OS_MEMSET( &qoskey, 0, sizeof(SPM_QOS_TUNNEL_KEY));
+            qoskey.type = 1;
+            NBB_MEMCPY( &(qoskey.tx_lsp), &(txlsp->key), sizeof(CRTXLSP_KEY) ); 
+            OS_MEMSET( &upqos, 0, sizeof(CRTXLSP_UPQOS));
+            upqos.mode = txlsp->upqos.mode;
+            upqos.nodeindex = txlsp->upqos.nodeindex;
+            OS_MEMCPY( &txupqos, &upqos, sizeof( ATG_DCI_LSP_TX_UP_TNNL_QOS ) );
+            rv = spm_hqos_add_lsp_node( txlsp->slot, txlsp->port, &qoskey, &txupqos, nhid NBB_CCXT);
+            if( rv != 0)  
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Del LSP TX Error: Lsp DEV rv=%d ", rv));
+                crlsptxips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+
+                /**************************************************************/
+                
+                NBB_SPRINTF(errorlog + str_len, "Line=%d hqos_tx_lsp_node rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Del Error: del txlsp hqos\n");
+                str_len =  OS_STRLEN(errorlog);
+
+                /**************************************************************/
+            }
+            else
+            {
+                txlsp->upqos.nodeindex = 0;
+            }
+        }
+        if( txlsp->dclsp.index != 0 )
+        {
+            rv = ApiC3DelTxLsp( BCMC31, txlsp->dclsp.index);
+            if ( SHARED.c3_num == 2 )
+            {
+                rv2 = ApiC3DelTxLsp( BCMC32, txlsp->dclsp.index);
+                rv = (rv|rv2);
+            }
+            if( rv != 0)  
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Del LSP TX Error: Lsp DEV rv=%d ", rv));
+                crlsptxips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                
+                /**************************************************************/
+                
+                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelTxLsp rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Del Error: del txlsp\n");
+                str_len =  OS_STRLEN(errorlog);
+                
+                /**************************************************************/
+                
+                goto  EXIT_LABEL;
+            }
+            else
+            {
+                txlsp->dclsp.index = 0;
+            }
+        }
+        #endif
+        rv = 0;
+        if( rv == 0)      /* 删除成功，删除hash表对应的配置*/
+        {
+            txlsp = (CRTXLSP *)(node->data);
+            spm_hashtab_del( SHARED.crlsptxhash ,&txlspkey NBB_CCXT);
+            NBB_MM_FREE(txlsp, MEM_SPM_CR_LSP_TX_CB);
+        }
+    }
+    else if( crlsptxips->delete_struct == 0) /* 增加*/
+    {
+        if( crlsptxips->oper_basic == ATG_DCI_OPER_ADD) /* 增加*/
+        {
+
+             /*操作之前，查看本地数据是否存在*/
+            if( node == NULL )
+            {
+                txlsp = (CRTXLSP *)NBB_MM_ALLOC(sizeof(CRTXLSP), NBB_NORETRY_ACT, MEM_SPM_CR_LSP_TX_CB);
+                
+                if ( txlsp == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error: malloc null"));
+                    crlsptxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    
+                    /**************************************************************/
+
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d malloc mem rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: txlsp = NULL\n");
+                    str_len =  OS_STRLEN(errorlog);
+
+                    /**************************************************************/
+                    
+                    goto  EXIT_LABEL;
+                } 
+                NBB_MEMSET(txlsp, 0, sizeof(CRTXLSP));
+                flag = 1;
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX new node"));
+            }
+            else
+            {
+                if( node->data == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error: data null"));
+                    crlsptxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    rv = 104;
+
+                    /**************************************************************/
+                    
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node->data = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+
+                    /**************************************************************/
+                    goto  EXIT_LABEL;
+                }
+                flag = 2;
+                txlsp = (CRTXLSP *)(node->data);
+            }
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(crlsptxips, &crlsptxips->basic_data); 
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error:  basic data null"));
+                crlsptxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                if( flag == 1 )
+                {
+                    NBB_MM_FREE(txlsp, MEM_SPM_CR_LSP_TX_CB);
+                }
+                rv = 1;
+
+                /**************************************************************/
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get basic data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+
+                /**************************************************************/
+                goto  EXIT_LABEL;
+            }
+            
+            //coverity[bad_sizeof]       
+            NBB_MEMCPY( &(txlsp->key), &(crlsptxips->key), sizeof( CRTXLSP_KEY ) );
+            
+            //coverity[bad_sizeof]
+            NBB_MEMCPY( &(txlsp->base), ucdata, sizeof( CRTXLSP_BASE ) );
+          
+            //rv = spm_l3_checkipdirectconnect( 0 ,&(txlsp->base.nextip));
+            //rv = spm_l3_checkip( 0, 0, &(txlsp->base.nextip) NBB_CCXT);
+
+            rv = 0;
+            if ( rv == 0 )
+            {
+                txlsp->dclsp.label2 = 0xffffffff;
+                txlsp->dclsp.label1 = txlsp->base.outlabel;
+                txlsp->dclsp.nextip =  txlsp->base.nextip;
+                txlsp->dclsp.nextport =  txlsp->base.nextport;
+                NBB_TRC_DETAIL((NBB_FORMAT "Add LSP TX label1 =%d ", txlsp->dclsp.label1));
+            }
+            else if ( rv == 1 )
+            {
+                //因为系统暂时只支持3层标签。
+                portindex = txlsp->base.nextport;
+                rv = spm_l3_iteration_tunnel( portindex , &dclsp NBB_CCXT);
+                if ( rv == 0 )
+                {
+                    txlsp->dclsp.label1 = txlsp->base.outlabel;
+                    txlsp->dclsp.label2 = dclsp.label1;
+                    txlsp->dclsp.nextip =  dclsp.nextip;
+                    txlsp->dclsp.nextport =  dclsp.nextport;
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add LSP TX label2 =%d ", txlsp->dclsp.label2));
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add LSP TX label1 =%d ", txlsp->dclsp.label1));
+                }
+                else
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add LSP TX Error: iter TUNNEL rv=%d ", rv));
+                    crlsptxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    if( flag == 1 )
+                    {
+                        NBB_MM_FREE(txlsp, MEM_SPM_CR_LSP_TX_CB);
+                    }
+
+                    /**************************************************************/
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d spm_l3_iteration_tunnel rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: iter TUNNEL\n");
+                    str_len =  OS_STRLEN(errorlog);
+
+                    /**************************************************************/
+                    goto  EXIT_LABEL;
+                }
+            }
+            if( rv == 0)
+            {
+                OS_MEMSET(&lsptun , 0, sizeof(TX_LSP_T));
+                OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                rv = spm_get_portid_from_logical_port_index(txlsp->dclsp.nextport, &portfo NBB_CCXT);
+                if( rv == 0)     
+                {
+                    lsptun.tTxPort.slot = portfo.slot_id;
+                    lsptun.tTxPort.port = portfo.port_id;
+                    lsptun.tTxPort.vid = portfo.svlan ;
+                    
+                    //spm_hardw_getslot(&localslot);
+                    if( SHARED.local_slot_id != portfo.slot_id)
+                    {
+                        lsptun.flags = TX_LSP_MY_SLOT;
+                    }
+                }
+                else
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add LSP TX Error:Get Port L2 rv=%d ", rv));
+                    crlsptxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+                    if( flag == 1 )
+                    {
+                        NBB_MM_FREE(txlsp, MEM_SPM_CR_LSP_TX_CB);
+                    }
+                    
+                    /**************************************************************/
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                    str_len =  OS_STRLEN(errorlog);
+
+                    /**************************************************************/
+                    goto  EXIT_LABEL;
+                }
+                #ifdef SPU
+                lsptun.mIngress = txlsp->key.ingress;
+                lsptun.mEgress =  txlsp->key.egress;
+                lsptun.mTunnelId = txlsp->key.tunnelid;
+                lsptun.mLspId = txlsp->key.lspid;
+
+                lsptun.flags = 0;
+                lsptun.tunNum = 1;
+                if( txlsp->dclsp.label2 != 0xffffffff)  
+                {
+                    lsptun.tunNum = 2;
+                }
+                if( txlsp->dclsp.label2 == 3)  
+                {
+                    lsptun.tunNum = 1;
+                }
+                if( txlsp->dclsp.label1 == 3)  
+                {
+                    lsptun.tunNum = 0;
+                }
+                lsptun.tSwapTunLabel.label_un.tlabel.label = txlsp->dclsp.label1;
+                lsptun.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                lsptun.tSwapTunLabel.label_un.tlabel.exp = 0;
+
+                lsptun.tPushTunLabel.label_un.tlabel.label = txlsp->dclsp.label2;
+                lsptun.tPushTunLabel.label_un.tlabel.ttl = 255;
+                lsptun.tPushTunLabel.label_un.tlabel.exp = 0;
+
+                lsptun.nhIp = txlsp->dclsp.nextip;
+                if( txlsp->dclsp.ftnidx == 0)
+                {
+                    rv = ApiC3AddTxLsp( BCMC31 ,&lsptun);  /* 调用驱动*/
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3AddTxLsp( BCMC32 ,&lsptun);
+                        rv = (rv|rv2);
+                    }
+                }
+                else
+                {
+                    lsptun.posId =  txlsp->dclsp.index;
+                    lsptun.lspIdx =  txlsp->dclsp.ftnidx;
+                    rv = ApiC3ModTxLsp( BCMC31 ,&lsptun);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        lsptun.posId =  txlsp->dclsp.index;
+                        lsptun.lspIdx =  txlsp->dclsp.ftnidx;
+                        rv2 = ApiC3ModTxLsp( BCMC32 ,&lsptun);
+                        rv = (rv|rv2);
+                    }
+                }
+                #endif
+                
+            #ifdef SRC
+                lsptun.posId = 0xffff;
+                lsptun.lspIdx = 0xffffffff;
+                rv = 0;
+            #endif
+            #ifdef SNU
+                lsptun.posId = 0xffff;
+                lsptun.lspIdx = 0xffffffff;
+                rv = 0;
+            #endif
+            }       
+            if( rv == 0)      /*成功*/
+            {
+
+                tunlkey.ingress = txlsp->key.ingress;
+                tunlkey.egress =  txlsp->key.egress;
+                tunlkey.tunnelid = txlsp->key.tunnelid;
+                dnode =  (SHASH_NODE *)spm_hashtab_search( SHARED.lspprothash, &tunlkey NBB_CCXT);
+                if(( dnode == NULL) || ( dnode->data == NULL))
+                {
+                
+                }
+                else
+                {
+                    lspprot = (LSPPROT *)(dnode->data);
+                    if( lspprot->lspb.lsp[0].lspid == txlsp->key.lspid )
+                    {
+                        //coverity[bad_sizeof]
+                        NBB_MEMCPY( &(lspprot->dclsp[0]), &(txlsp->dclsp), sizeof( DC_LSP ) );
+                    }
+                    else if ( lspprot->lspb.lsp[1].lspid == txlsp->key.lspid )
+                    {
+                        //coverity[bad_sizeof]
+                        NBB_MEMCPY( &(lspprot->dclsp[1]), &(txlsp->dclsp), sizeof( DC_LSP ) );
+                    }   
+                }
+
+                txlsp->dclsp.index = lsptun.posId;
+                txlsp->dclsp.ftnidx = lsptun.lspIdx;
+                txlsp->slot = portfo.slot_id;
+                txlsp->port = portfo.port_id;
+                txlsp->porttype = portfo.port_type;
+                if( flag == 1)
+                {
+                    spm_hashtab_insert ( SHARED.crlsptxhash ,txlsp->key, txlsp);
+                }
+            }
+            else    /*调用驱动失败，记录错误*/
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Add LSP TX Error: Lsp DEV rv=%d ", rv));
+                crlsptxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                if( flag == 1 )
+                {
+                    NBB_MM_FREE(txlsp, MEM_SPM_CR_LSP_TX_CB);
+                }
+
+                /**************************************************************/
+                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddTxLsp rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: add txlsp\n");
+                str_len =  OS_STRLEN(errorlog);
+
+                /**************************************************************/
+                goto  EXIT_LABEL;
+            }
+        }
+        else if( crlsptxips->oper_basic == ATG_DCI_OPER_DEL) /*  删除子TLV*/
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del LSP TX Error: basic data "));
+            crlsptxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }
+        if( crlsptxips->oper_tefrr == ATG_DCI_OPER_ADD) /* 增加*/   
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error: tefrr data "));
+            crlsptxips->tefrr_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }
+        else if( crlsptxips->oper_tefrr == ATG_DCI_OPER_DEL )   /*  删除子TLV*/
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del LSP TX Error: tefrr data "));
+            crlsptxips->tefrr_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+            goto  EXIT_LABEL;
+        }
+        if( crlsptxips->oper_diff_serv == ATG_DCI_OPER_ADD) 
+        {
+            if(( crlsptxips->oper_basic != ATG_DCI_OPER_ADD))
+            {
+                if ( node == NULL )                             
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error: difs node null"));
+                    crlsptxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+
+                    /**************************************************************/
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+
+                    /**************************************************************/
+                    goto   EXIT_LABEL;
+                }
+                if( node->data == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error: difs data null"));
+                    crlsptxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    rv = 1;
+
+                    /**************************************************************/
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node->data = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+
+                    /**************************************************************/
+                    goto  EXIT_LABEL;
+                }
+                txlsp = (CRTXLSP *)(node->data);
+            }
+            if( txlsp == NULL ) 
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error:txlsp null"));
+                crlsptxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+
+                /**************************************************************/
+                NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: txlsp = NULL\n");
+                str_len =  OS_STRLEN(errorlog);
+
+                /**************************************************************/
+                goto  EXIT_LABEL;
+            }
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(crlsptxips, &crlsptxips->diff_serv_data);
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error: qos data  null"));
+                crlsptxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+
+                /**************************************************************/
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get qos data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+
+                /**************************************************************/
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &difser, 0, sizeof(CRTXLSP_DIFSER));
+            
+            //coverity[bad_sizeof]
+            NBB_MEMCPY( &difser, ucdata, sizeof(CRTXLSP_DIFSER));   
+            OS_MEMSET( &qoskey, 0, sizeof(SPM_QOS_TUNNEL_KEY));
+            qoskey.type = 1;
+            
+            //coverity[bad_sizeof]
+            NBB_MEMCPY( &(qoskey.tx_lsp), &(txlsp->key), sizeof(CRTXLSP_KEY) ); 
+            rv = spm_ds_add_tx_lsp_node( difser.dserid, &qoskey, txlsp->dclsp.index, 0, NULL NBB_CCXT);
+            if ( rv == 0 )      
+            {
+                txlsp->mdserid = difser.dserid;
+            }
+            else
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Add LSP TX Error: qos rv=%d ", rv));
+                crlsptxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+
+                /**************************************************************/
+                NBB_SPRINTF(errorlog + str_len, "Line=%d spm_ds_add_tx_lsp_node rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: add qos\n");
+                str_len =  OS_STRLEN(errorlog);
+
+                /**************************************************************/
+                goto  EXIT_LABEL;
+            }
+        }
+        else if( crlsptxips->oper_diff_serv == ATG_DCI_OPER_DEL) 
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del LSP TX Error: difs data "));
+            crlsptxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }
+        if( crlsptxips->oper_prot_diff_serv == ATG_DCI_OPER_ADD) 
+        {
+        
+        }
+        else if( crlsptxips->oper_prot_diff_serv == ATG_DCI_OPER_DEL) 
+        {
+
+        }
+        if( crlsptxips->oper_up_tnnl_qos == ATG_DCI_OPER_ADD) 
+        {
+            if(( crlsptxips->oper_basic != ATG_DCI_OPER_ADD))
+            {
+                if ( node == NULL )                             
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error: upqos node null"));
+                    crlsptxips->up_tnnl_qos_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+
+                    /**************************************************************/
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+
+                    /**************************************************************/
+                    goto   EXIT_LABEL;
+                }
+                if( node->data == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error: upqos data null"));
+                    crlsptxips->up_tnnl_qos_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    rv = 1;
+
+                    /**************************************************************/
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node->data = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+
+                    /**************************************************************/
+                    goto  EXIT_LABEL;
+                }
+                txlsp = (CRTXLSP *)(node->data);
+            }
+            if( txlsp == NULL ) 
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error:txlsp null"));
+                crlsptxips->up_tnnl_qos_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+
+                /**************************************************************/
+                NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: txlsp = NULL\n");
+                str_len =  OS_STRLEN(errorlog);
+
+                /**************************************************************/
+                goto  EXIT_LABEL;
+            }
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(crlsptxips, &crlsptxips->up_tnnl_qos_data);
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP TX Error: upqos data  null"));
+                crlsptxips->up_tnnl_qos_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+
+                /**************************************************************/
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get upqos data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+
+                /**************************************************************/
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &qoskey, 0, sizeof(SPM_QOS_TUNNEL_KEY));
+            qoskey.flag = 1;
+            qoskey.type = 1;
+            
+            //coverity[bad_sizeof]
+            NBB_MEMCPY( &(qoskey.tx_lsp), &txlspkey, sizeof(CRTXLSP_KEY) ); 
+            
+            OS_MEMSET( &upqos, 0, sizeof(CRTXLSP_UPQOS));
+            
+            //coverity[bad_sizeof]
+            NBB_MEMCPY( &upqos, ucdata, sizeof(CRTXLSP_UPQOS)); 
+            OS_MEMCPY( &txupqos, &upqos, sizeof( ATG_DCI_LSP_TX_UP_TNNL_QOS ) );
+            rv = spm_hqos_add_lsp_node( txlsp->slot, txlsp->port, &qoskey, &txupqos, nhid NBB_CCXT);
+            if ( rv == 0 )      
+            {
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(txlsp->upqos), &upqos, sizeof(CRTXLSP_UPQOS));    
+            }
+            else
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Add LSP TX Error: upqos rv=%d ", rv));
+                crlsptxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+
+                /**************************************************************/
+                NBB_SPRINTF(errorlog + str_len, "Line=%d spm_hqos_add_lsp_node rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: add upqos\n");
+                str_len =  OS_STRLEN(errorlog);
+
+                /**************************************************************/
+                goto  EXIT_LABEL;
+            }
+        }
+        else if( crlsptxips->oper_up_tnnl_qos == ATG_DCI_OPER_DEL) 
+        {
+
+        }
+        if( crlsptxips->oper_wrapping == ATG_DCI_OPER_ADD) 
+        {
+        
+        }
+        else if( crlsptxips->oper_wrapping == ATG_DCI_OPER_DEL) 
+        {
+
+        }
+    }
+    EXIT_LABEL:
+        
+    NBB_TRC_EXIT();
+
+    NBB_TRC_DETAIL((NBB_FORMAT " LSP TX : rv = %d ", rv));
+    if(NULL == errorlog)
+    {
+        OS_PRINTF("Line=%d LSP TX malloc mem NULL \n",__LINE__);
+    }
+    else
+    {
+        NBB_SPRINTF(errorlog + str_len, "\0");
+        if( rv != 0) 
+        {
+            NBB_EXCEPTION((PCT_SPM| 10, 1,  "s s", 
+                                                         "LSP TX ",
+                                                         errorlog));
+        }
+        NBB_MM_FREE(errorlog,0);
+    }
+}
+
+#endif
+
+
+
+
+
+

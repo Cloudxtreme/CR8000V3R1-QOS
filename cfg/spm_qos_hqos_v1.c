@@ -174,7 +174,7 @@ NBB_VOID spm_dbg_record_hqos_vc_head(ATG_DCI_VC_KEY *vc_key, NBB_BYTE uc_oper)
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_VOID spm_dbg_record_hqos_vrf_head(SPM_QOS_VRF_INSTANSE_KEY *pkey, 
+NBB_VOID spm_dbg_record_hqos_vrf_head(ATG_DCI_VRF_INSTANCE_KEY *pkey, 
     NBB_BYTE uc_oper)
 {
     NBB_CHAR uc_message[QOS_MSG_INFO_LEN];
@@ -183,15 +183,15 @@ NBB_VOID spm_dbg_record_hqos_vrf_head(SPM_QOS_VRF_INSTANSE_KEY *pkey,
         if(ATG_DCI_RC_OK != g_qos_hqos_print)
         {
             printf("################### VRF (vrf_id=%d,peer_ip=0x%lx,"
-            "label=%ld, %s) ###################\n",
-                    pkey->vrf_id,pkey->peer_ip,pkey->label,
+            " %s) ###################\n",
+                    pkey->vrf_id,pkey->peer_ip,
                     *(qos_cfg_oper_type_string + uc_oper));
         }
         if(ATG_DCI_RC_OK != g_qos_hqos_log)
         {
             OS_SPRINTF(uc_message,"################### VRF (vrf_id=%d,peer_ip=0x%lx,"
-            "label=%ld, %s) ###################\n",
-                    pkey->vrf_id,pkey->peer_ip,pkey->label,
+            "%s) ###################\n",
+                    pkey->vrf_id,pkey->peer_ip,
                     *(qos_cfg_oper_type_string + uc_oper));
             BMU_SLOG(BMU_INFO, SPM_QOS_LOG_DIR, uc_message);  
         } 
@@ -578,7 +578,7 @@ NBB_LONG spm_hqos_release_lsp_id(NBB_ULONG pid)
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_LONG spm_hqos_release_pw_id(NBB_ULONG pid)
+NBB_LONG spm_hqos_release_pw_id(NBB_LONG pid)
 {
     /***************************************************************************/
     /* Local Variables                                                         */
@@ -705,7 +705,7 @@ NBB_LONG spm_hqos_release_lsp_pw_id(NBB_LONG *lsp_id,NBB_LONG *pw_id)
     
     if(NULL != pw_id)
     {
-        ret = spm_hqos_release_pw_id(pw_id);
+        ret = spm_hqos_release_pw_id(*pw_id);
         if(ATG_DCI_RC_OK != ret)
         {
             rv = ret;
@@ -941,7 +941,7 @@ static NBB_VOID spm_hqos_arad_traffic_set_error_log(NBB_LONG voq,
 
     if(NULL != function)
     {
-        OS_PRINTF("%s line=%ld  ApiAradHqosTrafficSet err: %ld (base_queue=%ld,slot=%d,"
+        printf("%s line=%ld  ApiAradHqosTrafficSet err: %ld (base_queue=%ld,slot=%d,"
                   "port=%ld,vc=%ld,pw_id=%ld)\n\n",function,line,ret,voq, slot, port, base_vcid,pw_id);
         OS_SPRINTF(message,"%s line=%ld  ApiAradHqosTrafficSet err: %ld (base_queue=%ld,slot=%d,"
                    "port=%ld,vc=%ld,pw_id=%ld)\n\n",function,line,ret,voq, slot, port, base_vcid,pw_id);
@@ -975,7 +975,7 @@ NBB_VOID spm_hqos_arad_set_pw_bandwidth_error_log(NBB_LONG pw_id,
 
     if(NULL != function)
     {
-        OS_PRINTF("%s line=%ld  ApiAradHqosPwBandwidthSet err: %ld "
+        printf("%s line=%ld  ApiAradHqosPwBandwidthSet err: %ld "
             "(pw_id=%ld,cir=%ld,pir=%ld,cbs=%ld,pbs=%ld)\n\n",
             function,line,ret, pw_id,cir,pir,cbs,pbs);
         OS_SPRINTF(message,"%s line=%ld  ApiAradHqosPwBandwidthSet err: %ld "
@@ -1046,7 +1046,7 @@ NBB_VOID spm_hqos_arad_voq_del_error_log(NBB_LONG voq,
 
     if(NULL != function)
     {
-        OS_PRINTF("%s line=%ld  ApiAradHqosVoqDelete err: %ld (base_queue=%ld,slot=%d,port=%ld,vc=%ld)\n\n",
+        printf("%s line=%ld  ApiAradHqosVoqDelete err: %ld (base_queue=%ld,slot=%d,port=%ld,vc=%ld)\n\n",
                 function,line,ret,voq, slot, port, base_vcid);
         OS_SPRINTF(message,"%s line=%ld  ApiAradHqosVoqDelete err: %ld (base_queue=%ld,slot=%d,port=%ld,vc=%ld)\n\n",
                 function,line,ret,voq, slot, port, base_vcid);
@@ -1085,7 +1085,7 @@ NBB_VOID spm_hqos_arad_traffic_del_error_log(NBB_LONG voq,
 
     if(NULL != function)
     {
-        OS_PRINTF("%s line=%ld  ApiAradHqosTrafficDelete err: %ld (base_queue=%ld,slot=%d,port=%ld,"
+        printf("%s line=%ld  ApiAradHqosTrafficDelete err: %ld (base_queue=%ld,slot=%d,port=%ld,"
                   "vc=%ld,pw_id=%ld)\n\n",function,line,ret,voq, slot, port, base_vcid,pw_id);
         OS_SPRINTF(message,"%s line=%ld  ApiAradHqosTrafficDelete err: "
                    "%ld (base_queue=%ld,slot=%d,port=%ld,vc=%ld,pw_id=%ld)\n\n",
@@ -1126,7 +1126,7 @@ NBB_VOID spm_hqos_arad_del_pw_error_log(NBB_LONG lsp_id,NBB_LONG pw_id,
 
     if(NULL != function)
     {
-        OS_PRINTF("%s line=%ld  ApiAradHqosPwDelete err: %ld (lsp_id=%ld,pw_id=%ld)\n\n",
+        printf("%s line=%ld  ApiAradHqosPwDelete err: %ld (lsp_id=%ld,pw_id=%ld)\n\n",
                 function,line,ret,lsp_id,pw_id);
         OS_SPRINTF(message,"%s line=%ld  ApiAradHqosPwDelete err: %ld (lsp_id=%ld,pw_id=%ld)\n\n",
                 function,line,ret,lsp_id,pw_id);
@@ -1164,7 +1164,7 @@ NBB_VOID spm_hqos_arad_set_pw_weight_error_log(NBB_LONG pw_id, NBB_ULONG weight,
 
     if(NULL != function)
     {
-        OS_PRINTF("%s line=%ld  ApiAradHqosPwWfqWeightSet err: %ld "
+        printf("%s line=%ld  ApiAradHqosPwWfqWeightSet err: %ld "
             "(pw_id=%ld,weight=%ld)\n\n",
             function,line,ret, pw_id,weight);
         OS_SPRINTF(message,"%s line=%ld  ApiAradHqosPwWfqWeightSet err: %ld "
@@ -1202,7 +1202,7 @@ NBB_VOID spm_hqos_arad_set_traffic_bandwidth_error_log(NBB_LONG pw_id,
 
     if(NULL != function)
     {
-        OS_PRINTF("%s line=%ld  ApiAradHqosTrafficBandwidthSet err: %ld "
+        printf("%s line=%ld  ApiAradHqosTrafficBandwidthSet err: %ld "
             "(pw_id=%ld,queue_id=%ld,cir=%ld,pir=%ld,cbs=%ld,pbs=%ld)\n\n",
             function,line,ret, pw_id,queue_id,cir,pir,cbs,pbs);
         OS_SPRINTF(message,"%s line=%ld  ApiAradHqosTrafficBandwidthSet err: %ld "
@@ -1240,7 +1240,7 @@ NBB_VOID spm_hqos_arad_set_trafficsche_error_log(NBB_ULONG port,
 
     if(NULL != function)
     {
-        OS_PRINTF("%s line=%ld  ApiAradHqosTrafficScheModeSet err: %ld "
+        printf("%s line=%ld  ApiAradHqosTrafficScheModeSet err: %ld "
             "(port=%ld,pw_id=%ld,que4_1=%ld,que8_5=%ld)\n\n",
             function,line,ret, port,pw_id,que4_1,que8_5);
         OS_SPRINTF(message,"%s line=%ld  ApiAradHqosTrafficScheModeSet err: %ld "
@@ -1278,7 +1278,7 @@ static NBB_VOID spm_hqos_arad_fresh_pw_to_lsp_error_log(NBB_LONG unit,NBB_LONG p
 
     if(NULL != function)
     {
-        OS_PRINTF("%s %s,line=%ld ret=%ld fhdrv_fap_qos_refresh_pw_to_lsp\n"
+        printf("%s %s,line=%ld ret=%ld fhdrv_fap_qos_refresh_pw_to_lsp\n"
                 "unit=%ld,pw_id=%ld,lsp=%ld,port=%d\n\n",
                 HQOS_LSP_ERROR,function,line,unit,pw_id,lsp_id,port);
         OS_SPRINTF(message,"%s %s,line=%ld ret=%ld fhdrv_fap_qos_refresh_pw_to_lsp\n"
@@ -1314,7 +1314,7 @@ static NBB_VOID spm_hqos_arad_create_lsp_error_log(NBB_ULONG port,NBB_LONG lsp_i
 
     if(NULL != function)
     {
-        OS_PRINTF("%s %s,line=%ld ApiAradHqosLspCreate port=%ld,lsp id=%ld,ret=%ld\n",
+        printf("%s %s,line=%ld ApiAradHqosLspCreate port=%ld,lsp id=%ld,ret=%ld\n",
                 HQOS_LSP_ERROR,function,line,port,lsp_id,ret);
         OS_SPRINTF(message,"%s %s,line=%ld ApiAradHqosLspCreate port=%ld,lsp id=%ld,ret=%ld\n\n",
                 HQOS_LSP_ERROR,function,line,port,lsp_id,ret);
@@ -1348,7 +1348,7 @@ NBB_VOID spm_hqos_arad_del_lsp_error_log(NBB_ULONG port,NBB_LONG lsp_id,
 
     if(NULL != function)
     {
-        OS_PRINTF("%s %s,line=%ld ApiAradHqosLspDelete port=%ld,lsp id=%ld,ret=%ld\n",
+        printf("%s %s,line=%ld ApiAradHqosLspDelete port=%ld,lsp id=%ld,ret=%ld\n",
                 HQOS_LSP_ERROR,function,line,port,lsp_id,ret);
         OS_SPRINTF(message,"%s %s,line=%ld ApiAradHqosLspDelete port=%ld,lsp id=%ld,ret=%ld\n\n",
                 HQOS_LSP_ERROR,function,line,port,lsp_id,ret);
@@ -1384,7 +1384,7 @@ NBB_VOID spm_hqos_arad_set_lsp_bandwidth_error_log(
 
     if(NULL != function)
     {
-        OS_PRINTF("%s %s,line=%ld ApiAradHqosLspBandwidthSet lsp id=%ld,cir=%ld,"
+        printf("%s %s,line=%ld ApiAradHqosLspBandwidthSet lsp id=%ld,cir=%ld,"
             "pir=%ld,cbs=%ld,pbs=%ld,ret=%ld\n",
                 HQOS_LSP_ERROR,function,line,lsp_id,cir,pir,cbs,pbs,ret);
         OS_SPRINTF(message,"%s %s,line=%ld ApiAradHqosLspBandwidthSet lsp id=%ld,cir=%ld,"
@@ -1421,7 +1421,7 @@ NBB_VOID spm_hqos_arad_set_lsp_weight_error_log(NBB_LONG lsp_id,NBB_ULONG weight
 
     if(NULL != function)
     {
-        OS_PRINTF("%s line=%ld  ApiAradHqosLspWfqWeightSet err: %ld "
+        printf("%s line=%ld  ApiAradHqosLspWfqWeightSet err: %ld "
             "(lsp_id=%ld,weight=%ld)\n\n",
             function,line,ret, lsp_id,weight);
         OS_SPRINTF(message,"%s line=%ld  ApiAradHqosLspWfqWeightSet err: %ld "
@@ -1459,7 +1459,7 @@ NBB_VOID  spm_hqos_l3txpw_error_log(NBB_ULONG voq,
 
     if(NULL != FUNCTION)
     {
-        OS_PRINTF("%s line=%ld  ret=%ld ApiC3SetL3TxPwHqos voq=%ld posid=%ld,hqos_en=%s\n\n",
+        printf("%s line=%ld  ret=%ld ApiC3SetL3TxPwHqos voq=%ld posid=%ld,hqos_en=%s\n\n",
                 FUNCTION,line,ret,voq, posid,hqos_en?"使能":"不使能");
         OS_SPRINTF(uc_message,"%s line=%ld  ret=%ld ApiC3SetL3TxPwHqos voq=%ld posid=%ld,hqos_en=%s\n\n",
                 FUNCTION,line,ret,voq, posid,hqos_en?"使能":"不使能");
@@ -1493,7 +1493,7 @@ NBB_VOID  spm_hqos_txlsp_error_log(NBB_LONG unit,NBB_ULONG posid,NBB_ULONG hqos_
 
     if(NULL != function)
     {
-        OS_PRINTF("%s line=%ld  ret=%ld fhdrv_psn_common_set_txlsp_hqos\n"
+        printf("%s line=%ld  ret=%ld fhdrv_psn_common_set_txlsp_hqos\n"
                   "unit=%ld,posid=%ld,hqos_en=%s,voq=%ld\n\n",
                 function,line,ret,unit,posid,
                 hqos_en?"使能":"不使能",voq);
@@ -1532,7 +1532,7 @@ NBB_VOID  spm_hqos_vp_error_log(
 
     if(NULL != function)
     {
-        OS_PRINTF("%s line=%ld  ret=%ld ApiC3SetVpHqos voq=%ld "
+        printf("%s line=%ld  ret=%ld ApiC3SetVpHqos voq=%ld "
                   "posid=%ld,hqos_en=%s,proflag=%s\n\n",
                 function,line,ret,voq, posid,
                 hqos_en?"使能":"不使能",(VC_BACK == proflag)?"备用":"主用");
@@ -2091,7 +2091,7 @@ SPM_HQOS_LSP_CB *spm_alloc_hqos_lsp_cb(SPM_QOS_TUNNEL_KEY *pkey,
 
     /*QOS vrf 树初始化*/
     avll_key_offset = NBB_OFFSETOF(SPM_HQOS_VRF_CB, vrf_key);
-    AVLL_INIT_TREE(pst_tbl->vrf_tree, spm_qos_vrf_comp,
+    AVLL_INIT_TREE(pst_tbl->vrf_tree, spm_qos_vrf_hqos_comp,
         (NBB_USHORT)avll_key_offset,
         (NBB_USHORT)NBB_OFFSETOF(SPM_HQOS_VRF_CB, spm_hqos_vrf_node));
 
@@ -2300,7 +2300,7 @@ static SPM_HQOS_VC_CB *spm_alloc_hqos_vc_cb(ATG_DCI_VC_KEY *vc_key,
     /***************************************************************************/
     SPM_HQOS_VC_CB *pst_tbl = NULL;
     NBB_LONG ret = ATG_DCI_RC_OK;
-    NBB_ULONG id = 0;
+    NBB_LONG id = 0;
     NBB_LONG unit = 0;
 
     NBB_TRC_ENTRY(__FUNCTION__);
@@ -3094,7 +3094,7 @@ NBB_LONG spm_hqos_del_vc_node(NBB_LONG slot, NBB_USHORT port,
     plsp = AVLL_FIND(g_qos_port_cb[slot][port].lsp_tree, lsp_key);
     if(NULL == plsp)
     {
-        ret = ATG_DCI_RC_UNSUCCESSFUL;
+        ret = ATG_DCI_RC_OK;
         goto EXIT_LABEL;
     }
 
@@ -3170,7 +3170,7 @@ void qos_log_vrf_hqos_data(NBB_BYTE slot, NBB_USHORT port, NBB_ULONG posid,
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-static SPM_HQOS_VC_CB *spm_alloc_hqos_vrf_cb(ATG_DCI_VRF_INSTANCE_KEY *vrf_key,
+static SPM_HQOS_VRF_CB *spm_alloc_hqos_vrf_cb(ATG_DCI_VRF_INSTANCE_KEY *vrf_key,
     NBB_LONG lsp_id,NBB_BYTE slot,NBB_USHORT port)
 {
     /***************************************************************************/
@@ -3178,7 +3178,7 @@ static SPM_HQOS_VC_CB *spm_alloc_hqos_vrf_cb(ATG_DCI_VRF_INSTANCE_KEY *vrf_key,
     /***************************************************************************/
     SPM_HQOS_VRF_CB *pst_tbl = NULL;
     NBB_LONG ret = ATG_DCI_RC_OK;
-    NBB_ULONG id = 0;
+    NBB_LONG id = 0;
     NBB_LONG unit = 0;
 
     NBB_TRC_ENTRY(__FUNCTION__);
@@ -3259,7 +3259,7 @@ static SPM_HQOS_VC_CB *spm_alloc_hqos_vrf_cb(ATG_DCI_VRF_INSTANCE_KEY *vrf_key,
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_LONG spm_free_hqos_vrf_cb(SPM_HQOS_VC_CB *pst_tbl,NBB_LONG lsp_id)
+NBB_LONG spm_free_hqos_vrf_cb(SPM_HQOS_VRF_CB *pst_tbl,NBB_LONG lsp_id)
 {
     /***************************************************************************/
     /* Local Variables                                                         */
@@ -3279,7 +3279,7 @@ NBB_LONG spm_free_hqos_vrf_cb(SPM_HQOS_VC_CB *pst_tbl,NBB_LONG lsp_id)
     /***************************************************************************/
     /* 检查控制块的正确性。                                                    */
     /***************************************************************************/
-    NBB_ASSERT_MEMORY(pst_tbl, sizeof(SPM_HQOS_VC_CB), MEM_SPM_HQOS_VC_CB);
+    NBB_ASSERT_MEMORY(pst_tbl, sizeof(SPM_HQOS_VRF_CB), MEM_SPM_HQOS_VRF_CB);
     
     if(0 != pst_tbl->pw_id)
     {
@@ -3305,7 +3305,7 @@ NBB_LONG spm_free_hqos_vrf_cb(SPM_HQOS_VC_CB *pst_tbl,NBB_LONG lsp_id)
     /***************************************************************************/
     /* 现在释放单盘信息控制块。                                                */
     /***************************************************************************/
-    NBB_MM_FREE(pst_tbl, MEM_SPM_HQOS_VC_CB);
+    NBB_MM_FREE(pst_tbl, MEM_SPM_HQOS_VRF_CB);
     pst_tbl = NULL;
 
     /*异常跳出*/
@@ -3636,7 +3636,7 @@ static NBB_LONG spm_hqos_set_vrf_drive(NBB_BYTE slot,NBB_USHORT port, NBB_LONG p
 
 
     /*设置VC节点的HQOS策略生效*/
-    ret = spm_hqos_set_vrf_pw_property(slot,pw_id,posid,voq,data,pcb);
+    ret = spm_hqos_set_vrf_pw_property(slot,voq,pw_id,posid,data,pcb);
     if (ATG_DCI_RC_OK != ret)
     {
         goto EXIT_LABEL;
@@ -3769,10 +3769,11 @@ static NBB_LONG spm_hqos_add_vrf(NBB_BYTE slot, NBB_USHORT port, NBB_ULONG posid
         {
             spm_dbg_record_hqos_vrf_head(vrf_key,SPM_OPER_UPD);
             
-            ret = spm_hqos_set_vrf_drive(slot,port,pcb->pw_id,posid,data,voq,vc,vc_id,pcb);
+            ret = spm_hqos_set_vrf_pw_property(slot,voq,pcb->pw_id,posid,data,pcb);
+
             if(ATG_DCI_RC_OK != ret)
             {
-                spm_hqos_del_vrf_resource(&plsp,&pcb);
+                //spm_hqos_del_vrf_resource(&plsp,&pcb);
                 goto EXIT_LABEL;
             }
         }
@@ -3880,19 +3881,21 @@ NBB_LONG spm_hqos_add_vrf_node(NBB_BYTE slot, NBB_USHORT port, NBB_ULONG posid,
    作    者  : zenglu
    修改内容  : 新生成函数
 *****************************************************************************/
-NBB_LONG spm_hqos_del_vrf_node(NBB_LONG slot, NBB_USHORT port,
+NBB_LONG spm_hqos_del_vrf_node(NBB_LONG slot, NBB_USHORT port, NBB_ULONG posid,
         SPM_QOS_TUNNEL_KEY *lsp_key, ATG_DCI_VRF_INSTANCE_KEY *vrf_key)
 {
     /***************************************************************************/
     /* Local Variables                                                         */
     /***************************************************************************/
-    SPM_HQOS_VC_CB *pcb = NULL;
+    SPM_HQOS_VRF_CB *pcb = NULL;
     SPM_HQOS_LSP_CB *plsp = NULL;
     CRTXLSP_KEY lsptx_key = {0};
     NBB_LONG ret = ATG_DCI_RC_OK;
     NBB_ULONG fapid = v_spm_shared->local_slot;
     NBB_LONG slot_index = 0;
     NBB_LONG fapid_index = 0;
+    NBB_BYTE c3_num = v_spm_shared->c3_num;
+    NBB_LONG unit = 0;
     NBB_CHAR message[HQOS_MSG_INFO_LEN];
 
 
@@ -3923,6 +3926,23 @@ NBB_LONG spm_hqos_del_vrf_node(NBB_LONG slot, NBB_USHORT port,
         goto EXIT_LABEL;
     }
 
+    if(0 != posid)/*hqos已经删除，去使能flow id*/
+    {
+        for(unit = 0; unit < c3_num;unit++)
+        {
+#if defined (SPU) || defined (PTN690_CES)
+            ret = ApiC3SetL3TxPwHqos(unit, posid, 0, 0);
+            if (ATG_DCI_RC_OK != ret)
+            {
+                spm_hqos_l3txpw_error_log(0,0,posid,
+                    __FUNCTION__,__LINE__,ret);
+                goto EXIT_LABEL;
+            }
+#endif
+        }
+    }
+
+
 
     /*考虑由L3模块直接给我，不用自己调用*/
     if((0 != lsp_key->type) && (0 == lsp_key->tx_lsp.lspid)) /*LSP类型为CRLSP_TX*/
@@ -3948,14 +3968,14 @@ NBB_LONG spm_hqos_del_vrf_node(NBB_LONG slot, NBB_USHORT port,
     plsp = AVLL_FIND(g_qos_port_cb[slot][port].lsp_tree, lsp_key);
     if(NULL == plsp)
     {
-        ret = ATG_DCI_RC_UNSUCCESSFUL;
+        ret = ATG_DCI_RC_OK;
         goto EXIT_LABEL;
     }
 
     pcb = AVLL_FIND(plsp->vrf_tree, vrf_key);
     if(NULL == pcb)
     {
-        ret = ATG_DCI_RC_UNSUCCESSFUL;
+        ret = ATG_DCI_RC_OK;
         goto EXIT_LABEL;
     }
 
@@ -4551,7 +4571,7 @@ static NBB_LONG spm_hqos_del_lsp_all_drive(SPM_HQOS_LSP_CB *lsp_cb)
          vrf_cb = (SPM_HQOS_VRF_CB*) AVLL_NEXT(lsp_cb->vrf_tree,
                        vrf_cb->spm_hqos_vrf_node))
     {
-         ret = spm_hqos_del_vrf_drive(lsp_cb->slot, lsp_cb->port, vc_cb);
+         ret = spm_hqos_del_vrf_drive(lsp_cb->slot, lsp_cb->port, vrf_cb);
         if (ATG_DCI_RC_OK != ret)
         {
             goto EXIT_LABEL;
@@ -5226,7 +5246,7 @@ SPM_HQOS_LOG_USR_CB *spm_alloc_hqos_log_usr_cb(NBB_ULONG index,NBB_LONG *lsp_id,
 
     NBB_TRC_ENTRY(__FUNCTION__);
 
-    if(NULL == lsp_id || NULL == pw_id)
+    if(NULL == lsp_id)
     {
         spm_qos_parameter_error_log(__FUNCTION__,__LINE__);
         ret = ATG_DCI_RC_UNSUCCESSFUL;

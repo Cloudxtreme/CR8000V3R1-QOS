@@ -1,0 +1,1071 @@
+
+/**MOD+***********************************************************************/
+/* Module:    spml3.c                                                      */
+/*                                                                           */
+/* Purpose:   R8000     L3    cfgprocess                        */
+/*                                                                           */
+/*                                                                           */
+/*                                                                           */
+/*                                                                           */
+/*                                                                           */
+/*                                                                           */
+/* FiberHome        2003-2012                                                */
+/*                                                                           */
+/*                                                                           */
+/*                                                                           */
+/*                                                                           */
+/*                                                                           */
+/* $Revision: 1.0       $ $Date: 2012/9/2 07:09:09 $             */
+/**MOD-***********************************************************************/
+
+
+
+#define SHARED_DATA_TYPE SPM_SHARED_LOCAL
+#include <nbase.h>
+#include <spmincl.h>
+
+/********************
+CR_LSP_RX配置块
+********************/
+#ifdef CR_LSP_RX
+NBB_ULONG spm_l3_crlsprxhashkey(NBB_VOID *keyarg NBB_CCXT_T NBB_CXT)
+{
+    if( keyarg == NULL)
+    {
+        return 0;
+    }
+    else
+    {
+        return spm_hash_algorithm(keyarg, CRRXLSPKEYLGTH, 0 NBB_CCXT);
+    }
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_crlsprxhashcomp
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_ULONG spm_l3_crlsprxhashcomp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
+{
+    CRRXLSP_KEY *lsp_key1;
+    CRRXLSP_KEY *lsp_key2;
+
+    lsp_key1 = (CRRXLSP_KEY *)(keyarg1);
+    lsp_key2 = (CRRXLSP_KEY *)(keyarg2);
+
+    if( lsp_key1->ingress == lsp_key2->ingress 
+    && lsp_key1->egress == lsp_key2->egress 
+    && lsp_key1->tunnelid == lsp_key2->tunnelid 
+    && lsp_key1->lspid == lsp_key2->lspid)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_crlsprxhashtableinit
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_VOID spm_l3_crlsprxhashtableinit( NBB_ULONG num NBB_CCXT_T NBB_CXT)
+{
+
+    SHARED.crlsprxhash = (SHASH_TABLE *)
+                            spm_hashtab_create( num , spm_l3_crlsprxhashkey,spm_l3_crlsprxhashcomp NBB_CCXT);
+
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_crlsprxprocess
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_VOID spm_l3_crlsprxprocess( ATG_DCI_SET_CR_LSP_RX * crlsprxips NBB_CCXT_T NBB_CXT)
+{
+    NBB_INT         rv = 100;
+
+    NBB_INT         rv2 = 100;
+
+    SHASH_NODE      *node = NULL, *dnode = NULL;
+
+    NBB_BYTE        *ucdata = NULL;
+
+    NBB_BYTE        flag = 0;
+
+    CRRXLSP_KEY     rxlspkey;
+
+    CRRXLSP_BASE    base;
+
+    CRRXLSP_TEFRR   tefrr;
+
+    CRRXLSP         *rxlsp = NULL;
+    
+    RX_LSP_T        lspt;
+
+    SPM_PORT_INFO_CB    portfo;
+
+    CRRXLSP_DIFSER  difser;
+
+    DC_LSP          dclsp;
+
+    NBB_USHORT      frrid = 0;
+
+    NBB_CHAR        *errorlog = NULL;
+    NBB_ULONG       str_len = 0;
+
+    NBB_TRC_ENTRY("spm_l3_crlsprxprocess");
+
+    errorlog = NBB_MM_ALLOC(300, NBB_NORETRY_ACT, 0);
+    if(NULL == errorlog)
+    {
+        goto EXIT_LABEL;
+    }
+    
+    NBB_ASSERT(crlsprxips != NULL);
+
+    if(NULL == crlsprxips)
+    {
+        goto EXIT_LABEL;
+    }
+
+    crlsprxips->return_code = ATG_DCI_RC_OK;
+
+    OS_MEMSET(&lspt, 0, sizeof(RX_LSP_T));
+
+    OS_MEMSET( &rxlspkey, 0, sizeof( CRRXLSP_KEY ) );
+    
+    //coverity[bad_sizeof]
+    NBB_MEMCPY( &rxlspkey, &(crlsprxips->key), sizeof( CRRXLSP_KEY ) );
+
+    if(( rxlspkey.ingress == 0 ) && ( rxlspkey.egress == 0 ) && ( rxlspkey.tunnelid == 0 ) && ( rxlspkey.lspid == 0 ))
+    {
+        NBB_PRINTF("LSP RX data error rxlspkey = 0 \n");
+        crlsprxips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+        goto  EXIT_LABEL;
+    }
+    NBB_TRC_DETAIL((NBB_FORMAT "LSP RX  ingress =%x  egress=%x  tunnelid=%x lspid=%x\n",
+                                rxlspkey.ingress ,rxlspkey.egress, rxlspkey.tunnelid,rxlspkey.lspid));
+    
+    NBB_SPRINTF(errorlog, "ingress =%x  egress=%x  tunnelid=%x lspid=%x\n",
+                                rxlspkey.ingress ,rxlspkey.egress, rxlspkey.tunnelid,rxlspkey.lspid);
+    str_len = OS_STRLEN(errorlog);
+
+    /*查看本地数据是否存在*/
+    node =  (SHASH_NODE *)spm_hashtab_search( SHARED.crlsprxhash, &rxlspkey NBB_CCXT);   
+    
+    if( crlsprxips->delete_struct == 1) /*  删除*/
+    {
+        if( node == NULL )  
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del LSP RX Error:  node null"));
+            crlsprxips->return_code = ATG_DCI_RC_OK;
+            rv = 0;
+            goto  EXIT_LABEL;
+        }
+        if( node->data == NULL )    
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del LSP RX Error:  data null"));
+            crlsprxips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+            rv = 1;
+            NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+            str_len =  OS_STRLEN(errorlog);
+            NBB_SPRINTF(errorlog + str_len, "Del Error: node->data = NULL\n");
+            str_len =  OS_STRLEN(errorlog);
+            goto  EXIT_LABEL;
+        }
+        rxlsp = (CRRXLSP *)(node->data);
+        #ifdef SPU
+        if( rxlsp->frrid != 0 )
+        {
+            rv = ApiC3DeleteFrrGroup( BCMC31, rxlsp->frrid );
+            if ( SHARED.c3_num == 2 )
+            {
+                rv2 = ApiC3DeleteFrrGroup( BCMC32, rxlsp->frrid);
+                rv = (rv|rv2);
+            }
+            if( rv != 0)   
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Del LSP RX Error: Frr DEV rv=%d ", rv));
+                crlsprxips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DeleteFrrGroup rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Del Error: del frr\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            else
+            {
+                rxlsp->frrid = 0;
+            }
+        }
+        if( rxlsp->posid != 0 )
+        {
+            rv = ApiC3DelRxLsp( BCMC31, rxlsp->posid );
+            if ( SHARED.c3_num == 2 )
+            {
+                rv2 = ApiC3DelRxLsp( BCMC32, rxlsp->posid );
+                rv = (rv|rv2);
+            }
+            if( rv != 0)   
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Del LSP RX Error: Lsp DEV rv=%d ", rv));
+                crlsprxips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelRxLsp rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Del Error: del rxlsp\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            else
+            {
+                rxlsp->posid = 0;
+            }
+        }
+        #endif
+    
+        rv = 0;
+        if( rv == 0)      
+        {
+            rxlsp = (CRRXLSP *)(node->data);
+            spm_hashtab_del( SHARED.crlsprxhash, &rxlspkey NBB_CCXT);
+            NBB_MM_FREE(rxlsp, MEM_SPM_CR_LSP_RX_CB);
+        }   
+    }
+    else if( crlsprxips->delete_struct == 0) /* 增加*/
+    {
+        if( crlsprxips->oper_basic == ATG_DCI_OPER_ADD) /* 增加*/
+        {
+            if( node == NULL )
+            {
+                rxlsp = (CRRXLSP *)NBB_MM_ALLOC(sizeof(CRRXLSP), NBB_NORETRY_ACT, MEM_SPM_CR_LSP_RX_CB);
+                if ( rxlsp == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX Error: malloc null"));
+                    crlsprxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d malloc mem rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: rxlsp = NULL\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                } 
+                NBB_MEMSET(rxlsp, 0, sizeof(CRRXLSP));
+                flag = 1;
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX new node"));
+            }
+            else
+            {
+                if( node->data == NULL )    
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX Error: data null"));
+                    crlsprxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node->data = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                flag = 2;
+                rxlsp = (CRRXLSP *)(node->data);
+            }
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(crlsprxips, &crlsprxips->basic_data); 
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX Error:  basic data null"));
+                crlsprxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                if( flag == 1 )
+                {
+                    NBB_MM_FREE(rxlsp, MEM_SPM_CR_LSP_TX_CB);
+                }
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get basic data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &base, 0, sizeof( CRRXLSP_BASE ) );
+            NBB_MEMCPY( &base, ucdata, sizeof( CRRXLSP_BASE ) );    
+            #ifdef SPU
+            if( rxlsp->base.tefrrnode != 1 )
+            {
+                if( rxlsp->frrid != 0 )
+                {
+                    rv = ApiC3DeleteFrrGroup( BCMC31, rxlsp->frrid );
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3DeleteFrrGroup( BCMC32, rxlsp->frrid);
+                        rv = (rv|rv2);
+                    }
+                    if( rv != 0)   
+                    {
+                        BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e crlsprx frrid.rv = %d.%d \n", 
+                                        __LINE__, rxlsp->frrid, rv);
+                    }
+                    else
+                    {
+                        rxlsp->frrid = 0;
+                    }
+                }
+                
+                //ApiC3InitLspInstStruct( &lspt );
+                OS_MEMSET(&lspt, 0, sizeof(RX_LSP_T));
+                OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                if( base.nextport != 0 )
+                {
+                    rv = spm_get_portid_from_logical_port_index(base.nextport, &portfo NBB_CCXT);
+                    if( rv == 0)     
+                    {
+                        lspt.tRxLspNh.tTxPort.slot = portfo.slot_id;
+                        lspt.tRxLspNh.tTxPort.port = portfo.port_id;
+                        lspt.tRxLspNh.tTxPort.vid = portfo.svlan ;
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX Error:Get Port L2 rv=%d ", rv));
+                        crlsprxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+                        if( flag == 1 )
+                        {
+                            NBB_MM_FREE(rxlsp, MEM_SPM_CR_LSP_RX_CB);
+                        }
+                        rxlsp = NULL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                        NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                }
+                lspt.tRxLspNh.nhIp = base.nextip;
+                lspt.mIngress = rxlspkey.ingress;
+                lspt.mEgress = rxlspkey.egress;
+                lspt.mTunnelId = rxlspkey.tunnelid;
+                lspt.mLspId = rxlspkey.lspid;
+                lspt.mLabel = base.inlabel;
+                
+                switch( base.action )
+                {
+                    case 0:
+                        lspt.eRxLspAction = MPLS_ACTION_LSP_SWAP;
+                        break;
+                    case 1:
+                        lspt.eRxLspAction = MPLS_ACTION_LSP_SWAP;
+                        break;
+                    case 2:
+                        lspt.eRxLspAction = MPLS_ACTION_IPOP;
+                        break;
+                    default:
+                        break;
+                }
+                
+                //lspt.flags = RX_LSP_COUNTER_ON;
+                lspt.eNhiProtType = C3_PROT_NONE;
+                
+                //if( base.tefrrnode == 1 )
+                //{
+                    //lspt.eNhiProtType = PROT_FRR;
+                //}
+                lspt.tRxLspNh.tunNum = 1;
+                if( base.action == 1 )
+                {
+                    lspt.tRxLspNh.tunNum = 2;
+                }
+                if(( base.action == 0 ) && ( base.outlabel == 3 ))  
+                {
+                    lspt.tRxLspNh.tunNum = 0;
+                }
+                lspt.tRxLspNh.cntEnable = 1;
+                lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.label = base.outlabel;
+                lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.exp = 7;
+
+                //无压入标签
+                lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.label = 0;
+                lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.ttl = 255;
+                lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.exp = 7;
+
+                if( rxlsp->posid == 0 )
+                {
+                    rv = ApiC3AddRxLsp( BCMC31,  &lspt);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3AddRxLsp( BCMC32,  &lspt);
+                        rv = (rv|rv2);
+                    }
+                }
+                else
+                {
+                    lspt.posId = rxlsp->posid;
+                    rv = ApiC3ModRxLsp( BCMC31,  &lspt);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3ModRxLsp( BCMC32,  &lspt);
+                        rv = (rv|rv2);
+                    }
+                }
+            }
+            else
+            {
+                rv = 0 ;
+                lspt.posId = rxlsp->posid ;
+            }
+            #endif
+            
+            #ifdef SRC
+                lspt.posId = 0xffff;
+                rv = 0;
+            #endif  
+            #ifdef SNU
+                lspt.posId = 0xffff;
+                rv = 0;
+            #endif  
+            
+            //coverity[dead_error_condition]
+            if( rv == 0)      /* 调用驱动成功*/
+            {
+                rxlsp->posid = lspt.posId;
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(rxlsp->key), &(crlsprxips->key), sizeof( CRRXLSP_KEY ) );
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(rxlsp->base), &base, sizeof( CRRXLSP_BASE ) );
+                if( flag == 1)
+                {
+                    spm_hashtab_insert ( SHARED.crlsprxhash, rxlsp->key, rxlsp NBB_CCXT); 
+                }
+            }
+            else    /*调用驱动失败，记录错误*/
+            {
+                //coverity[dead_error_begin]
+                NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX Error: Lsp DEV rv=%d ", rv));
+                crlsprxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                if( flag == 1 )
+                {
+                    NBB_MM_FREE(rxlsp, MEM_SPM_CR_LSP_RX_CB);
+                }
+                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddRxLsp rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: add rxlsp\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+        }
+        else     if( crlsprxips->oper_basic == ATG_DCI_OPER_DEL) /*  删除子TLV*/
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del Error  basic data "));
+            crlsprxips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }
+        if( crlsprxips->oper_prot == ATG_DCI_OPER_ADD) /* 增加*/   
+        {
+            if(( crlsprxips->oper_basic != ATG_DCI_OPER_ADD))
+            {
+                if ( node == NULL )                                 
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX Error: tefrr node null"));
+                    crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto   EXIT_LABEL;
+                }
+                if( node->data == NULL )    
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX Error: tefrr data null"));
+                    crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node->data = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                rxlsp = (CRRXLSP *)(node->data);
+            }
+            if( rxlsp == NULL ) 
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX Error:rxlsp null"));
+                crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: rxlsp = NULL\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(crlsprxips, &crlsprxips->prot_data); 
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX Error: tefrr data null"));
+                crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get tefrr data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &tefrr, 0, sizeof( CRRXLSP_TEFRR) ); 
+            NBB_MEMCPY( &tefrr, ucdata, sizeof( CRRXLSP_TEFRR) );   
+            #ifdef SPU
+                if( rxlsp->frrid == 0 )
+                {
+                    rv = ApiC3CreateFrrGroup( BCMC31, &frrid, 0, 0);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3CreateFrrGroup( BCMC32, &frrid, 0, 0);
+                        rv = (rv|rv2);
+                    }
+                    if( rv != 0)   
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add LSP Error: Frr DEV rv=%d ", rv));
+                        crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3CreateFrrGroup rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                        NBB_SPRINTF(errorlog + str_len, "Add Error: add frr \n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                    else
+                    {
+                         rxlsp->frrid = frrid;
+                    }
+                    
+                    //ApiC3InitLspInstStruct( &lspt );
+                    OS_MEMSET(&lspt, 0, sizeof(RX_LSP_T));
+                    if ( rxlsp->base.tefrrtype == 1)//bypass
+                    {
+                        OS_MEMSET(&dclsp, 0, sizeof(DC_LSP));
+                        rv = spm_l3_iteration_tunnel( tefrr.nextport, &dclsp NBB_CCXT);
+                        if ( rv == 0 )
+                        {
+                            rxlsp->dclsp.label1 = tefrr.outlabel;
+                            rxlsp->dclsp.label2 = dclsp.label1;
+                            rxlsp->dclsp.nextip =  dclsp.nextip;
+                            rxlsp->dclsp.nextport =  dclsp.nextport;
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX label2 =%d ", rxlsp->dclsp.label2));
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX label1 =%d ", rxlsp->dclsp.label1));
+                        }
+                        else
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX Error: iter TUNNEL rv=%d ", rv));
+                            crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d spm_l3_iteration_tunnel rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: iter TUNNEL\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                    }
+                    else
+                    {
+                        rxlsp->dclsp.label1 = tefrr.outlabel;
+                        rxlsp->dclsp.nextip =  tefrr.nextip;
+                        rxlsp->dclsp.nextport =  tefrr.nextport;
+                    }
+                    if( rxlsp->dclsp.nextport != 0 )
+                    {
+                        rv = spm_get_portid_from_logical_port_index(rxlsp->dclsp.nextport, &portfo NBB_CCXT);
+                        if( rv == 0)     
+                        {
+                            lspt.tRxLspNh_p.tTxPort.slot = portfo.slot_id;
+                            lspt.tRxLspNh_p.tTxPort.port = portfo.port_id;
+                            lspt.tRxLspNh_p.tTxPort.vid = portfo.svlan ;
+                        }
+                        else
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX Error:Get Port L2 rv=%d ", rv));
+                            crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                    }
+                    lspt.tRxLspNh_p.nhIp = rxlsp->dclsp.nextip;
+                    lspt.tRxLspNh_p.cntEnable = 1;
+                    lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.label = rxlsp->dclsp.label1;
+                    lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                    lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.exp = 7;
+                    
+                    lspt.tRxLspNh_p.tunNum = 1;
+                    if( rxlsp->base.tefrrtype == 1)
+                    {
+                        lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.label = rxlsp->dclsp.label2;
+                        lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.ttl = 255;
+                        lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.exp = 7;
+                        lspt.tRxLspNh_p.tunNum = 2;
+                    }
+                    lspt.frrGroupId = rxlsp->frrid;
+                    if( rxlsp->posid != 0 )
+                    {
+                        lspt.posId = rxlsp->posid;
+                        rv = ApiC3AddRxLspProt( BCMC31,  &lspt);
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            rv2 = ApiC3AddRxLspProt( BCMC32,  &lspt);
+                            rv = (rv|rv2);
+                        }
+                        if( rv != 0)   
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP Error: lspprot DEV rv=%d ", rv));
+                            crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddRxLspProt rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: add lspprot\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                    }
+                    else
+                    {
+                        OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                        if( rxlsp->base.nextport != 0 )
+                        {
+                            rv = spm_get_portid_from_logical_port_index(rxlsp->base.nextport, &portfo NBB_CCXT);
+                            if( rv == 0)     
+                            {
+                                lspt.tRxLspNh.tTxPort.slot = portfo.slot_id;
+                                lspt.tRxLspNh.tTxPort.port = portfo.port_id;
+                                lspt.tRxLspNh.tTxPort.vid = portfo.svlan ;
+                            }
+                            else
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX Error:Get Port L2 rv=%d ", rv));
+                                crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                                str_len =  OS_STRLEN(errorlog);
+                                goto  EXIT_LABEL;
+                            }
+                        }
+                        lspt.tRxLspNh.nhIp = rxlsp->base.nextip;
+                        lspt.mIngress = rxlspkey.ingress;
+                        lspt.mEgress = rxlspkey.egress;
+                        lspt.mTunnelId = rxlspkey.tunnelid;
+                        lspt.mLspId = rxlspkey.lspid;
+                        lspt.mLabel = rxlsp->base.inlabel;
+                        
+                        switch( rxlsp->base.action )
+                        {
+                            case 0:
+                                lspt.eRxLspAction = MPLS_ACTION_LSP_SWAP;
+                                break;
+                            case 1:
+                                lspt.eRxLspAction = MPLS_ACTION_LSP_SWAP;
+                                break;
+                            case 2:
+                                lspt.eRxLspAction = MPLS_ACTION_IPOP;
+                                break;
+                            default:
+                                break;
+                        }
+                        
+                        //lspt.flags = RX_LSP_COUNTER_ON;
+                        lspt.eNhiProtType = C3_PROT_FRR;
+                        lspt.tRxLspNh.tunNum = 1;
+                        if( rxlsp->base.action == 1 )
+                        {
+                            lspt.tRxLspNh.tunNum = 2;
+                        }
+                        lspt.tRxLspNh.cntEnable = 1;
+                        lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.label = rxlsp->base.outlabel;
+                        lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                        lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.exp = 7;
+
+                        //无压入标签
+                        lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.label = 0;
+                        lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.ttl = 255;
+                        lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.exp = 7;
+
+                        rv = ApiC3AddRxLsp( BCMC31,  &lspt);
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            rv2 = ApiC3AddRxLsp( BCMC32,  &lspt);
+                            rv = (rv|rv2);
+                        }
+                        if( rv != 0)   
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP Error: tefrr1 DEV rv=%d ", rv));
+                            crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddRxLsp rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: add lsp\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                        else
+                        {
+                            rxlsp->posid = lspt.posId ;
+                        }
+                    }
+                }
+                else
+                {
+                    OS_MEMSET(&lspt, 0, sizeof(RX_LSP_T));
+                    OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                    if( rxlsp->base.nextport != 0 )
+                    {
+                        rv = spm_get_portid_from_logical_port_index(rxlsp->base.nextport, &portfo NBB_CCXT);
+                        if( rv == 0)     
+                        {
+                            lspt.tRxLspNh.tTxPort.slot = portfo.slot_id;
+                            lspt.tRxLspNh.tTxPort.port = portfo.port_id;
+                            lspt.tRxLspNh.tTxPort.vid = portfo.svlan ;
+                        }
+                        else
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX Error:Get Port L2 rv=%d ", rv));
+                            crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                    }
+                    lspt.tRxLspNh.nhIp = rxlsp->base.nextip;
+                    lspt.mIngress = rxlspkey.ingress;
+                    lspt.mEgress = rxlspkey.egress;
+                    lspt.mTunnelId = rxlspkey.tunnelid;
+                    lspt.mLspId = rxlspkey.lspid;
+                    lspt.mLabel = rxlsp->base.inlabel;
+                    
+                    switch( rxlsp->base.action )
+                    {
+                        case 0:
+                            lspt.eRxLspAction = MPLS_ACTION_LSP_SWAP;
+                            break;
+                        case 1:
+                            lspt.eRxLspAction = MPLS_ACTION_LSP_SWAP;
+                            break;
+                        case 2:
+                            lspt.eRxLspAction = MPLS_ACTION_IPOP;
+                            break;
+                        default:
+                            break;
+                    }
+                    
+                    //lspt.flags = RX_LSP_COUNTER_ON;
+                    lspt.eNhiProtType = C3_PROT_FRR;
+                    lspt.tRxLspNh.tunNum = 1;
+                    if( rxlsp->base.action == 1 )
+                    {
+                        lspt.tRxLspNh.tunNum = 2;
+                    }
+                    lspt.tRxLspNh.cntEnable = 1;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.label = rxlsp->base.outlabel;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.exp = 7;
+
+                    //无压入标签
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.label = 0;
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.ttl = 255;
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.exp = 7;
+
+                    if ( rxlsp->base.tefrrtype == 1)//bypass
+                    {   
+                        OS_MEMSET(&dclsp, 0, sizeof(DC_LSP));
+                        rv = spm_l3_iteration_tunnel( tefrr.nextport , &dclsp NBB_CCXT);
+                        if ( rv == 0 )
+                        {
+                            rxlsp->dclsp.label1 = tefrr.outlabel;
+                            rxlsp->dclsp.label2 = dclsp.label1;
+                            rxlsp->dclsp.nextip =  dclsp.nextip;
+                            rxlsp->dclsp.nextport =  dclsp.nextport;
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX label2 =%d ", rxlsp->dclsp.label2));
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX label1 =%d ", rxlsp->dclsp.label1));
+                        }
+                        else
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX Error: iter TUNNEL rv=%d ", rv));
+                            crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d spm_l3_iteration_tunnel rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: iter TUNNEL\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                    }
+                    else
+                    {
+                        rxlsp->dclsp.label1 = tefrr.outlabel;
+                        rxlsp->dclsp.nextip =  tefrr.nextip;
+                        rxlsp->dclsp.nextport =  tefrr.nextport;
+                    }
+                    if( rxlsp->dclsp.nextport != 0 )
+                    {
+                        rv = spm_get_portid_from_logical_port_index(rxlsp->dclsp.nextport, &portfo NBB_CCXT);
+                        if( rv == 0)     
+                        {
+                            lspt.tRxLspNh_p.tTxPort.slot = portfo.slot_id;
+                            lspt.tRxLspNh_p.tTxPort.port = portfo.port_id;
+                            lspt.tRxLspNh_p.tTxPort.vid = portfo.svlan ;
+                        }
+                        else
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX Error:Get Port L2 rv=%d ", rv));
+                            crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                    }
+                    lspt.tRxLspNh_p.nhIp = rxlsp->dclsp.nextip;
+                    lspt.tRxLspNh_p.cntEnable = 1;
+                    lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.label = rxlsp->dclsp.label1;
+                    lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                    lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.exp = 7;
+                    
+                    lspt.tRxLspNh_p.tunNum = 1;
+                    if( rxlsp->base.tefrrtype == 1)
+                    {
+                        lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.label = rxlsp->dclsp.label2;
+                        lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.ttl = 255;
+                        lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.exp = 7;
+                        lspt.tRxLspNh_p.tunNum = 2;
+                    }
+                    lspt.frrGroupId = rxlsp->frrid;
+                    if( rxlsp->posid == 0 )
+                    {
+                        rv = ApiC3AddRxLsp( BCMC31,  &lspt);
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            rv2 = ApiC3AddRxLsp( BCMC32,  &lspt);
+                            rv = (rv|rv2);
+                        }
+                        if( rv != 0)   
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP Error: tefrr DEV rv=%d ", rv));
+                            crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddRxLsp rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: add lsp\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                        else
+                        {
+                            rxlsp->posid = lspt.posId ;
+                        }
+                    }
+                    else
+                    {
+                        lspt.posId = rxlsp->posid;
+                        rv = ApiC3ModRxLsp( BCMC31,  &lspt);
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            rv2 = ApiC3ModRxLsp( BCMC32,  &lspt);
+                            rv = (rv|rv2);
+                        }
+                        if( rv != 0)   
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add LSP Error: modtefrr DEV rv=%d ", rv));
+                            crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3ModRxLsp rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: mod lsp\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                    }
+                }
+            #endif
+            #ifdef SRC
+                lspt.posId = 0xffff;
+                rv = 0;
+            #endif
+            #ifdef SNU
+                lspt.posId = 0xffff;
+                rv = 0;
+            #endif
+            if( rv == 0)      /* 成功*/
+            {
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(rxlsp->tefrr),  &tefrr,  sizeof( CRRXLSP_TEFRR ) );
+            }                           
+        }
+        else  if( crlsprxips->oper_prot == ATG_DCI_OPER_DEL )   /*  删除子TLV*/
+        {
+            if( node == NULL )  
+            {
+                BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e crlsprx node = NULL  \n", __LINE__);
+                rv = 0;
+                goto  EXIT_LABEL;
+            }
+            if( node->data == NULL )    
+            {
+                BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e crlsprx node->data = NULL \n", __LINE__);
+                rv = 0;
+                goto  EXIT_LABEL;
+            }
+            rxlsp = (CRRXLSP *)(node->data);
+            if( rxlsp->posid != 0 )
+            {
+            #ifdef SPU
+                rv = ApiC3DelRxLspProt( BCMC31, rxlsp->posid );
+                if ( SHARED.c3_num == 2 )
+                {
+                    rv2 = ApiC3DelRxLspProt( BCMC32, rxlsp->posid);
+                    rv = (rv|rv2);
+                }
+                if( rv != 0)   
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Del LSP RX Error: del lsp prot DEV rv=%d ", rv));
+                    crlsprxips->prot_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelRxLspProt rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: del lspprot\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+            #endif
+            }
+        }
+        if( crlsprxips->oper_diff_serv == ATG_DCI_OPER_ADD) 
+        {
+            if(( crlsprxips->oper_basic != ATG_DCI_OPER_ADD))
+            {
+                if ( node == NULL )                             
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX Error:difs node null"));
+                    crlsprxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node = NULL\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto   EXIT_LABEL;
+                }
+                if( node->data == NULL )    
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX Error:difs data null"));
+                    crlsprxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node->data = NULL\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                rxlsp = (CRRXLSP *)(node->data);
+            }
+            if( rxlsp == NULL ) 
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX Error:rxlsp data null"));
+                crlsprxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: rxlsp = NULL\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(crlsprxips, &crlsprxips->diff_serv_data);
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add LSP RX Error: qos data  null"));
+                crlsprxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get qos data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &difser, 0, sizeof(CRRXLSP_DIFSER));
+            
+            //coverity[bad_sizeof]
+            NBB_MEMCPY( &difser, ucdata, sizeof(CRRXLSP_DIFSER));   
+            rv = spm_ds_add_rx_lsp_node(difser.dserid, &(rxlsp->key), 
+                                                            rxlsp->posid, rxlsp->base.action, 1, 0, NULL NBB_CCXT);
+            if ( rv == 0 )      
+            {
+                rxlsp->mdserid = difser.dserid;
+            }
+            else
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Add LSP RX Error: qos rv=%d ", rv));
+                crlsprxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+                NBB_SPRINTF(errorlog + str_len, "Line=%d spm_ds_add_rx_lsp_node rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: add qos\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+        }
+        else if( crlsprxips->oper_diff_serv == ATG_DCI_OPER_DEL) 
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del LSP RX Error: qos data "));
+            crlsprxips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }
+        if( crlsprxips->oper_prot_diff_serv == ATG_DCI_OPER_ADD) 
+        {
+        
+        }
+        else if( crlsprxips->oper_prot_diff_serv == ATG_DCI_OPER_DEL) 
+        {
+
+        }
+        if( crlsprxips->oper_wrapping == ATG_DCI_OPER_ADD) 
+        {
+        
+        }
+        else if( crlsprxips->oper_wrapping == ATG_DCI_OPER_DEL) 
+        {
+
+        }
+    }
+    EXIT_LABEL:
+
+    NBB_TRC_EXIT();
+
+    NBB_TRC_DETAIL((NBB_FORMAT "LSP RX : rv = %d ", rv));
+
+    if(NULL == errorlog)
+    {
+        OS_PRINTF("Line=%d LSP RX malloc mem NULL \n",__LINE__);
+    }
+    else
+    {
+        NBB_SPRINTF(errorlog + str_len, "\0");
+        if( rv != 0) 
+        {
+            NBB_EXCEPTION((PCT_SPM| 10, 1,  "s s", 
+                                                            "LSP RX ",
+                                                            errorlog));
+        }
+        NBB_MM_FREE(errorlog,0);
+    }
+}
+
+#endif

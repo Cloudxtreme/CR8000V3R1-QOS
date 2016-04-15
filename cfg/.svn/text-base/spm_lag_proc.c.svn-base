@@ -1,0 +1,2114 @@
+/******************************************************************************
+
+                  版权所有 (C), 1999-2013, 烽火通信科技股份有限公司
+
+******************************************************************************
+
+  文 件 名   : spm_lag_proc.c
+  版 本 号   : 初稿
+  作    者   : xiaoxiang
+  生成日期   : 2012年11月30日
+  最近修改   :
+  功能描述   : 链路聚合处理文件
+  函数列表   :
+  修改历史   :
+  1.日    期   : 2012年11月30日
+    作    者   : xiaoxiang
+    修改内容   : 创建文件
+
+******************************************************************************/
+
+#define SHARED_DATA_TYPE SPM_SHARED_LOCAL
+
+#include <nbase.h>
+#include <spmincl.h>
+
+extern unsigned char lag_cfg_print_setting;
+
+/*****************************************************************************
+ 函 数 名  : spm_rcv_dci_set_link_aggr
+ 功能描述  : 链路聚合IPS消息处理函数
+ 输入参数  : ATG_DCI_SET_LINK_AGGR *pstSetLinkAggr  
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年11月30日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_VOID spm_rcv_dci_set_link_aggr(ATG_DCI_SET_LINK_AGGR *pstSetLinkAggr NBB_CCXT_T NBB_CXT)
+{
+    NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+    
+    //NBB_BYTE ucMessageLen = 0;
+    
+    NBB_ULONG i = 0;
+    NBB_ULONG ulLagConsultPortNum = 0;
+    NBB_ULONG ulPortIndex = 0;
+    NBB_INT ret = SUCCESS;
+	
+    NBB_BYTE ucC3Unit = 0;
+    NBB_BYTE ucLagSlotCur = 0;
+    NBB_BYTE ucLagSlotPre = 0;
+    NBB_USHORT usLagPortCur = 0;
+    NBB_USHORT usLagPortPre = 0;
+    LAG_T stTrunk;
+    NBB_USHORT usSlotPort = 0;
+    SPM_PORT_INFO_CB stPortInfo;
+    APS_PORT_LAG_INFO stApsPortLagInfo;
+    SUB_PORT stSubPort;
+
+    #ifdef SPU
+	
+    //NBB_BYTE ucC3Unit = 0;
+    NBB_INT if_lag_changed = 0;
+    #endif
+    
+    SPM_LAG_CB *pstLag = NULL;
+
+    /* 用来保存从IPS中获取的子配置 */
+    ATG_DCI_LINK_AGGR_GLOB_ATTRIB *pstGlobalData = NULL;
+    ATG_DCI_LINK_AGGR_LAG_CONF *pstLagData = NULL;
+    ATG_DCI_LINK_AGGR_MEMBER_PORT *pstPortData[ATG_DCI_LAG_MEMBER_PORT_NUM];
+    ATG_DCI_LAG_NLB_MEMBER_PORT *pstNlbPortData = NULL;
+    SPM_ASSOCIATE_IF_CB *pstAssociateIfCb = NULL;
+    ATG_DCI_LAG_IPV4NF_DATA *pstIpv4NfData = NULL;
+    ATG_DCI_LAG_IPNF_SAMPLER_DATA *pstIpSampleData = NULL;
+    ATG_DCI_LAG_IPV6NF_DATA *pstIpv6NfData = NULL;
+    
+    SPM_LOGICAL_PORT_CB *pstLogicalPort = NULL;
+     
+    SPM_LAG_PORT_INFO_CB  stTriggerLagPortInfo[ATG_DCI_ASSOCIATE_IF_TRIGGER_NUM];
+    SPM_LAG_PORT_INFO_CB  stActLagPortInfo[ATG_DCI_ASSOCIATE_IF_ACT_NUM];
+
+    OS_MEMSET(&stPortInfo,0,sizeof(SPM_PORT_INFO_CB));
+    OS_MEMSET(stTriggerLagPortInfo,0,sizeof(SPM_LAG_PORT_INFO_CB)*(ATG_DCI_ASSOCIATE_IF_TRIGGER_NUM));
+    OS_MEMSET(stActLagPortInfo,0,sizeof(SPM_LAG_PORT_INFO_CB)*(ATG_DCI_ASSOCIATE_IF_ACT_NUM));
+    OS_MEMSET(&stSubPort,0,sizeof(SUB_PORT));
+
+    /* IPS消息偏移的首地址 */
+    NBB_BYTE *pucGlobalDataStart  = NULL;
+    NBB_BYTE *pucLagDataStart     = NULL;
+    NBB_BYTE *pucPortDataStart    = NULL;
+    NBB_BYTE *pucNlbPortDataStart = NULL;
+    NBB_BYTE *pucIpv4NfDataStart = NULL;
+    NBB_BYTE *pucIpSampleDataStart = NULL;
+    NBB_BYTE *pucIpv6NfDataStart = NULL;
+
+    /* 子配置的操作模式 */
+    NBB_ULONG ulOperGlobal  = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperLag     = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperPort    = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperNlbPort = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperIpv4Nf = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperIpSample = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperIpv6Nf = ATG_DCI_OPER_NULL;
+
+    NBB_BYTE trigger_if_flag = 0;
+    NBB_BYTE act_if_flag = 0;
+    NBB_BYTE ucExistPos_trigger = 0;
+    NBB_BYTE ucExistPos_act = 0;
+    NBB_BYTE ulAssociateIfKey = 0;
+    NBB_USHORT usPortId = 0;
+    NBB_BYTE usSlotId = 0;
+    PORT_GROUP_INFO IfGoupInfo;
+    NBB_BYTE pucPortNum = 0;
+    
+    NBB_ULONG ulPortIndexKey = 0;
+
+    /* LAG的键值 */
+    NBB_ULONG ulLagIdKey = 0;
+    
+    NBB_ULONG ulLagPortId = 0;
+
+    NBB_BYTE ucIfExist = ATG_DCI_EXIST;
+
+    NBB_BOOL avll_ret_code;
+
+    NBB_TRC_ENTRY("spm_rcv_dci_set_link_aggr");
+
+    /* 输入参数指针必须有效 */
+    NBB_ASSERT(pstSetLinkAggr != NULL);
+
+	if (pstSetLinkAggr == NULL)
+	{
+        OS_PRINTF("***ERROR***:spm_rcv_dci_set_link_aggr(pstSetLinkAggr==NULL)\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***:spm_rcv_dci_set_link_aggr(pstSetLinkAggr==NULL)\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", 0, FUNC_IN_PARAM_IS_NULL, "FUNC_IN_PARAM_IS_NULL", ucMessage));
+        
+        goto EXIT_LABEL;
+    }
+	
+    OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+    OS_MEMSET(&stApsPortLagInfo, 0, sizeof(APS_PORT_LAG_INFO));
+
+    //首先将IPS消息的返回值设置为OK，如果有一个子配置失败，则置为FAIL
+    pstSetLinkAggr->return_code = ATG_DCI_RC_OK;
+
+    /* 初始化成员端口的指针数组 */
+    for (i = 0; i < ATG_DCI_LAG_MEMBER_PORT_NUM; i++)
+    {
+        pstPortData[i] = NULL;
+    }
+
+    //初始化驱动结构体
+    OS_MEMSET(&stTrunk, 0, sizeof(LAG_T));
+    
+    ulLagIdKey = pstSetLinkAggr->key;    
+    pstLag = AVLL_FIND(SHARED.lag_tree, &ulLagIdKey);
+    
+    if (pstLag == NULL)    //条目不存在
+    {
+        ucIfExist = ATG_DCI_UNEXIST;
+    }
+    else
+    {
+    	if (pstLag->port_num != 0)
+    	{
+    		spm_get_lag_min_slot_port(ulLagIdKey, &ucLagSlotPre, &usLagPortPre NBB_CCXT);
+    	}
+    }
+    
+    ulLagPortId = ulLagIdKey + 0x80;
+    
+    /* 获取子配置的操作类型 */
+    ulOperGlobal  = pstSetLinkAggr->oper_glob_attrib;
+    ulOperLag     = pstSetLinkAggr->oper_lag_conf;
+    ulOperPort    = pstSetLinkAggr->oper_member_port;
+    ulOperNlbPort = pstSetLinkAggr->oper_nlb_member_port;
+
+
+    /* 删除整个条目 */
+    if (pstSetLinkAggr->delete_struct == TRUE)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  删除LAG_ID=%ld 的链路聚合配置", ulLagIdKey));        
+
+        /* 如果条目不存在，不删除 */
+        if (ucIfExist == ATG_DCI_UNEXIST)
+        {
+            /* 待修改：加打印PD */
+            pstSetLinkAggr->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+            
+            OS_PRINTF("***ERROR***:要删除的LAG_ID=%ld 的链路聚合配置不存在!\n", ulLagIdKey);
+
+            OS_SPRINTF(ucMessage, "***ERROR***:要删除的LAG_ID=%ld 的链路聚合配置不存在!\n", ulLagIdKey);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey, 
+                DEL_UNEXIST_CONFIG_ERROR, "DEL_UNEXIST_CONFIG_ERROR", ucMessage));
+            
+            goto EXIT_LABEL;
+        }
+        
+        /* 存在，删除 */
+        else
+        {
+            //NBB_TRC_FLOW((NBB_FORMAT "  查询到此配置，删除此链路聚合，并从tree中删除存储数据"));
+            spm_dbg_print_lag_head(ulLagIdKey, SPM_OPER_DEL);
+            spm_dbg_record_lag_head(ulLagIdKey, SPM_OPER_DEL);
+            
+#ifdef SPU
+
+            //刷新回调函数表
+			stApsPortLagInfo.portNum = 0;
+			aps_update_lag_port_info(ulLagIdKey, &stApsPortLagInfo);
+            
+            for (ucC3Unit = 0; ucC3Unit < SHARED.c3_num; ucC3Unit++)
+            {
+                ret += ApiC3DelLag(ucC3Unit, ulLagIdKey);
+            }
+
+            if(SUCCESS != ret)
+            {
+                pstSetLinkAggr->port_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+                OS_PRINTF("***ERROR***:(%s:%d) LAG_ID=%ld, ApiC3DelLag() ret=%d\n", 
+                    __FILE__,__LINE__,ulLagIdKey, ret);
+
+                OS_SPRINTF(ucMessage, "***ERROR***:(%s:%d) LAG_ID=%ld, ApiC3DelLag() ret=%d\n", 
+                    __FILE__,__LINE__,ulLagIdKey, ret);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+            }
+#endif
+			
+			
+            //从树中删除节点
+            AVLL_DELETE(SHARED.lag_tree, pstLag->spm_lag_node); 
+
+            //释放节点内存空间
+            spm_free_lag_cb(pstLag NBB_CCXT);
+            pstLag = NULL;
+			
+        }
+    }
+    
+    /* 增加或更新条目 */
+    else
+    {        
+        
+        /* 如果条目不存在，树中要增加条目 */
+        if (ucIfExist == ATG_DCI_UNEXIST)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  增加LAG_ID=%ld的 链路聚合配置", ulLagIdKey));
+            spm_dbg_print_lag_head(ulLagIdKey, SPM_OPER_ADD);
+            spm_dbg_record_lag_head(ulLagIdKey, SPM_OPER_ADD);
+            
+            pstLag = spm_alloc_lag_cb(NBB_CXT);
+
+            if(NULL == pstLag)
+            {
+                OS_PRINTF(" ***ERROR***:(%s:%d)spm_alloc_lag_cb NULL\n", __FILE__,__LINE__);
+                
+                OS_SPRINTF(ucMessage, " ***ERROR***:(%s:%d)spm_alloc_lag_cb NULL\n", __FILE__,__LINE__);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                goto EXIT_LABEL;
+            }
+
+			if (pstLag != NULL)
+			{
+	            //申请空间后先插入到tree中
+	            pstLag->lag_id_key = ulLagIdKey;
+	            avll_ret_code = AVLL_INSERT(SHARED.lag_tree, pstLag->spm_lag_node);
+		     NBB_ASSERT(avll_ret_code);
+			}
+        }
+        else
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  更新LAG_ID=%ld的 链路聚合配置", ulLagIdKey));
+            spm_dbg_print_lag_head(ulLagIdKey, SPM_OPER_UPD);
+            spm_dbg_record_lag_head(ulLagIdKey, SPM_OPER_UPD);
+        }
+
+		//增加此判断，取消PC-Lint告警
+        if (pstLag == NULL)
+        {
+            pstSetLinkAggr->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+            OS_PRINTF("***ERROR***:要增加的LAG_ID=%ld 的链路聚合配置未能成功申请内存!\n", ulLagIdKey);
+
+            OS_SPRINTF(ucMessage, "***ERROR***:要增加的LAG_ID=%ld 的链路聚合配置未能成功申请内存!\n", ulLagIdKey);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey, 
+                ALLOC_MEMORY_ERROR, "ALLOC_MEMORY_ERROR", ucMessage));
+            
+            goto EXIT_LABEL;
+        }        
+
+        /***************************************************************************/
+        /* 获取配置                                                                */
+        /***************************************************************************/
+        /******************************** 全局属性 *********************************/
+        if (ulOperGlobal == ATG_DCI_OPER_ADD)
+        {
+
+            /* 计算第一个entry的地址。*/
+            pucGlobalDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetLinkAggr, 
+                                                                    &pstSetLinkAggr->glob_attrib);    
+
+            /* 首地址为NULL，异常 */
+            if (pucGlobalDataStart == NULL)
+            {
+                //NBB_TRC_FLOW((NBB_FORMAT "  LAG pucGlobalDataStart is NULL.")); 
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstGlobalData = (ATG_DCI_LINK_AGGR_GLOB_ATTRIB*)pucGlobalDataStart;
+
+                if (lag_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  1）全局属性\n");
+                    spm_dbg_print_lag_global_cfg(pstGlobalData);
+                }
+
+                OS_SPRINTF(ucMessage,"  1）全局属性\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                
+                //spm_dbg_record_lag_global_cfg(pstGlobalData);
+
+                NBB_TRC_DETAIL((NBB_FORMAT "  本设备优先级 = %d", pstGlobalData->local_dev_pri));
+
+                /* 配置处理，todo */
+            
+
+                /* 保存数据 */
+                if (pstLag->global_cfg_cb == NULL)
+                {
+                    pstLag->global_cfg_cb = (ATG_DCI_LINK_AGGR_GLOB_ATTRIB*)NBB_MM_ALLOC(
+                        sizeof(ATG_DCI_LINK_AGGR_GLOB_ATTRIB),
+                        NBB_NORETRY_ACT,
+                        MEM_SPM_LAG_GLOBAL_CB);
+
+                    if (pstLag->global_cfg_cb == NULL)
+                    {
+                        OS_PRINTF("	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+    	
+            			OS_SPRINTF(ucMessage, "	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+            			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                        goto EXIT_LABEL;
+            			
+                    }
+                }
+
+                if(NULL != pstLag->global_cfg_cb)
+                {
+                    OS_MEMCPY(pstLag->global_cfg_cb, pstGlobalData, sizeof(ATG_DCI_LINK_AGGR_GLOB_ATTRIB));
+                }
+                
+            }
+
+        }
+        else if (ulOperGlobal == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperGlobal == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }
+
+        /******************************** LAG配置 *********************************/
+        if (ulOperLag == ATG_DCI_OPER_ADD)
+        {
+
+            /* 计算第一个entry的地址。*/
+            pucLagDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetLinkAggr, 
+                                                                 &pstSetLinkAggr->lag_conf);    
+
+            /* 首地址为NULL，异常 */
+            if (pucLagDataStart == NULL)
+            {
+                //NBB_TRC_FLOW((NBB_FORMAT "  LAG pucLagDataStart is NULL.")); 
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstLagData = (ATG_DCI_LINK_AGGR_LAG_CONF*)pucLagDataStart;
+
+                if (lag_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  2）LAG配置\n");
+                    spm_dbg_print_lag_lagconf_cfg(pstLagData);
+                }
+
+                OS_SPRINTF(ucMessage,"  2）LAG配置\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                
+                //spm_dbg_record_lag_lagconf_cfg(pstLagData);
+
+                NBB_TRC_DETAIL((NBB_FORMAT "  LAG ID = %d", pstLagData->lag_id));
+                NBB_TRC_DETAIL((NBB_FORMAT "  模式 = %d", pstLagData->mode));
+                NBB_TRC_DETAIL((NBB_FORMAT "  分担算法 = %d", pstLagData->load_sharing_algorithm));
+                NBB_TRC_DETAIL((NBB_FORMAT "  L2/L3属性 = %d", pstLagData->l2_l3_attrib));
+                NBB_TRC_DETAIL((NBB_FORMAT "  LAG MAC = %x-%x-%x-%x-%x-%x", pstLagData->lag_mac[0],
+                                                                          pstLagData->lag_mac[1],
+                                                                          pstLagData->lag_mac[2],
+                                                                          pstLagData->lag_mac[3],
+                                                                          pstLagData->lag_mac[4],
+                                                                          pstLagData->lag_mac[5]));
+
+#ifdef SPU
+                for (ucC3Unit = 0; ucC3Unit < SHARED.c3_num; ucC3Unit++)
+                {
+                    //分担算法
+                	switch (pstLagData->load_sharing_algorithm)
+                	{
+                		case ATG_DCI_BASE_BOTH_MAC:
+                            ApiC3SetLagHashAlg(ucC3Unit, ulLagIdKey, LAG_HASH_DSMAC);
+                			break;
+                		case ATG_DCI_BASE_BOTH_IP:
+                            ApiC3SetLagHashAlg(ucC3Unit, ulLagIdKey, LAG_HASH_DSIP);
+                			break;
+                		case ATG_DCI_BASE_PACKET:
+                            ApiC3SetLagHashAlg(ucC3Unit, ulLagIdKey, LAG_PORT_ROUND_ROBIN);
+                			break;
+                		default:
+                			break;
+                	}
+
+                	ApiC3SetPortMac(ucC3Unit, ATG_DCI_IS_NOT_VE, ulLagPortId, pstLagData->lag_mac);
+                }
+#endif
+
+                //把bfd使能标志传给aps模块
+                stApsPortLagInfo.bfdEnable = pstLagData->bfd_flag;
+
+                /* 保存数据 */
+                if (pstLag->lag_cfg_cb == NULL)
+                {
+                    pstLag->lag_cfg_cb = (ATG_DCI_LINK_AGGR_LAG_CONF*)NBB_MM_ALLOC(sizeof(ATG_DCI_LINK_AGGR_LAG_CONF),
+                                                            NBB_NORETRY_ACT,
+                                                            MEM_SPM_LAG_CONF_CB);
+
+                    if(pstLag->lag_cfg_cb == NULL)
+                    {
+                        OS_PRINTF("	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+    	
+            			OS_SPRINTF(ucMessage, "	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+            			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                        goto EXIT_LABEL;
+            			
+                    }
+                }
+
+                if(NULL != pstLag->lag_cfg_cb)
+                {
+                    OS_MEMCPY(pstLag->lag_cfg_cb, pstLagData, sizeof(ATG_DCI_LINK_AGGR_LAG_CONF));
+                }
+            }
+
+        }
+        else if (ulOperLag == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperLag == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }
+
+        /******************************** 成员端口配置 *********************************/
+        if (ulOperPort == ATG_DCI_OPER_UPDATE)
+        {
+            if (lag_cfg_print_setting == SPM_PRINT_CFG)
+            {
+                printf("  3）成员端口配置(num = %d) UPD\n", pstSetLinkAggr->member_port_num);
+            }
+
+            OS_SPRINTF(ucMessage,"  3）成员端口配置(num = %d) UPD\n", pstSetLinkAggr->member_port_num);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+
+            //如果lag成员分个数为0，直接刷新aps表项，不需要调用c3dellag的接口
+			//防止重复调用c3接口出错
+			if (pstSetLinkAggr->member_port_num == 0)
+			{
+				
+				stApsPortLagInfo.portNum = 0;
+				aps_update_lag_port_info(ulLagIdKey, &stApsPortLagInfo);
+
+                //先清空原有配置，释放掉内存空间
+                for (i = 0; i < ATG_DCI_LAG_MEMBER_PORT_NUM; i++)
+                {
+                    if (pstLag->port_cfg_cb[i] != NULL)
+                    {
+                        NBB_MM_FREE(pstLag->port_cfg_cb[i], MEM_SPM_LAG_PORT_CB);
+                        pstLag->port_cfg_cb[i] = NULL;
+                    }
+                }
+
+                pstLag->port_num = 0;
+                pstLag->lag_slot_id = 0;
+                pstLag->lag_port_id = 0;
+                pstLag->if_lag_exist = UNEXIST;
+			}
+			else
+		    {	                
+	            /* 计算第一个entry的地址。*/
+	            pucPortDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetLinkAggr, &pstSetLinkAggr->member_port);    
+
+	            /* 如果指针为NULL，无数据 */
+	            if (pucPortDataStart == NULL)
+	            {
+	                //NBB_TRC_FLOW((NBB_FORMAT "  pucPortDataStart is NULL."));  
+	                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+	            }
+	            else
+				{
+
+	                //如果为手工负载分担，不考虑lacp协商状态
+	                if ((pstLag->lag_cfg_cb != NULL) && (pstLag->lag_cfg_cb->mode == ATG_DCI_MANUAL_LOADBALANCE))
+	                {
+	                    for (i = 0; i < pstSetLinkAggr->member_port_num; i++)
+	                    {
+	                        pstPortData[i] = (ATG_DCI_LINK_AGGR_MEMBER_PORT *)(pucPortDataStart 
+                                + (NBB_ALIGN_OFFSET(sizeof(ATG_DCI_LINK_AGGR_MEMBER_PORT))) * i); 
+
+	                        NBB_TRC_DETAIL((NBB_FORMAT "  成员端口[%d]: PORT_INDEX=%ld 协商结果=%s", i + 1,
+	                                                                       pstPortData[i]->port_index, 
+	                                                                       pstPortData[i]->port_consult ? "成功" : "不成功"));
+
+	                        if (lag_cfg_print_setting == SPM_PRINT_CFG)
+	                        {
+	                            spm_dbg_print_lag_port_cfg(pstPortData[i]);
+	                        }
+
+	                        //spm_dbg_record_lag_port_cfg(pstPortData[i]);
+	                        
+	                        //获取槽位和端口信息
+	                        spm_get_portid_from_logical_port_index(pstPortData[i]->port_index, &stPortInfo NBB_CCXT);
+
+	                        usSlotPort = ((stPortInfo.slot_id & 0xffff) << 8) + stPortInfo.port_id;
+
+	                        NBB_TRC_DETAIL((NBB_FORMAT "  LAG_ID=%ld, ucSlotId=%d usPortId=%d, usSlotPort=%d", 
+                                ulLagIdKey, 
+	                            stPortInfo.slot_id,stPortInfo.port_id,usSlotPort));
+	                        
+	                        stTrunk.cfgSlotPort[i] = usSlotPort;
+	                        
+							//刷新回调函数端口表配置
+							stApsPortLagInfo.lagPort[i].slot = stPortInfo.slot_id;
+							stApsPortLagInfo.lagPort[i].portId = stPortInfo.port_id;
+                            stApsPortLagInfo.lagPort[i].cardId = stPortInfo.card_id;
+                            stApsPortLagInfo.lagPort[i].portIndex = pstPortData[i]->port_index;
+	                    }
+
+	                    //执行配置
+	                    stTrunk.lagId = ulLagIdKey;
+	                    stTrunk.cfgMemberPortNum = pstSetLinkAggr->member_port_num;
+
+						//刷新回调函数端口表数目
+	                    stApsPortLagInfo.portNum = pstSetLinkAggr->member_port_num;
+                        stApsPortLagInfo.lagType = pstLag->lag_cfg_cb->mode;
+	                }
+                    
+	                //如果为LACP静态负载分担，所有端口传给驱动，只有成功的端口传给APS
+	                else if ((pstLag->lag_cfg_cb != NULL) && (pstLag->lag_cfg_cb->mode == ATG_DCI_LACP_STATIC_LOADBALANCE))
+	                {
+	                    ulLagConsultPortNum = 0;
+	                    
+	                    for (i = 0; i<pstSetLinkAggr->member_port_num; i++)
+	                    {
+	                        pstPortData[i] = (ATG_DCI_LINK_AGGR_MEMBER_PORT *)(pucPortDataStart 
+                                + (NBB_ALIGN_OFFSET(sizeof(ATG_DCI_LINK_AGGR_MEMBER_PORT))) * i); 
+
+	                        if (lag_cfg_print_setting == SPM_PRINT_CFG)
+	                        {
+	                            spm_dbg_print_lag_port_cfg(pstPortData[i]);
+	                        }
+
+	                        //spm_dbg_record_lag_port_cfg(pstPortData[i]);
+
+                            //获取槽位和端口信息
+                            spm_get_portid_from_logical_port_index(pstPortData[i]->port_index, &stPortInfo NBB_CCXT);
+
+                            usSlotPort = ((stPortInfo.slot_id & 0xffff) << 8) + stPortInfo.port_id;
+                            stTrunk.cfgSlotPort[i] = usSlotPort;
+
+	                        //协商成功
+	                        if (pstPortData[i]->port_consult == 1)
+	                        {
+								//刷新回调函数端口表配置
+								stApsPortLagInfo.lagPort[ulLagConsultPortNum].slot = stPortInfo.slot_id;
+								stApsPortLagInfo.lagPort[ulLagConsultPortNum].portId = stPortInfo.port_id;
+                                stApsPortLagInfo.lagPort[ulLagConsultPortNum].cardId = stPortInfo.card_id;
+                                stApsPortLagInfo.lagPort[ulLagConsultPortNum].portIndex = pstPortData[i]->port_index;
+	                            ulLagConsultPortNum++;
+	                        } 
+	                    }
+
+	                    //执行配置
+	                    stTrunk.lagId = ulLagIdKey;
+	                    stTrunk.cfgMemberPortNum = pstSetLinkAggr->member_port_num;
+
+						//刷新回调函数端口表数目
+	                    stApsPortLagInfo.portNum = ulLagConsultPortNum;
+                        stApsPortLagInfo.lagType = pstLag->lag_cfg_cb->mode;
+	                }
+	                else
+	                {
+	                    pstSetLinkAggr->port_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+	                    
+	                    OS_PRINTF("***ERROR***:进入负载分担配置模式，但实际模式配置的为非负载分担，退出!\n");
+
+	                    OS_SPRINTF(ucMessage, "***ERROR***:进入负载分担配置模式，但实际模式配置的为非负载分担，退出!\n");
+	                    BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+	                    NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey, 
+                            BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+	                    
+	                    goto EXIT_LABEL;
+	                }
+
+	                //如果为成员端口配置不为空，为更新，更新相应表项
+	                if (pstLag->lag_cfg_cb != NULL)
+	                {
+	                    //分担算法
+	                	switch (pstLag->lag_cfg_cb->load_sharing_algorithm)
+	                	{
+	                		case ATG_DCI_BASE_BOTH_MAC:
+	                            stTrunk.alg = LAG_HASH_DSMAC;
+	                			break;
+	                		case ATG_DCI_BASE_BOTH_IP:
+	                            stTrunk.alg = LAG_HASH_DSIP;
+	                			break;
+	                		case ATG_DCI_BASE_PACKET:
+	                            stTrunk.alg = LAG_PORT_ROUND_ROBIN;
+	                			break;
+	                		default:
+	                			break;
+	                	}
+
+						//如果有效成员端口数为0，直接更新APS模块表项
+		                if ((pstLag->lag_cfg_cb->mode == ATG_DCI_LACP_STATIC_LOADBALANCE) 
+		                 && (ulLagConsultPortNum == 0))
+		                {
+							stApsPortLagInfo.portNum = 0;
+							aps_update_lag_port_info(ulLagIdKey, &stApsPortLagInfo);
+			               
+		                    //先清空原有配置，释放掉内存空间
+		                    for (i = 0; i<ATG_DCI_LAG_MEMBER_PORT_NUM; i++)
+		                    {
+		                        if (pstLag->port_cfg_cb[i] != NULL)
+		                        {
+		                            NBB_MM_FREE(pstLag->port_cfg_cb[i], MEM_SPM_LAG_PORT_CB);
+		                            pstLag->port_cfg_cb[i] = NULL;                            
+		                        }
+		                    }
+
+		                    //再存储新的配置
+		                    for (i = 0; i<pstSetLinkAggr->member_port_num; i++)
+		                    {
+		                        if (pstLag->port_cfg_cb[i] == NULL)
+		                        {
+		                            pstLag->port_cfg_cb[i] = (ATG_DCI_LINK_AGGR_MEMBER_PORT *)NBB_MM_ALLOC(
+                                        sizeof(ATG_DCI_LINK_AGGR_MEMBER_PORT),
+                                        NBB_NORETRY_ACT,
+                                        MEM_SPM_LAG_PORT_CB);
+
+                                    if (pstLag->port_cfg_cb[i] == NULL)
+                                    {
+                                        OS_PRINTF("	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+                    	
+                            			OS_SPRINTF(ucMessage, "	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+                            			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                                        goto EXIT_LABEL;
+                            			
+                                    }
+		                        }
+		                        
+		                        OS_MEMCPY(pstLag->port_cfg_cb[i], pstPortData[i], sizeof(ATG_DCI_LINK_AGGR_MEMBER_PORT));
+								pstLag->port_num = pstSetLinkAggr->member_port_num;
+		                    }
+                            
+		                    pstLag->lag_port_id = 0;
+		                    pstLag->lag_slot_id = 0;
+		                }
+
+                        //如果有效成员数目不为0，调用驱动并更新APS表项
+                        
+		                else
+		                {
+#ifdef SPU
+			                for (ucC3Unit = 0; ucC3Unit<SHARED.c3_num; ucC3Unit++)
+			                {
+			                    ret += ApiC3SetLag(ucC3Unit, &stTrunk);
+			                }
+#endif
+			                //成功，保存数据，因为现在lag端口是全量下发，直接刷新端口
+			                if (ret == SUCCESS)
+			                {
+			                    //先清空原有配置，释放掉内存空间
+			                    for (i = 0; i<ATG_DCI_LAG_MEMBER_PORT_NUM; i++)
+			                    {
+			                        if (pstLag->port_cfg_cb[i] != NULL)
+			                        {
+			                            NBB_MM_FREE(pstLag->port_cfg_cb[i], MEM_SPM_LAG_PORT_CB);
+			                            pstLag->port_cfg_cb[i] = NULL;                            
+			                        }
+			                    }
+
+			                    //再存储新的配置
+			                    for (i = 0; i<pstSetLinkAggr->member_port_num; i++)
+			                    {
+
+			                        if (pstLag->port_cfg_cb[i] == NULL)
+			                        {
+			                            pstLag->port_cfg_cb[i] = (ATG_DCI_LINK_AGGR_MEMBER_PORT *)NBB_MM_ALLOC(
+                                            sizeof(ATG_DCI_LINK_AGGR_MEMBER_PORT),
+			                                NBB_NORETRY_ACT,
+			                                MEM_SPM_LAG_PORT_CB);
+
+                                        if (pstLag->port_cfg_cb[i] == NULL)
+                                        {
+                                            OS_PRINTF("	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+                        	
+                                			OS_SPRINTF(ucMessage, "	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+                                			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                                            goto EXIT_LABEL;
+                                			
+                                        }
+			                        }
+			                        
+			                        OS_MEMCPY(pstLag->port_cfg_cb[i], pstPortData[i], sizeof(ATG_DCI_LINK_AGGR_MEMBER_PORT));
+									pstLag->port_num = pstSetLinkAggr->member_port_num;
+			                    }
+#ifdef SPU
+				                for (ucC3Unit = 0; ucC3Unit<SHARED.c3_num; ucC3Unit++)
+				                {
+				                    ApiC3SetPortMac(ucC3Unit, ATG_DCI_IS_NOT_VE, ulLagPortId, pstLag->lag_cfg_cb->lag_mac);
+				                }
+#endif                    
+
+			                    spm_get_lag_min_slot_port(ulLagIdKey, &ucLagSlotCur, &usLagPortCur NBB_CCXT);
+			                    pstLag->lag_port_id = usLagPortCur;
+			                    pstLag->lag_slot_id = ucLagSlotCur;
+			                    pstLag->if_lag_exist = EXIST;
+
+								aps_update_lag_port_info(ulLagIdKey, &stApsPortLagInfo);
+                             }
+
+                             else
+                             {
+                                pstSetLinkAggr->port_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+        	                    ret = ERROR;
+        	                    
+        	                    OS_PRINTF("***ERROR***: (%s:%d)LAG_ID=%ld, 成员端口配置失配ApiC3SetLag(),ret=%d!\n",
+                                    __FILE__,__LINE__,ulLagIdKey,ret);
+
+        	                    OS_SPRINTF(ucMessage, "***ERROR***: (%s:%d)LAG_ID=%ld, 成员端口配置失配ApiC3SetLag(),ret=%d!\n",
+                                    __FILE__,__LINE__,ulLagIdKey,ret);
+        	                    BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        	                    NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey, 
+                                    BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+                             }
+                     
+		                }
+	                }
+	                else
+	                {
+	                    pstSetLinkAggr->port_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+	                    ret = ERROR;
+	                    
+	                    OS_PRINTF("***ERROR***: LAG_ID=%ld, 成员端口配置失配，LAG配置无法获取!\n", ulLagIdKey);
+
+	                    OS_SPRINTF(ucMessage, "***ERROR***: LAG_ID=%ld, 成员端口配置失配，LAG配置无法获取!\n", ulLagIdKey);
+	                    BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+	                    NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey, 
+                            BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+	                }
+	            }
+			} 
+        }
+        else if (ulOperPort == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperPort == ATG_DCI_OPER_ADD)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }
+
+        /******************************** 非负载分担成员端口配置 *********************************/
+        if (ulOperNlbPort == ATG_DCI_OPER_ADD)
+        {
+
+            /* 计算第一个entry的地址。*/
+            pucNlbPortDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetLinkAggr, 
+                                                                     &pstSetLinkAggr->nlb_member_port);    
+
+            /* 首地址为NULL，异常 */
+            if (pucNlbPortDataStart == NULL)
+            {
+                //NBB_TRC_FLOW((NBB_FORMAT "  LAG pucNlbPortDataStart is NULL.")); 
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstNlbPortData = (ATG_DCI_LAG_NLB_MEMBER_PORT*)pucNlbPortDataStart;
+
+                if (lag_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  4）非负载分担成员端口配置\n");
+                    spm_dbg_print_lag_nlb_port_cfg(pstNlbPortData);
+                }
+
+                OS_SPRINTF(ucMessage,"  4）非负载分担成员端口配置\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                
+                //spm_dbg_record_lag_nlb_port_cfg(pstNlbPortData);
+
+                NBB_TRC_DETAIL((NBB_FORMAT "  返回模式 = %d", pstNlbPortData->ret_mode));
+                NBB_TRC_DETAIL((NBB_FORMAT "  主成员端口PORT_INDEX=%ld 协商结果=%s", 
+                    pstNlbPortData->master_port_index, 
+                    pstNlbPortData->master_port_consult ? "成功" : "不成功"));
+                
+                NBB_TRC_DETAIL((NBB_FORMAT "  从成员端口PORT_INDEX=%ld 协商结果=%s", 
+                    pstNlbPortData->slave_port_index,
+                    pstNlbPortData->slave_port_consult ? "成功" : "不成功"));
+                
+                NBB_TRC_DETAIL((NBB_FORMAT "  等待恢复时间(分钟) = %d", 
+                    pstNlbPortData->restoration_time));
+
+
+                /* 配置处理，todo */
+                //如果为手工非负载分担，不考虑lacp协商状态
+	            if ((pstLag->lag_cfg_cb != NULL) && (pstLag->lag_cfg_cb->mode == ATG_DCI_MANUAL_NONE_LOADBALANCE))
+	            {
+	                stApsPortLagInfo.lagType = 4;
+                    stApsPortLagInfo.retType = pstNlbPortData->ret_mode;
+                    stApsPortLagInfo.wtrTime = pstNlbPortData->restoration_time;
+                    
+	            	//主成员端口, 获取槽位和端口信息
+	            	if (pstNlbPortData->master_port_index != 0)
+	            	{ 
+	                    spm_get_portid_from_logical_port_index(pstNlbPortData->master_port_index, &stPortInfo NBB_CCXT);
+                        stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].slot = stPortInfo.slot_id;
+			   stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].cardId = stPortInfo.card_id;
+                        stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].portId = stPortInfo.port_id;
+                        stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].portIndex 
+                            = pstNlbPortData->master_port_index;
+                        
+                        stApsPortLagInfo.portNum++;
+                        
+                        usSlotPort = ((stPortInfo.slot_id & 0xffff) << 8) + stPortInfo.port_id;
+    
+                        NBB_TRC_DETAIL((NBB_FORMAT "  LAG_ID=%ld, ucSlotId=%d usPortId=%d, usSlotPort=%d", 
+                            ulLagIdKey,stPortInfo.slot_id,stPortInfo.port_id,usSlotPort));
+
+                        stTrunk.curSlotPort[stTrunk.curMemberPortNum] = usSlotPort;
+                        stTrunk.cfgSlotPort[stTrunk.cfgMemberPortNum] = usSlotPort;
+                        stTrunk.cfgMemberPortNum++;
+                        stTrunk.curMemberPortNum++;
+                        
+	            	}	            	
+	            	if (pstNlbPortData->slave_port_index != 0)	//从成员端口, 获取槽位和端口信息
+	            	{
+	            	    OS_MEMSET(&stPortInfo,0,sizeof(SPM_PORT_INFO_CB));
+	                    spm_get_portid_from_logical_port_index(pstNlbPortData->slave_port_index, &stPortInfo NBB_CCXT);
+                        stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].slot = stPortInfo.slot_id;
+			   stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].cardId = stPortInfo.card_id;
+                        stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].portId = stPortInfo.port_id;
+                        stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].portIndex = pstNlbPortData->slave_port_index;
+                        stApsPortLagInfo.portNum++;
+                        
+                        usSlotPort = ((stPortInfo.slot_id & 0xffff) << 8) + stPortInfo.port_id;
+    
+                        NBB_TRC_DETAIL((NBB_FORMAT "  LAG_ID=%ld, ucSlotId=%d usPortId=%d, usSlotPort=%d", 
+                            ulLagIdKey,stPortInfo.slot_id,stPortInfo.port_id,usSlotPort));
+                        
+                        stTrunk.cfgSlotPort[stTrunk.cfgMemberPortNum] = usSlotPort;
+
+                        if(0 == stTrunk.curMemberPortNum)
+                        {
+                            stTrunk.curSlotPort[stTrunk.curMemberPortNum] = usSlotPort;
+                            stTrunk.curMemberPortNum++;
+                        }
+                        stTrunk.cfgMemberPortNum++;
+                        
+	            	}
+
+                    stTrunk.lagId = ulLagIdKey;
+                    if (0 == stTrunk.curMemberPortNum)
+                    {
+                        //刷新回调函数表
+                        stApsPortLagInfo.portNum = 0;
+                    }
+                     else
+                     {
+                     
+                         //执行配置
+                         stTrunk.lagId = ulLagIdKey;
+                         #ifdef SPU	
+                         for (ucC3Unit = 0; ucC3Unit<SHARED.c3_num; ucC3Unit++)
+                         { 
+                             ret += ApiC3SetLag(ucC3Unit, &stTrunk);
+                         }
+
+                         if(SUCCESS != ret)
+                         {
+                             pstSetLinkAggr->nlb_port_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+   
+                             OS_PRINTF("***ERROR***:(%s:%d) LAG_ID=%ld, ApiC3SetLag() ret=%d\n", 
+                                 __FILE__,__LINE__,ulLagIdKey, ret);
+   
+                             OS_SPRINTF(ucMessage, "***ERROR***:(%s:%d) LAG_ID=%ld, ApiC3SetLag() ret=%d\n", 
+                                 __FILE__,__LINE__,ulLagIdKey, ret);
+                             BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+ 
+                             goto EXIT_LABEL;
+                         }
+                         
+                         pstLag->ifLagConfiged = 1;//设置为已配置
+                         
+                         #endif
+                         
+ 	                }
+
+                    aps_update_lag_port_info(ulLagIdKey, &stApsPortLagInfo);
+	            }
+                
+	            //如果为LACP静态非负载分担，要考虑lacp协商状态
+	            else if ((pstLag->lag_cfg_cb != NULL) && (pstLag->lag_cfg_cb->mode == ATG_DCI_LACP_STATIC_NONE_LOADBALANCE))
+ 	            {
+ 	                 //根据刘涛要求，传协商状态
+ 	                 stApsPortLagInfo.lagType = 3;
+                     stApsPortLagInfo.retType = pstNlbPortData->ret_mode;
+                     stApsPortLagInfo.wtrTime = pstNlbPortData->restoration_time;
+                     
+ 	            	//主成员端口, 获取槽位和端口信息
+ 	            	if(pstNlbPortData->master_port_index != 0)
+ 	            	{
+ 	                    spm_get_portid_from_logical_port_index(pstNlbPortData->master_port_index, &stPortInfo NBB_CCXT);
+                         
+                         stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].slot = stPortInfo.slot_id;
+                         stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].portId = stPortInfo.port_id;
+                         stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].cardId = stPortInfo.card_id;
+                         stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].lacpState 
+                            = pstNlbPortData->master_port_consult;
+                         
+                         stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].portIndex 
+                            = pstNlbPortData->master_port_index;
+                         
+                         stApsPortLagInfo.portNum++;
+                         
+                         usSlotPort = ((stPortInfo.slot_id & 0xffff) << 8) + stPortInfo.port_id;
+                         
+                         stTrunk.cfgSlotPort[stTrunk.cfgMemberPortNum] = usSlotPort;
+                         stTrunk.cfgMemberPortNum++;
+                         
+                         stTrunk.curSlotPort[stTrunk.curMemberPortNum] = usSlotPort;
+                         stTrunk.curMemberPortNum++;
+                         
+ 	            	}	            	
+ 	            	if (pstNlbPortData->slave_port_index != 0)	//从成员端口, 获取槽位和端口信息
+ 	            	{
+ 	            	    OS_MEMSET(&stPortInfo,0,sizeof(SPM_PORT_INFO_CB));
+ 	                    spm_get_portid_from_logical_port_index(pstNlbPortData->slave_port_index,
+                            &stPortInfo NBB_CCXT);
+ 	                    
+                         stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].slot = stPortInfo.slot_id;
+                         stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].portId = stPortInfo.port_id;
+                         stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].cardId = stPortInfo.card_id;
+                         stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].lacpState 
+                            = pstNlbPortData->slave_port_consult;
+                         
+                         stApsPortLagInfo.lagPort[stApsPortLagInfo.portNum].portIndex 
+                            = pstNlbPortData->slave_port_index;
+                         
+                         stApsPortLagInfo.portNum++;
+ 
+                         usSlotPort = ((stPortInfo.slot_id & 0xffff) << 8) + stPortInfo.port_id;
+     
+                         NBB_TRC_DETAIL((NBB_FORMAT "  LAG_ID=%ld, ucSlotId=%d usPortId=%d, usSlotPort=%d", 
+                            ulLagIdKey,stPortInfo.slot_id,stPortInfo.port_id,usSlotPort));
+                         
+                         stTrunk.cfgSlotPort[stTrunk.cfgMemberPortNum] = usSlotPort;
+                         stTrunk.cfgMemberPortNum++;
+ 
+                         if(0 == stTrunk.curMemberPortNum)
+                         {
+                             stTrunk.curSlotPort[stTrunk.curMemberPortNum] = usSlotPort;
+                             stTrunk.curMemberPortNum++;
+                         }
+                         
+ 	            	}
+                     
+                    
+     
+                     //如果端口和槽位均为0，说明没有端口需要聚合
+                     if (0 == stTrunk.curMemberPortNum)
+                     {
+                         //刷新回调函数表
+                         stApsPortLagInfo.portNum = 0;
+                         pstLag->ifLagConfiged = 0;//设置为未配置
+                     }
+                     else
+                     {
+                     
+                         //执行配置
+                         stTrunk.lagId = ulLagIdKey;
+                         #ifdef SPU	
+
+                         //只有配置为新增或者端口信息有变化时才调用驱动
+                         if(!((NULL != pstLag->nlb_port_cfg_cb)
+                            && (pstNlbPortData->master_port_index == pstLag->nlb_port_cfg_cb->master_port_index)
+                            && (pstNlbPortData->slave_port_index == pstLag->nlb_port_cfg_cb->slave_port_index)))
+                         {
+                             for (ucC3Unit = 0; ucC3Unit<SHARED.c3_num; ucC3Unit++)
+                             {
+                                 if_lag_changed = 1;
+                                 ret += ApiC3SetLag(ucC3Unit, &stTrunk);
+                             }
+
+                             if(SUCCESS != ret)
+                             {
+                                 pstSetLinkAggr->port_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+       
+                                 OS_PRINTF("***ERROR***:(%s:%d) LAG_ID=%ld, ApiC3SetLag() ret=%d\n", 
+                                     __FILE__,__LINE__,ulLagIdKey, ret);
+       
+                                 OS_SPRINTF(ucMessage, "***ERROR***:(%s:%d) LAG_ID=%ld, ApiC3SetLag() ret=%d\n", 
+                                     __FILE__,__LINE__,ulLagIdKey, ret);
+                                 BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+ 
+                                 goto EXIT_LABEL;
+                             }
+                             pstLag->ifLagConfiged = 1;//设置为已配置
+                         }
+                         
+                         #endif
+ 	                }
+                }
+	            else
+	            {
+                    pstSetLinkAggr->nlb_port_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    
+                    OS_PRINTF("***ERROR***:进入非负载分担配置模式，但实际模式配置的为负载分担，退出!\n");
+
+                    OS_SPRINTF(ucMessage, "***ERROR***:进入非负载分担配置模式，但实际模式配置的为负载分担，退出!\n");
+                    BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                    NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey,
+                        BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+                    
+                    goto EXIT_LABEL;
+	            }
+
+
+
+			    if (pstLag->lag_cfg_cb != NULL)
+				{
+#ifdef SPU
+	        		for (ucC3Unit = 0; ucC3Unit<SHARED.c3_num; ucC3Unit++)
+	                {
+	                    ApiC3SetPortMac(ucC3Unit, ATG_DCI_IS_NOT_VE, ulLagPortId, pstLag->lag_cfg_cb->lag_mac);//to do
+	                }
+#endif
+				}
+				else
+				{
+                    pstSetLinkAggr->nlb_port_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    OS_PRINTF("***ERROR***: LAG_ID=%ld, 成员端口配置失配，LAG配置无法获取!\n", ulLagIdKey);
+
+                    OS_SPRINTF(ucMessage, "***ERROR***: LAG_ID=%ld, 成员端口配置失配，LAG配置无法获取!\n", ulLagIdKey);
+                    BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                    NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", 
+                        ulLagIdKey, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+                }
+
+                if (ret == SUCCESS)
+                {
+	                /* 保存数据 */
+	                if (pstLag->nlb_port_cfg_cb == NULL)
+	                {
+	                    pstLag->nlb_port_cfg_cb = (ATG_DCI_LAG_NLB_MEMBER_PORT*)NBB_MM_ALLOC(
+                            sizeof(ATG_DCI_LAG_NLB_MEMBER_PORT),
+	                        NBB_NORETRY_ACT,
+	                        MEM_SPM_LAG_NLB_PORT_CB);
+                        
+                        if (pstLag->nlb_port_cfg_cb == NULL)
+                        {
+                            OS_PRINTF("	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+        	
+                			OS_SPRINTF(ucMessage, "	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+                			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                            goto EXIT_LABEL;
+                			
+                        }
+
+                        
+	                }                
+
+                    if(NULL != pstLag->nlb_port_cfg_cb)
+                    {
+                        OS_MEMCPY(pstLag->nlb_port_cfg_cb, pstNlbPortData, sizeof(ATG_DCI_LAG_NLB_MEMBER_PORT));
+                    }
+                    
+                    //刷新回调函数表
+                    //每次的配置都传给APS模块，由aps模块内部判断配置是是否变化及是否需要调用驱动
+                    
+                    #ifdef SPU
+                    ret = aps_update_lag_port_info(ulLagIdKey, &stApsPortLagInfo);
+
+                     if(SUCCESS != ret)
+                     {
+                         OS_PRINTF("***ERROR***:(%s:%d) LAG_ID=%ld, aps_update_lag_port_info() ret=%d\n", 
+                             __FILE__,__LINE__,ulLagIdKey, ret);
+
+                         OS_SPRINTF(ucMessage, "***ERROR***:(%s:%d) LAG_ID=%ld, aps_update_lag_port_info() ret=%d\n", 
+                             __FILE__,__LINE__,ulLagIdKey, ret);
+                         BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                     }
+                    
+                    #endif
+
+                    //写驱动返回值
+                    pstLag->port_num = stTrunk.cfgMemberPortNum;
+                    spm_get_lag_min_slot_port(ulLagIdKey, &ucLagSlotCur, &usLagPortCur NBB_CCXT);
+                    pstLag->lag_port_id = usLagPortCur;
+                    pstLag->lag_slot_id = ucLagSlotCur;
+                    pstLag->if_lag_exist = EXIST;
+
+                    //增加告警注册
+                    if((pstLag->lag_slot_id == SHARED.local_slot_id)
+                        && ((ATG_DCI_MANUAL_NONE_LOADBALANCE == pstLag->lag_cfg_cb->mode)
+                        || (ATG_DCI_LACP_STATIC_NONE_LOADBALANCE == pstLag->lag_cfg_cb->mode)))
+                    {
+                        #ifdef SPU
+						
+                        //spm_add_lag_alarm(ulLagIdKey);
+                        #endif 
+                    }
+                }
+                else
+                {
+                    pstSetLinkAggr->nlb_port_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+                    OS_PRINTF("***ERROR***: LAG_ID=%ld, ApiC3SetLag() ret=%d\n", ulLagIdKey, ret);
+
+                    OS_SPRINTF(ucMessage, "***ERROR***: LAG_ID=%ld, ApiC3SetLag() ret=%d\n", ulLagIdKey, ret);
+                    BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                    NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey, 
+                        CALL_C3_FUNC_ERROR, "CALL_C3_FUNC_ERROR", ucMessage));
+
+                    NBB_TRC_DETAIL((NBB_FORMAT "  ApiC3SetLag() ret=%d", ret));
+                }
+            }
+        }
+        else if (ulOperLag == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperLag == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }
+
+/******************************** IPV4流采样使能配置IPV4 NetFlow ********************************/
+        if (ulOperIpv4Nf == ATG_DCI_OPER_ADD)
+        {
+
+            /* 计算第一个entry的地址。*/
+            pucIpv4NfDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetLinkAggr, 
+                                                                  &pstSetLinkAggr->ipv4nf_data);    
+
+            /* 首地址为NULL，异常 */
+            if (pucIpv4NfDataStart == NULL)
+            {
+                //NBB_TRC_FLOW((NBB_FORMAT "  pucIpv4NfDataStart is NULL."));  
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstIpv4NfData = (ATG_DCI_LAG_IPV4NF_DATA*)pucIpv4NfDataStart; 
+
+                
+                if (lag_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  5）ipv4流采样使能配置\n");
+                    spm_dbg_print_lag_ipv4_nf_data(pstIpv4NfData);
+                }
+
+                OS_SPRINTF(ucMessage,"  5）ipv4流采样使能配置\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                
+                //spm_dbg_record_lag_ipv4_nf_data(pstIpv4NfData);
+
+                NBB_TRC_DETAIL((NBB_FORMAT "  ingress_falg = %d", pstIpv4NfData->ingress_flag));
+                NBB_TRC_DETAIL((NBB_FORMAT "  engress_falg = %d", pstIpv4NfData->engress_flag));
+
+#ifdef SPU
+
+                /* 配置处理，每个槽位都建 */                
+                if (pstLag != NULL)
+                {
+                    stSubPort.port = ulLagIdKey + ATG_DCI_LAG_OFFSET;
+                    stSubPort.slot = 0;
+                    stSubPort.unit = 0;
+
+                    ret = spm_set_lag_ipv4_nf_enable(&stSubPort, pstIpv4NfData);
+
+                    if(ret != SUCCESS)
+                    {  
+                        OS_PRINTF("***ERROR***:spm_set_lag_ipv4_nf_enable(),ret = %d!\n", ret);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***:spm_set_lag_ipv4_nf_enable(),ret = %d!\n", ret);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", 
+                            ulLagIdKey, CALL_FUNC_ERROR, "CALL_FUNC_ERROR", ucMessage));
+                        
+                        pstSetLinkAggr->ipv4nf_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        
+                    }
+
+                    else
+                    {
+
+                        /* 保存数据 */
+                        if (pstLag->ipv4_nf_data == NULL)
+                        {
+                            pstLag->ipv4_nf_data = (ATG_DCI_LAG_IPV4NF_DATA*)NBB_MM_ALLOC(
+                                sizeof(ATG_DCI_LAG_IPV4NF_DATA),
+                                NBB_NORETRY_ACT,
+                                MEM_SPM_LAG_IPV4_NF_CB);
+                            
+                            if (pstLag->ipv4_nf_data == NULL)
+                            {
+                                OS_PRINTF("	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+            	
+                    			OS_SPRINTF(ucMessage, "	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+                    			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                                goto EXIT_LABEL;
+                    			
+                            }
+                            if (pstLag->ipv4_nf_data == NULL)
+                    		{
+                    			pstSetLinkAggr->ipv4nf_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    			
+                    			OS_PRINTF("	***ERROR***:要增加的lagid=%ld 的lag配置的ipv4流采样使能未能成功申请内存!\n", ulLagIdKey);
+                    	
+                    			OS_SPRINTF(ucMessage, "	***ERROR***:要增加的lagid=%ld 的lag配置的ipv4流采样使能未能成功申请内存!\n", ulLagIdKey);
+                    			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                    	
+                    			NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey, 
+                                    ALLOC_MEMORY_ERROR, "ALLOC_MEMORY_ERROR", ucMessage));
+
+                    		}
+                        }  
+                        
+                        if(pstLag->ipv4_nf_data != NULL)
+                        {
+                            
+                            OS_MEMCPY(pstLag->ipv4_nf_data, pstIpv4NfData, sizeof(ATG_DCI_PHY_PORT_IPV4NF_DATA));
+                        }
+                    }
+                }      
+#endif       
+            }
+        }
+        else if (ulOperIpv4Nf == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperIpv4Nf == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }
+
+/******************************** IPV6流采样使能配置IPV6 NetFlow ********************************/
+        if (ulOperIpv6Nf == ATG_DCI_OPER_ADD)
+        {
+
+            /* 计算第一个entry的地址。*/
+            pucIpv6NfDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetLinkAggr, 
+                                                                  &pstSetLinkAggr->ipv6nf_data);    
+
+            /* 首地址为NULL，异常 */
+            if (pucIpv6NfDataStart == NULL)
+            {
+                //NBB_TRC_FLOW((NBB_FORMAT "  pucIpv6NfDataStart is NULL."));  
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstIpv6NfData = (ATG_DCI_LAG_IPV6NF_DATA*)pucIpv6NfDataStart;   
+
+                if (lag_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  7）ipv4流采样使能配置\n");
+                    spm_dbg_print_lag_ipv6_nf_data(pstIpv6NfData);
+                }
+
+                OS_SPRINTF(ucMessage,"  7）ipv4流采样使能配置\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                
+                //spm_dbg_record_lag_ipv6_nf_data(pstIpv6NfData);
+
+                NBB_TRC_DETAIL((NBB_FORMAT "  ingress_falg = %d", pstIpv6NfData->ingress_flag));
+                NBB_TRC_DETAIL((NBB_FORMAT "  engress_falg = %d", pstIpv6NfData->engress_flag));
+
+#ifdef SPU
+
+                /* 配置处理，每个槽位都建 */                
+                if (pstLag != NULL)
+                {
+                    
+                    stSubPort.port = ulLagIdKey + ATG_DCI_LAG_OFFSET;
+                    stSubPort.slot = 0;
+                    stSubPort.unit = 0;
+
+                    ret = spm_set_lag_ipv6_nf_enable(&stSubPort, pstIpv6NfData);
+                    
+                    if(ret != SUCCESS)
+                    {  
+                        OS_PRINTF("***ERROR***:spm_set_lag_ipv6_nf_enable(),ret = %d!\n", ret);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***:spm_set_lag_ipv6_nf_enable(),ret = %d!\n", ret);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey, 
+                            CALL_FUNC_ERROR, "CALL_FUNC_ERROR", ucMessage));
+                        
+                        pstSetLinkAggr->ipv6nf_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        
+                    }
+
+                    else
+                    {
+                    
+                        /* 保存数据 */
+                        if (pstLag->ipv6_nf_data == NULL)
+                        {
+                            pstLag->ipv6_nf_data = (ATG_DCI_LAG_IPV6NF_DATA*)NBB_MM_ALLOC(
+                                sizeof(ATG_DCI_LAG_IPV6NF_DATA),
+                                NBB_NORETRY_ACT,
+                                MEM_SPM_LAG_IPV6_NF_CB);
+
+                            if (pstLag->ipv6_nf_data == NULL)
+                            {
+                                OS_PRINTF("	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+            	
+                    			OS_SPRINTF(ucMessage, "	***ERROR***:(%s:%d)malloc failed!\n", __FILE__,__LINE__);
+                    			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                                goto EXIT_LABEL;
+                    			
+                            }
+                            if (pstLag->ipv6_nf_data == NULL)
+                    		{
+                    			pstSetLinkAggr->ipv6nf_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    			
+                    			OS_PRINTF("	***ERROR***:要增加的lagid=%ld 的lag配置的ipv6流采样使能未能成功申请内存!\n", ulLagIdKey);
+                    	
+                    			OS_SPRINTF(ucMessage, "	***ERROR***:要增加的lagid=%ld 的lag配置的ipv6流采样使能未能成功申请内存!\n", ulLagIdKey);
+                    			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                    	
+                    			NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey, 
+                                    ALLOC_MEMORY_ERROR, "ALLOC_MEMORY_ERROR", ucMessage));
+
+                    		}
+                        }
+                        
+                        if(pstLag->ipv6_nf_data != NULL)
+                        {
+                            
+                            OS_MEMCPY(pstLag->ipv6_nf_data, pstIpv6NfData, sizeof(ATG_DCI_PHY_PORT_IPV6NF_DATA));
+                        }
+                    }
+                }      
+#endif       
+            }
+        }
+        else if (ulOperIpv6Nf == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperIpv6Nf == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }
+
+        
+        /******************************** IP流采样镜像配置IPV4 NetFlow ********************************/
+        if (ulOperIpSample == ATG_DCI_OPER_ADD)
+        {
+
+            /* 计算第一个entry的地址。*/
+            pucIpSampleDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetLinkAggr, 
+                                                                  &pstSetLinkAggr->ipnf_sampler_data);    
+
+            /* 首地址为NULL，异常 */
+            if (pucIpSampleDataStart == NULL)
+            {
+                //NBB_TRC_FLOW((NBB_FORMAT "  pucIpSampleDataStart is NULL."));  
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstIpSampleData = (ATG_DCI_LAG_IPNF_SAMPLER_DATA*)pucIpSampleDataStart; 
+
+                if (lag_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  6）ip流采样镜像配置\n");
+                    spm_dbg_print_lag_ip_sampler_data(pstIpSampleData);
+                }
+
+                OS_SPRINTF(ucMessage,"  6）ip流采样镜像配置\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+				
+                //spm_dbg_record_lag_ip_sampler_data(pstIpSampleData);
+
+                NBB_TRC_DETAIL((NBB_FORMAT "  ingress_falg = %d", pstIpSampleData->ingress_flag));
+                NBB_TRC_DETAIL((NBB_FORMAT "  ingress_mod = %d", pstIpSampleData->ingress_mode));
+                NBB_TRC_DETAIL((NBB_FORMAT "  ingress_sampling = %d", pstIpSampleData->ingress_sampling));
+                NBB_TRC_DETAIL((NBB_FORMAT "  engress_falg = %d", pstIpSampleData->engress_flag));
+                NBB_TRC_DETAIL((NBB_FORMAT "  engress_mod = %d", pstIpSampleData->engress_mode));
+                NBB_TRC_DETAIL((NBB_FORMAT "  engress_sampling = %d", pstIpSampleData->engress_sampling));
+
+#ifdef SPU
+
+                /* 配置处理，每个槽位都建 */                
+                if (pstLag != NULL)
+                {
+                    
+                    stSubPort.port = ulLagIdKey + ATG_DCI_LAG_OFFSET;
+                    stSubPort.slot = 0;
+                    stSubPort.unit = 0;
+
+                    ret = spm_set_lag_sampler(&stSubPort, pstIpSampleData NBB_CCXT);
+                    
+                    if(ret != SUCCESS)
+                    {  
+                        OS_PRINTF("***ERROR***:spm_set_lag_sampler(),ret = %d!\n", ret);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***:spm_set_lag_sampler(),ret = %d!\n", ret);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey, 
+                            CALL_FUNC_ERROR, "CALL_FUNC_ERROR", ucMessage));
+                        
+                        pstSetLinkAggr->ipnf_sampler_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        
+                    }
+
+                    else
+                    {
+                       /* 保存数据 */
+                        if (pstLag->ip_sample_data == NULL)
+                        {
+                            pstLag->ip_sample_data = (ATG_DCI_LAG_IPNF_SAMPLER_DATA*)NBB_MM_ALLOC(
+                                sizeof(ATG_DCI_LAG_IPNF_SAMPLER_DATA),
+                                NBB_NORETRY_ACT,
+                                MEM_SPM_LAG_IPNF_SAMPLER);
+                            
+                            if (pstLag->ip_sample_data == NULL)
+                    		{
+                    			pstSetLinkAggr->ipnf_sampler_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    			
+                    			OS_PRINTF("	***ERROR***:要增加的lagid=%ld 的lag配置的ip流采样镜像未能成功申请内存!\n", ulLagIdKey);
+                    	
+                    			OS_SPRINTF(ucMessage, "	***ERROR***:要增加的lagid=%ld 的lag配置的ip流采样镜像未能成功申请内存!\n", ulLagIdKey);
+                    			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                    	
+                    			NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagIdKey, 
+                                    ALLOC_MEMORY_ERROR, "ALLOC_MEMORY_ERROR", ucMessage));
+
+                    		}
+                        }  
+                        if(pstLag->ip_sample_data != NULL)
+                        {
+                            
+                            OS_MEMCPY(pstLag->ip_sample_data, pstIpSampleData, sizeof(ATG_DCI_LAG_IPNF_SAMPLER_DATA));
+                        } 
+                    }
+                }      
+#endif
+            }
+        }
+        else if (ulOperIpSample == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperIpSample == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }
+
+/*
+        spm_get_lag_ports(ulLagIdKey, port_index_array, &port_num);
+
+        printf("port_num=%d\n", port_num);
+
+        for (i=0; i<port_num; i++)
+        {
+            printf("[%d]port_index=%d\n", i+1, port_index_array[i]);
+        }
+*/
+       #if 1
+        
+	 /*****************************************       关联接口组       *********************************/
+       
+      /*应用场景:下关联接口组时，逻辑接口未下发，如果后来下发的逻辑接口为lag，在lag配置块里面反刷*/ 
+         
+       
+        for (pstLogicalPort = (SPM_LOGICAL_PORT_CB*) AVLL_FIRST(SHARED.logical_port_tree);
+            pstLogicalPort != NULL;
+            pstLogicalPort = (SPM_LOGICAL_PORT_CB*) AVLL_NEXT(SHARED.logical_port_tree,pstLogicalPort->spm_logical_port_node))
+        {
+            if((pstLogicalPort->basic_cfg_cb != NULL)&&(pstLogicalPort->basic_cfg_cb->port_sub_type == ATG_DCI_LAG) 
+                &&(pstLogicalPort->phy_cfg_cb != NULL)&&(pstLogicalPort->phy_cfg_cb->lag_id == ulLagIdKey))
+            {
+                ulPortIndexKey = pstLogicalPort->port_index_key;
+            }
+        }
+            
+         for (pstAssociateIfCb = (SPM_ASSOCIATE_IF_CB *)AVLL_FIRST(v_spm_shared->associate_if_tree);
+                     pstAssociateIfCb != NULL;
+                     pstAssociateIfCb = (SPM_ASSOCIATE_IF_CB *)AVLL_NEXT(v_spm_shared->associate_if_tree,
+                     pstAssociateIfCb->spm_associate_if_node))
+            {
+                for(i = 0;i < ATG_DCI_ASSOCIATE_IF_TRIGGER_NUM;i++)
+                {
+                   if((pstAssociateIfCb->trigger_if_cfg_cb[i] != NULL)&&(pstAssociateIfCb->trigger_if_cfg_cb[i]->interface_index == ulPortIndexKey) 
+                    && (pstAssociateIfCb->trigger_if_exist[i] == UNEXIST))
+                   {
+                        trigger_if_flag = 1;
+                        ucExistPos_trigger = i;
+                        ulAssociateIfKey = pstAssociateIfCb->key;
+                        break;
+                   }
+                    
+                }
+             
+                if(trigger_if_flag != 1)
+                {
+                   for(i = 0;i < ATG_DCI_ASSOCIATE_IF_ACT_NUM;i++)
+                    {
+                       if((pstAssociateIfCb->act_if_cfg_cb[i] != NULL)&&(pstAssociateIfCb->act_if_cfg_cb[i]->interface_index == ulPortIndexKey)
+                        && (pstAssociateIfCb->act_if_exist[i] == UNEXIST))
+                       {
+                            act_if_flag = 1;
+                            ucExistPos_act = i;
+                            ulAssociateIfKey = pstAssociateIfCb->key;
+                            break;
+                       }
+                        
+                    } 
+                }
+
+                if((trigger_if_flag == 1) || (act_if_flag == 1))
+                {
+                    break;
+                }
+                
+          }
+        /*把lag的成员端口对应的物理口加入关联组的触发接口中*/
+
+        if(trigger_if_flag == 1)
+        {
+            spm_get_lag_all_ports_info(ulLagIdKey,stTriggerLagPortInfo,&pucPortNum NBB_CCXT);
+
+    		if(pucPortNum == 0)
+    		{
+       			NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 逻辑端口index=%ld获取物理口失败， ret=%d",ulPortIndex,ret));
+
+    			OS_PRINTF("***ERROR***:逻辑端口index=%ld获取物理口失败， ret=%d",ulPortIndex,ret);
+
+    			OS_SPRINTF(ucMessage, "***ERROR***:逻辑端口index=%ld获取物理口失败， ret=%d",ulPortIndex,ret);
+    			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+    			NBB_EXCEPTION((PCT_SPM | ASSOCIATE_IF_PD, 0, "ld d s s", ulAssociateIfKey, ret, "spm_get_lag_all_ports_info", ucMessage));
+
+    		}
+
+    		else
+    		{
+    		
+    			ret = SUCCESS;
+    		
+    			for(i = 0;i < pucPortNum;i++)
+    			{
+    				usPortId = stTriggerLagPortInfo[i].port_id;
+    				usSlotId = stTriggerLagPortInfo[i].slot_id;
+    		
+    				OS_MEMSET(&IfGoupInfo,0,sizeof(PORT_GROUP_INFO));
+
+    				IfGoupInfo.usSlotPort = (usSlotId << 8)+(usPortId&0xff);
+    				IfGoupInfo.lacpState = stTriggerLagPortInfo[i].port_consult;
+    				IfGoupInfo.actionType = 0;
+                    IfGoupInfo.cardId = stTriggerLagPortInfo[i].card_id;
+    				
+    				ret += aps_add_monitor_group_port(ulAssociateIfKey,&IfGoupInfo);	
+
+    			}
+    						
+    			if(ret == SUCCESS)
+    			{
+    			    if(pstAssociateIfCb != NULL)
+                    {
+                        pstAssociateIfCb->trigger_if_exist[ucExistPos_trigger] = EXIST;
+    			        pstAssociateIfCb->trigger_if_num++;  
+                    }         
+                    
+    			} 
+
+                else
+                {
+                
+                    NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: aps_add_monitor_group_port() ret=%d", ret));
+
+                    OS_PRINTF("***ERROR***:aps_add_monitor_group_port() ret=%d\n", ret);
+
+                    OS_SPRINTF(ucMessage, "***ERROR***:aps_add_monitor_group_port() ret=%d\n", ret);
+                    BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                    NBB_EXCEPTION((PCT_SPM | ASSOCIATE_IF_PD, 0, "ld d s s", ulAssociateIfKey, ret, "aps_add_monitor_group_port", ucMessage));
+            
+                }
+
+            }
+        }
+
+        /*把lag成员端口加入关联组的动作接口*/
+
+       else if(act_if_flag == 1)
+        {
+           spm_get_lag_all_ports_info(ulLagIdKey,stActLagPortInfo,&pucPortNum NBB_CCXT);
+
+    		if(pucPortNum == 0)
+    		{
+       			NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 逻辑端口index=%ld获取物理口失败， ret=%d",ulPortIndex,ret));
+
+    			OS_PRINTF("***ERROR***:逻辑端口index=%ld获取物理口失败， ret=%d",ulPortIndex,ret);
+
+    			OS_SPRINTF(ucMessage, "***ERROR***:逻辑端口index=%ld获取物理口失败， ret=%d",ulPortIndex,ret);
+    			BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+    			NBB_EXCEPTION((PCT_SPM | ASSOCIATE_IF_PD, 0, "ld d s s", ulAssociateIfKey, ret, "spm_get_lag_all_ports_info", ucMessage));
+                goto EXIT_LABEL;
+
+    		}
+
+    		else
+    		{
+    		
+    			ret = SUCCESS;
+    		
+    			for(i = 0;i < pucPortNum;i++)
+    			{
+    				usPortId = stActLagPortInfo[i].port_id;
+    				usSlotId = stActLagPortInfo[i].slot_id;
+    		
+    				OS_MEMSET(&IfGoupInfo,0,sizeof(PORT_GROUP_INFO));
+
+    				IfGoupInfo.usSlotPort = (usSlotId << 8)+(usPortId&0xff);
+    				IfGoupInfo.lacpState = stActLagPortInfo[i].port_consult;
+    				IfGoupInfo.actionType = 1;
+                    IfGoupInfo.cardId = stActLagPortInfo[i].card_id;
+    				
+    				ret += aps_add_monitor_group_port(ulAssociateIfKey,&IfGoupInfo);	
+
+    			}
+    						
+    			if(ret == SUCCESS)
+    			{
+    			    if(pstAssociateIfCb != NULL)
+                    {
+                        pstAssociateIfCb->act_if_exist[ucExistPos_act] = EXIST;
+    			        pstAssociateIfCb->act_if_num++;  
+                    }         
+                    
+    			} 
+
+                else
+                {
+                
+                    NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: aps_add_monitor_group_port() ret=%d", ret));
+
+                    OS_PRINTF("***ERROR***:aps_add_monitor_group_port() ret=%d\n", ret);
+
+                    OS_SPRINTF(ucMessage, "***ERROR***:aps_add_monitor_group_port() ret=%d\n", ret);
+                    BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                    NBB_EXCEPTION((PCT_SPM | ASSOCIATE_IF_PD, 0, "ld d s s", ulAssociateIfKey, ret, "aps_add_monitor_group_port", ucMessage));
+            
+                }
+
+            }
+        }
+    #endif
+    }
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_refresh_vpls_lag
+ 功能描述  : 刷新vpls的lag
+ 输入参数  : NBB_ULONG ulLagId         
+ 输出参数  : 无
+ 返 回 值  : -1/0 = 失败/成功
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2013年10月31日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_refresh_vpls_lag(NBB_ULONG ulLagId, NBB_ULONG ulPortIndex, 
+									NBB_BYTE ucLagSlotCur, NBB_USHORT usLagPortCur,
+									NBB_BYTE ucLagSlotPre, NBB_USHORT usLagPortPre
+									NBB_CCXT_T NBB_CXT)
+{
+	NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+	NBB_BYTE ucFlag = 0;
+	NBB_INT i = 0;
+	NBB_INT ret = SUCCESS;
+	NBB_INT iUniPos = -1;
+	NBB_INT iVpId = 0;
+	SPM_LOGICAL_PORT_CB *pstLogicalPort = NULL;
+	SPM_VPLS_CB *pstVpls = NULL;
+
+	//coverity[returned_pointer]
+    pstLogicalPort = AVLL_FIND(SHARED.logical_port_tree, &ulPortIndex);
+
+    /*************************************************************************/
+    /* 遍历VPLS 配置的树逐一进行验证。                                        */
+    /*************************************************************************/
+    for (pstVpls = (SPM_VPLS_CB*) AVLL_FIRST(SHARED.vpls_tree);
+         pstVpls != NULL;
+         pstVpls = (SPM_VPLS_CB*) AVLL_NEXT(SHARED.vpls_tree,
+                   pstVpls->spm_vpls_node))
+    {
+    	//这里先考虑LAG为uni的情况，nni的情况比较复杂
+    	for (i=0; i<ATG_DCI_VPLS_UNI_NUM; i++)
+    	{
+    		//如果找到逻辑端口所在的VPLS
+    		if ((pstVpls->uni_cfg_cb[i] != NULL) && (pstVpls->uni_cfg_cb[i]->port_index == ulPortIndex))
+    		{
+    			iUniPos = i;
+    			iVpId = pstVpls->uni_info_cb[i].vp_idx;
+
+#ifdef SRC
+				//小漏洞:成员端口删除干净后，再增加成员口在另外的槽位，那么之前的成员口所在的槽无法删除
+				if (ucLagSlotCur != 0)
+				{
+					//删除SRC盘向老槽位复制包
+					ret = ApiDfeMulticastDelete(UNIT_0, pstVpls->vpls_id_key, ucLagSlotPre);			
+
+					//增加SRC盘向新槽位复制包
+					ret = ApiDfeMulticastAdd(UNIT_0, pstVpls->vpls_id_key, ucLagSlotCur);
+				}				
+#endif
+
+#ifdef SPU
+				//在老的槽位上删除配置给Arad的包复制
+				if (SHARED.local_slot_id == ucLagSlotPre)
+				{
+					//ret = ApiAradDeleteEngressMcPort(UNIT_0, pstVpls->vpls_id_key, usLagPortPre, iVpId);
+					ret = ApiAradDeleteEngressMcPort(UNIT_0, pstVpls->vpls_id_key, SPM_MULTICAST_PORT_0, iVpId);
+					pstVpls->uni_info_cb[i].slot_id = 0;
+					//pstVpls->uni_info_cb[i].cud = 0;
+				}
+
+				//在新的槽位上增加配置给Arad的包复制
+				if ((SHARED.local_slot_id == ucLagSlotCur) && (usLagPortCur != 0))
+				{
+					//ret = ApiAradAddEngressMcPort(UNIT_0, pstVpls->vpls_id_key, usLagPortCur, iVpId);
+					ret = ApiAradAddEngressMcPort(UNIT_0, pstVpls->vpls_id_key, SPM_MULTICAST_PORT_0, iVpId);
+					pstVpls->uni_info_cb[i].slot_id = ucLagSlotCur;
+					//pstVpls->uni_info_cb[i].cud = iVpId;
+				}
+#endif
+						
+
+    			break;
+    		}
+    	}
+
+#if 0
+    	//考虑LAG为nni的情况
+    	for (i=0; i<ATG_DCI_VPLS_NNI_NUM; i++)
+    	{
+    		//如果找到逻辑端口所在的VPLS
+    		if ((pstVpls->nni_cfg_cb[i] != NULL) && (pstVpls->nni_info_cb[i].port_index_mc == ulPortIndex))
+    		{
+    			iUniPos = i;
+    			iVpId = pstVpls->nni_info_cb[i].vp_idx;
+
+#ifdef SRC
+				//小漏洞:成员端口删除干净后，再增加成员口在另外的槽位，那么之前的成员口所在的槽无法删除
+				if (ucLagSlotCur != 0)
+				{
+					//删除SRC盘向老槽位复制包
+					ret = ApiDfeMulticastDelete(UNIT_0, pstVpls->vpls_id_key, ucLagSlotPre);			
+
+					//增加SRC盘向新槽位复制包
+					ret = ApiDfeMulticastAdd(UNIT_0, pstVpls->vpls_id_key, ucLagSlotCur);
+				}				
+#endif
+
+#ifdef SPU
+				//在老的槽位上删除配置给Arad的包复制
+				if (SHARED.local_slot_id == ucLagSlotPre)
+				{
+					ret = ApiAradDeleteEngressMcPort(UNIT_0, pstVpls->vpls_id_key, SPM_MULTICAST_PORT_0, iVpId);
+					pstVpls->nni_info_cb[i].slot_id = 0;
+				}
+
+				//在新的槽位上增加配置给Arad的包复制
+				if ((SHARED.local_slot_id == ucLagSlotCur) && (usLagPortCur != 0))
+				{
+					ret = ApiAradAddEngressMcPort(UNIT_0, pstVpls->vpls_id_key, SPM_MULTICAST_PORT_0, iVpId);
+					pstVpls->nni_info_cb[i].slot_id = ucLagSlotCur;
+				}
+#endif						
+
+    			break;
+    		}
+    	}
+#endif
+    	if (iUniPos != -1)
+    	{
+    		break;
+    	}
+    }    
+
+	//如果未找到逻辑端口所在的VPLS，直接返回错
+    if (iUniPos == -1)
+    {
+    	OS_PRINTF("***ERROR***: 未找到逻辑端口 PORT_INDEX=%ld 所在的VPLS，直接返回错\n", ulPortIndex);
+
+        OS_SPRINTF(ucMessage, "***ERROR***: 未找到逻辑端口 PORT_INDEX=%ld 所在的VPLS，直接返回错\n", ulPortIndex);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | LAG_PD, 0, "ld d s s", ulLagId, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+    	return ERROR;    	
+    }
+
+    return SUCCESS;
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_init_lag_tree
+ 功能描述  : 初始化LAG配置存储树
+ 输入参数  : 无
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2013年1月23日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_VOID spm_init_lag_tree(NBB_CXT_T NBB_CXT)
+{
+    NBB_BUF_SIZE avll_key_offset;
+
+    NBB_TRC_ENTRY("spm_init_lag_tree");
+    
+    avll_key_offset = NBB_OFFSETOF(SPM_LAG_CB, lag_id_key);/*lint !e413 */
+
+    //NBB_TRC_DETAIL((NBB_FORMAT "Key offset set to %ld", avll_key_offset));
+
+    AVLL_INIT_TREE(SHARED.lag_tree, compare_ulong,
+                 (NBB_USHORT) avll_key_offset,
+                 (NBB_USHORT) NBB_OFFSETOF(SPM_LAG_CB, spm_lag_node));
+
+    NBB_TRC_EXIT();       
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_alloc_lag_cb
+ 功能描述  : 申请链路聚合配置的内存空间
+ 输入参数  : 无
+ 输出参数  : 无
+ 返 回 值  : SPM_LAG_CB
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年12月1日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+SPM_LAG_CB * spm_alloc_lag_cb(NBB_CXT_T NBB_CXT)
+{
+    NBB_INT i = 0;
+    SPM_LAG_CB *pstLag = NULL;
+
+    NBB_TRC_ENTRY("spm_alloc_lag_cb");
+
+    /* 分配一个新的VPWS配置条目。*/
+    pstLag = (SPM_LAG_CB *)NBB_MM_ALLOC(sizeof(SPM_LAG_CB), NBB_NORETRY_ACT, MEM_SPM_LAG_CB);
+    if (pstLag == NULL)
+    {
+        //NBB_TRC_FLOW((NBB_FORMAT "***ERROR***:申请LAG条目空间为NULL!"));
+        goto EXIT_LABEL;
+    }
+
+    /* 初始化VPWS配置条目 */
+    OS_MEMSET(pstLag, 0, sizeof(SPM_LAG_CB));
+    pstLag->global_cfg_cb = NULL;
+    pstLag->lag_cfg_cb = NULL;
+    pstLag->nlb_port_cfg_cb = NULL;
+    pstLag->ipv4_nf_data = NULL;
+    pstLag->ipv6_nf_data = NULL;
+    pstLag->ip_sample_data = NULL;
+
+    for (i = 0; i<ATG_DCI_LAG_MEMBER_PORT_NUM; i++)
+    {
+        pstLag->port_cfg_cb[i] = NULL;
+    }
+
+    /* 建立用于该VC表配置条目的句柄，作为异步消息交换的相关器。*/
+    pstLag->spm_lag_handle = NBB_CREATE_HANDLE(pstLag, HDL_SPM_LAG_CB);
+
+    /* 成功分配一个新的接口物理配置条目。*/
+    NBB_TRC_DETAIL((NBB_FORMAT "SPM_LAG_CB allocated at %p with handle %#lx",
+                   pstLag, pstLag->spm_lag_handle));   
+
+    /* Initialize the AVLL node. */
+    AVLL_INIT_NODE(pstLag->spm_lag_node);    
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+    
+    return(pstLag);
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_free_lag_cb
+ 功能描述  : 释放LAG的内存空间
+ 输入参数  : SPM_LAG_CB *pstLag  
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年12月1日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_VOID spm_free_lag_cb(SPM_LAG_CB *pstLag NBB_CCXT_T NBB_CXT)
+{
+    /***************************************************************************/
+    /* Local Variables                                                         */
+    /***************************************************************************/  
+    NBB_INT i = 0;
+    
+    NBB_TRC_ENTRY("spm_free_lag_cb");
+
+    /***************************************************************************/
+    /* 检查控制块的正确性。                                                    */
+    /***************************************************************************/  
+    NBB_ASSERT_MEMORY(pstLag, sizeof(SPM_LAG_CB), MEM_SPM_LAG_CB); 
+
+    if (pstLag == NULL)
+    {
+    	goto EXIT_LABEL;
+    }
+    
+    /***************************************************************************/
+    /* 删除单盘信息控制块。                                                    */
+    /***************************************************************************/
+    ////NBB_TRC_FLOW((NBB_FORMAT "Free vpws cb at %p", pstLag));  
+    //NBB_TRC_FLOW((NBB_FORMAT "Free vpws_id %d", pstLag->lag_id_key));
+
+    /***************************************************************************/
+    /* 释放基本配置数据块。                                                */
+    /***************************************************************************/
+    if (pstLag->global_cfg_cb != NULL)
+    {
+        NBB_MM_FREE(pstLag->global_cfg_cb, MEM_SPM_LAG_GLOBAL_CB);  
+        pstLag->global_cfg_cb = NULL;
+    }
+
+    /***************************************************************************/
+    /* 释放LAG配置数据块。                                                */
+    /***************************************************************************/
+    if (pstLag->lag_cfg_cb != NULL)
+    {
+        NBB_MM_FREE(pstLag->lag_cfg_cb, MEM_SPM_LAG_CONF_CB);  
+        pstLag->lag_cfg_cb = NULL;
+    }
+
+    /***************************************************************************/
+    /* 释放非负载分担成员端口配置数据块。                                      */
+    /***************************************************************************/
+    if (pstLag->nlb_port_cfg_cb != NULL)
+    {
+        NBB_MM_FREE(pstLag->nlb_port_cfg_cb, MEM_SPM_LAG_NLB_PORT_CB);  
+        pstLag->nlb_port_cfg_cb = NULL;
+    }
+    
+    /***************************************************************************/
+    /* 释放成员端口配置数据块。                                                */
+    /***************************************************************************/
+    for (i = 0; i<ATG_DCI_LAG_MEMBER_PORT_NUM; i++)
+    {
+        if (pstLag->port_cfg_cb[i] != NULL)
+        {
+            NBB_MM_FREE(pstLag->port_cfg_cb[i], MEM_SPM_LAG_PORT_CB);  
+            pstLag->port_cfg_cb[i] = NULL;
+        }
+    }
+
+	pstLag->port_num = 0;
+    
+    /***************************************************************************/
+    /* 释放ipv4_nf_data数据块。                                                */
+    /***************************************************************************/
+    if(pstLag->ipv4_nf_data != NULL)
+     {
+        NBB_MM_FREE(pstLag->ipv4_nf_data, MEM_SPM_LAG_IPV4_NF_CB);  
+        pstLag->ipv4_nf_data = NULL;
+     }
+    
+    /***************************************************************************/
+    /* 释放ipv6_nf_data数据块。                                                */
+    /***************************************************************************/
+    if(pstLag->ipv6_nf_data != NULL)
+     {
+        NBB_MM_FREE(pstLag->ipv6_nf_data, MEM_SPM_LAG_IPV6_NF_CB);  
+        pstLag->ipv6_nf_data = NULL;
+     }
+    
+    /***************************************************************************/
+    /* 释放流采样镜像数据块。                                                */
+    /***************************************************************************/
+    if(pstLag->ip_sample_data!= NULL)
+     {
+        NBB_MM_FREE(pstLag->ip_sample_data, MEM_SPM_LAG_IPNF_SAMPLER);  
+        pstLag->ip_sample_data = NULL;
+     }
+    /***************************************************************************/
+    /* 删除控制块的句柄。                                                      */
+    /***************************************************************************/
+    NBB_DESTROY_HANDLE(pstLag->spm_lag_handle, HDL_SPM_LAG_CB);
+
+    /***************************************************************************/
+    /* 现在释放单盘信息控制块。                                                */
+    /***************************************************************************/
+    NBB_MM_FREE(pstLag, MEM_SPM_LAG_CB);  
+    pstLag = NULL;
+
+    EXIT_LABEL: NBB_TRC_EXIT();
+
+    return;
+}
+
+/*****************************************************************************
+   函 数 名  : spm_free_all_lag_cb
+   功能描述  : 释放链路聚合配置所有的内存空间
+   输入参数  : 无
+   输出参数  : 无
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年11月6日
+    作    者   : zhangzhm
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+
+NBB_VOID spm_free_all_lag_cb(NBB_CXT_T NBB_CXT)
+{
+	SPM_LAG_CB *pstLag = NULL;
+	
+    for (pstLag = (SPM_LAG_CB*) AVLL_FIRST(SHARED.lag_tree);
+         pstLag != NULL;
+         pstLag = (SPM_LAG_CB*) AVLL_FIRST(SHARED.lag_tree))
+    {
+    	
+		AVLL_DELETE(SHARED.lag_tree, pstLag->spm_lag_node);     	
+    	spm_free_lag_cb(pstLag NBB_CCXT);
+    }
+}
+
+

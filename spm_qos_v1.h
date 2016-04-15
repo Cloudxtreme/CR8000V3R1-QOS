@@ -41,6 +41,7 @@ void spm_qos_init();
 
 NBB_INT spm_qos_logic_key_compare(NBB_VOID *keyarg1, NBB_VOID *keyarg2);
 NBB_INT spm_qos_vrf_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 );
+NBB_INT spm_qos_vrf_hqos_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 );
 NBB_INT spm_qos_tunnel_comp(NBB_VOID *keyarg1, NBB_VOID *keyarg2  );
 
 /*内容较少没有定义相关头文件*/

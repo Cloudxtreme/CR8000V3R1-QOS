@@ -1,0 +1,678 @@
+
+/**MOD+***********************************************************************/
+/* Module:    spml3.c                                                      */
+/*                                                                           */
+/* Purpose:   R8000     L3    cfgprocess                        */
+/*                                                                           */
+/* FiberHome        2003-2012                                                */
+/*                                                                           */
+/* $Revision: 1.0       $ $Date: 2012/9/2 07:09:09 $             */
+/**MOD-***********************************************************************/
+
+
+
+#define SHARED_DATA_TYPE SPM_SHARED_LOCAL
+#include <nbase.h>
+#include <spmincl.h>
+
+/********************
+隧道选择配置块
+********************/
+#ifdef TUNNEL_CHOOSE
+
+/*tunnelchoose模块中的打印设置*/
+extern unsigned char l3_tunnelch_cfg_print_setting;
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_tunnelchhashkey
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_ULONG spm_l3_tunnelchhashkey(NBB_VOID *keyarg NBB_CCXT_T NBB_CXT)
+{
+    if( keyarg == NULL)
+    {
+        return 0;
+    }
+    else
+    {
+        return spm_hash_algorithm(keyarg, TUNNELCHKEYLGTH, 0 NBB_CCXT);
+    }
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_tunnelchhashcomp
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_ULONG spm_l3_tunnelchhashcomp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
+{
+    TUNNELCH_KEY  *key1;
+    TUNNELCH_KEY  *key2;
+
+    key1 = (TUNNELCH_KEY *)(keyarg1);
+    key2 = (TUNNELCH_KEY *)(keyarg2);
+
+    if( key1->vrfid == key2->vrfid
+    && key1->peerip == key2->peerip)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_tunnelchhashtableinit
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_VOID spm_l3_tunnelchhashtableinit( NBB_ULONG num NBB_CCXT_T NBB_CXT)
+{
+
+    SHARED.tunnelchhash = (SHASH_TABLE *)
+                    spm_hashtab_create( num , spm_l3_tunnelchhashkey,spm_l3_tunnelchhashcomp NBB_CCXT);
+
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_routecomp
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_INT spm_l3_routecomp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
+{
+
+    VRFUROUTE_KEY *key1 = (VRFUROUTE_KEY *)keyarg1;
+    VRFUROUTE_KEY *key2 = (VRFUROUTE_KEY *)keyarg2;
+    NBB_INT rv = 0;
+
+    //NBB_TRC_ENTRY("spm_l3_vrfuroutecomp");
+
+    rv = NBB_MEMCMP(&(key1->dip[0]), &(key2->dip[0]),16 );
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+
+    rv = compare_byte(&key1->addrtype, &key2->addrtype NBB_CCXT);
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+
+    rv = compare_ushort(&key1->vrfid, &key2->vrfid NBB_CCXT);
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+    
+    rv = compare_byte(&key1->mask, &key2->mask NBB_CCXT);
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+    
+    EXIT_LABEL:
+    
+    //NBB_TRC_EXIT();
+
+    return(rv);
+
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_alloc_pwcite_node
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_VOID spm_l3_alloc_pwcite_node(TUNNELCH_KEY *pwkey,LSPPROT_KEY *lspprotkey NBB_CCXT_T NBB_CXT)
+{
+    PWNODE *pwnode;
+    LSPRSVP *lsprs;
+    NBB_BOOL rv;
+
+    NBB_TRC_ENTRY("spm_l3_alloc_pwcite_node");
+
+    lsprs = (LSPRSVP *)AVLL_FIND(SHARED.rsvpcite, lspprotkey);
+    if (lsprs == NULL)
+    {
+        NBB_TRC_FLOW((NBB_FORMAT "Failed to find LSPRSVP"));
+        goto EXIT_LABEL;
+    }
+    pwnode = (PWNODE *)AVLL_FIND(lsprs->pw_tree, pwkey);
+    if (pwnode != NULL)
+    {
+        NBB_TRC_FLOW((NBB_FORMAT " PWNODE exist"));
+        goto EXIT_LABEL;
+    }
+    pwnode = (PWNODE *)NBB_MM_ALLOC(sizeof(PWNODE),NBB_NORETRY_ACT,MEM_SPM_TUNNELCH_PWNODE_CB);
+    if (pwnode == NULL)
+    {
+        NBB_TRC_FLOW((NBB_FORMAT "Failed to allocate PWNODE"));
+        goto EXIT_LABEL;
+    }
+    NBB_TRC_DETAIL((NBB_FORMAT "Newalloc  for pwnode vrfid=%x   peerip=%x",
+                                    pwkey->vrfid, pwkey->peerip));
+
+    NBB_MEMSET(pwnode, 0, sizeof(PWNODE));
+    AVLL_INIT_NODE(pwnode->pw_node);
+    AVLL_INIT_TREE(pwnode->rout_tree,
+                        spm_l3_routecomp,
+                        NBB_OFFSETOF(ROUTNODE, key),/*lint !e413 */
+                        NBB_OFFSETOF(ROUTNODE, rout_node));/*lint !e413 */
+    pwnode->lspcite = NULL;
+    
+    //coverity[bad_sizeof]
+    NBB_MEMCPY( &(pwnode->key), pwkey, sizeof( TUNNELCH_KEY) );
+    
+     if (lsprs != NULL)
+     {
+        rv = AVLL_INSERT(lsprs->pw_tree, lsprs->lsp_node);
+        lsprs->pwnum += 1;
+        pwnode->lspcite = lsprs;
+        NBB_TRC_DETAIL((NBB_FORMAT "lsprsvpcite AVLL_INSERT  rv= %B", rv));
+     }
+
+    
+    EXIT_LABEL:
+    NBB_TRC_EXIT();
+
+    return;
+
+} 
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_free_pwcite_node
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_VOID spm_l3_free_pwcite_node(TUNNELCH_KEY *pwkey,LSPPROT_KEY *lspprotkey NBB_CCXT_T NBB_CXT)
+{
+    PWNODE *pwnode;
+    LSPRSVP *lsprs;
+    ROUTNODE *rou_node;
+
+    NBB_TRC_ENTRY("spm_l3_free_pwcite_node");
+
+    NBB_TRC_DETAIL((NBB_FORMAT "free  for pwnode vrfid=%x   peerip=%x",
+                                    pwkey->vrfid, pwkey->peerip));
+
+    lsprs = (LSPRSVP *)AVLL_FIND(SHARED.rsvpcite, lspprotkey);
+    if (lsprs == NULL)
+    {
+        NBB_TRC_FLOW((NBB_FORMAT "Failed to find LSPRSVP"));
+        goto EXIT_LABEL;
+    }
+    pwnode = (PWNODE *)AVLL_FIND(lsprs->pw_tree, pwkey);
+    if (pwnode == NULL)
+    {
+        NBB_TRC_FLOW((NBB_FORMAT "Failed to find PWNODE"));
+        goto EXIT_LABEL;
+    }
+    
+    /******************************************************/
+    /* First, free off all of the ROUTE nodes.              */
+    /******************************************************/
+    rou_node = (ROUTNODE *)AVLL_FIRST(pwnode->rout_tree);
+    while (rou_node != NULL)
+    {
+        AVLL_DELETE(pwnode->rout_tree, rou_node->rout_node);
+        rou_node->pwcite = NULL;
+        NBB_MM_FREE(rou_node, MEM_SPM_VRFUROUTE_ROUTNODE_CB);
+
+        rou_node = (ROUTNODE *)AVLL_FIRST(pwnode->rout_tree);
+    }
+    AVLL_DELETE(lsprs->pw_tree, pwnode->pw_node);
+    lsprs->pwnum = lsprs->pwnum - 1;
+    NBB_MM_FREE(pwnode, MEM_SPM_TUNNELCH_PWNODE_CB);
+
+    EXIT_LABEL:
+    NBB_TRC_EXIT();
+    return;
+
+}
+
+extern NBB_INT spm_l3_pwcomp(NBB_VOID *, NBB_VOID *);
+
+
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_tunnelchprocess
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_VOID spm_l3_tunnelchprocess( ATG_DCI_SET_TNNL_SELECT * tunnelchips NBB_CCXT_T NBB_CXT)
+{
+
+    NBB_INT             rv = 100;
+    NBB_INT             rv2 = 100;
+
+    SHASH_NODE          *node = NULL, *dnode = NULL;
+
+    NBB_BYTE            *ucdata = NULL;
+
+    NBB_BYTE            flag = 0;
+
+    LSPPROT_KEY         tunnelkey;
+
+    TUNNELCH_KEY        tunnelskey;
+
+    TUNNELCH_BASE       base;
+
+    NBB_ULONG           nextindex = 0;
+
+    TUNNELCH            *tunnels = NULL;
+
+    PWTXNODE            *pwnodes = NULL;
+
+    L3_TX_PW_T          txpw;
+    L3_TX_PW_T          temp_txpw;
+
+    NBB_CHAR            *errorlog = NULL;
+    NBB_ULONG           str_len = 0;
+
+    NBB_TRC_ENTRY("spm_l3_tunnelchprocess");
+
+    errorlog = NBB_MM_ALLOC(300, NBB_NORETRY_ACT, 0);
+    if(NULL == errorlog)
+    {
+        goto EXIT_LABEL;
+    }
+    
+        NBB_ASSERT(tunnelchips != NULL);
+        
+    if(NULL == tunnelchips)
+    {
+        goto EXIT_LABEL;
+    }
+
+    tunnelchips->return_code = ATG_DCI_RC_OK;
+        
+    //NBB_MEMCPY( &tunnelskey, &(tunnelchips->key), sizeof( TUNNELCH_KEY ) );
+
+    tunnelskey.res = 0;
+    tunnelskey.vrfid = tunnelchips->key.vrf_id;
+    tunnelskey.peerip = tunnelchips->key.peer_id;
+    
+    if( tunnelskey.peerip == 0 )
+    {
+        NBB_PRINTF("TUNNELCH data error peerip = 0 \n");
+        tunnelchips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+        goto  EXIT_LABEL;
+    }
+    NBB_TRC_DETAIL((NBB_FORMAT "TUNNELCH  vrf =%d  peerip =%x",tunnelskey.vrfid, tunnelskey.peerip));
+
+    NBB_SPRINTF(errorlog, "vrfid=%d peerip=%x\n", tunnelskey.vrfid, tunnelskey.peerip);
+    str_len = OS_STRLEN(errorlog);
+
+    if( tunnelchips->delete_struct == 1)
+    {
+        if (l3_tunnelch_cfg_print_setting == SPM_PRINT_CFG)
+        {
+            BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "del tunsel vrf.peer =%d.%x \n", tunnelskey.vrfid, tunnelskey.peerip);
+        }
+    }
+    else if( tunnelchips->delete_struct == 0)
+    {
+        if (l3_tunnelch_cfg_print_setting == SPM_PRINT_CFG)
+        {
+            BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "add tunsel vrf.peer =%d.%x \n", tunnelskey.vrfid, tunnelskey.peerip);
+        }
+    }
+    
+    /*操作之前，查看本地数据是否存在*/
+    node =  (SHASH_NODE *)spm_hashtab_search( SHARED.tunnelchhash, &tunnelskey NBB_CCXT);    
+    
+    if( tunnelchips->delete_struct == 1) /*  删除*/
+    {
+        /*  删除整个条目*/
+        if( node == NULL )
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del TUNNELCH Error: node null"));
+            tunnelchips->return_code = ATG_DCI_RC_OK;  
+            rv = 0;
+            goto  EXIT_LABEL;
+        }
+        if( node->data == NULL )
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del TUNNELCH Error: data null"));
+            tunnelchips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+            str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Del Error: node->data = NULL\n");
+            str_len =  OS_STRLEN(errorlog);
+            goto  EXIT_LABEL;
+        }
+        
+        /* 调用驱动*/
+        #ifdef SPU
+        
+            //tunnels = (TUNNELCH *)(node->data);
+            rv = 0;
+        #endif
+        
+        #ifdef SRC
+            rv = 0; 
+        #endif
+        #ifdef SNU
+            rv = 0; 
+        #endif
+        if( rv == 0)      /* 删除成功，删除hash表对应的配置*/
+        {
+            tunnels = (TUNNELCH *)(node->data);
+            if( tunnels->pwnum == 0) 
+            {
+                OS_MEMSET( &tunnelkey, 0, sizeof( LSPPROT_KEY) );
+				tunnelkey.ingress = tunnels->base.ingress;
+				tunnelkey.egress = tunnels->base.egress;
+				tunnelkey.tunnelid = tunnels->base.tunnelid;
+				spm_hashtab_del( SHARED.tunnelchhash ,&tunnelskey NBB_CCXT);
+                NBB_MM_FREE(tunnels, MEM_SPM_TUNNELCH_CB);
+
+				/*ldp*/
+				if(tunnelkey.egress == 0)
+				{
+                    spm_l3_delvrfldp( tunnelskey.peerip, tunnelskey.vrfid NBB_CCXT);  
+				}
+				else
+				{
+                    spm_l3_delvrfrsvp(tunnelskey.peerip, tunnelskey.vrfid,&tunnelkey NBB_CCXT);
+				}
+				
+            }
+            else
+            {
+                tunnels->delflag = 100;
+            }
+        }
+        else    
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "Del TUNNELCH Error: TxPw DEV rv=%d ", rv));
+            tunnelchips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            NBB_SPRINTF(errorlog + str_len, "Line=%d Del TUNNELCH rv=%d\n", __LINE__,rv);
+            str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Del Error: data error\n");
+            str_len =  OS_STRLEN(errorlog);
+            goto  EXIT_LABEL;
+        }
+    }
+    else if( tunnelchips->delete_struct == 0) 
+    {
+        if( tunnelchips->oper_basic == ATG_DCI_OPER_ADD) 
+        {
+            if( node == NULL )
+            {
+                tunnels = (TUNNELCH *)NBB_MM_ALLOC(sizeof(TUNNELCH), NBB_NORETRY_ACT, MEM_SPM_TUNNELCH_CB);
+                if ( tunnels == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add TUNNELCH Error: malloc null"));
+                    tunnelchips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d malloc mem rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: tunnels = NULL\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                } 
+                NBB_MEMSET(tunnels, 0, sizeof(TUNNELCH));
+                AVLL_INIT_TREE(tunnels->pwtree,
+                                    spm_l3_pwcomp,
+                                    NBB_OFFSETOF(PWTXNODE, key),/*lint !e413 */
+                                    NBB_OFFSETOF(PWTXNODE, pw_node));/*lint !e413 */
+                flag = 1;
+                NBB_TRC_FLOW((NBB_FORMAT "Add TUNNELCH new node"));
+            }
+            else
+            {
+                if( node->data == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add TUNNELCH Error: data null"));
+                    tunnelchips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 104;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: node->data = NULL\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                flag = 2;
+                tunnels = (TUNNELCH *)(node->data);
+                tunnels->delflag = 0;
+            }
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(tunnelchips, &tunnelchips->basic_data); 
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add TUNNELCH Error: basic data null"));
+                tunnelchips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                if( flag == 1 )
+                {
+                    NBB_MM_FREE(tunnels, MEM_SPM_TUNNELCH_CB);
+                }
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get basic data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &base, 0, sizeof( TUNNELCH_BASE) );
+            NBB_MEMCPY( &base, ucdata, sizeof( TUNNELCH_BASE) );
+            if( base.egress == 0 )
+            {
+                rv = spm_l3_iteration_lookupftn( tunnelskey.peerip, &nextindex NBB_CCXT);
+                if ( rv == 0 )
+                {
+                    //tunnels->tunnelindex = nextindex;
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add TUNNELCH lookupftn tunnel =%d ", nextindex));
+                }
+                else
+                {
+                    spm_l3_addvrfldp( tunnelskey.peerip, tunnelskey.vrfid, 0 NBB_CCXT); 
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add TUNNELCH Error: iter lookupftn  rv=%d ", rv));
+                    tunnelchips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    if( flag == 1 )
+                    {
+                        NBB_MM_FREE(tunnels, MEM_SPM_TUNNELCH_CB);
+                    }
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d spm_l3_iteration_lookupftn rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                              NBB_SPRINTF(errorlog + str_len, "Add Error: lookup ftn \n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+            }
+            else
+            {
+                tunnelkey.ingress = base.ingress;
+                tunnelkey.egress = base.egress;
+                tunnelkey.tunnelid = base.tunnelid;
+                rv = spm_l3_iteration_lookuptunnel(&tunnelkey , &nextindex NBB_CCXT);
+                if ( rv == 0 )
+                {
+                    //tunnels->tunnelindex = nextindex;
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add TUNNELCH lookuptunnel tunnel =%x ", nextindex));
+                }
+                else
+                {
+                    spm_l3_addvrfrsvp(tunnelskey.peerip,tunnelskey.vrfid,&tunnelkey,0 NBB_CCXT);
+					NBB_TRC_DETAIL((NBB_FORMAT "Add TUNNELCH Error: iter lookuptunnel rv=%d ", rv));
+                    tunnelchips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    if( flag == 1 )
+                    {
+                        NBB_MM_FREE(tunnels, MEM_SPM_TUNNELCH_CB);
+                    }
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d spm_l3_iteration_lookuptunnel rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                              NBB_SPRINTF(errorlog + str_len, "Add Error: lookup tunnel \n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                    
+                }
+            }
+            
+            //coverity[dead_error_condition]
+            if( rv == 0)      /*成功*/
+            {
+                tunnels->tunindex = nextindex;
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(tunnels->key), &tunnelskey, sizeof( TUNNELCH_KEY ) );
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(tunnels->base), &base, sizeof( TUNNELCH_BASE) );
+
+				/*ldp*/
+				if(base.egress == 0)
+				{
+                    spm_l3_addvrfldp( tunnelskey.peerip, tunnelskey.vrfid, nextindex NBB_CCXT); 
+				}
+				else
+				{
+				    spm_l3_addvrfrsvp(tunnelskey.peerip,tunnelskey.vrfid,&tunnelkey,nextindex NBB_CCXT);
+				}
+                if ( flag == 1 )
+                {
+                    spm_hashtab_insert (SHARED.tunnelchhash ,  &(tunnels->key), tunnels NBB_CCXT);
+                }
+                else if ( flag == 2 )
+                {
+                #ifdef SPU
+                    pwnodes = (PWTXNODE *)AVLL_FIRST(tunnels->pwtree);
+                    while (pwnodes != NULL)
+                    {
+                        if( pwnodes->posid != 0 ) 
+                        {
+                            OS_MEMSET(&txpw , 0, sizeof(L3_TX_PW_T));
+                            OS_MEMSET(&temp_txpw , 0, sizeof(L3_TX_PW_T));
+                            txpw.mVrf = tunnelskey.vrfid;
+                            txpw.mPeerIp = tunnelskey.peerip;
+                            txpw.mLabel = pwnodes->key.label;
+                            
+                            txpw.posId = pwnodes->posid;
+                            txpw.tunnelIdx = nextindex; 
+                            txpw.pushPwNum = 1;
+
+                            rv = fhdrv_psn_l3_get_txpw(BCMC31, &txpw, &temp_txpw);
+                            if (rv == 0)
+                            {
+                                txpw.eNniMode = temp_txpw.eNniMode;
+                            }
+                            else
+                            {
+                                BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, 
+                                        "Line=%d e tunnelch fhdrv_psn_l3_get_txpw posid.eNniMode =%d.%d\n", 
+                                        __LINE__, txpw.posId, txpw.eNniMode);
+                            }
+                            
+                            //txpw.flags |= L3_TX_PW_COUNTER_ON;
+                            rv = ApiC3ModL3TxPw( BCMC31, &txpw);
+                            if ( SHARED.c3_num == 2 )
+                            {
+                                rv2 = ApiC3ModL3TxPw( BCMC32, &txpw);
+                                rv = (rv|rv2);
+                            }
+                            if( rv != 0) 
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add TUNNELCH Error: TxPw DEV rv=%d ", rv));
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3ModL3TxPw rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                          NBB_SPRINTF(errorlog + str_len, "Add Error: mod txpw \n");
+                                str_len =  OS_STRLEN(errorlog);
+                                goto  EXIT_LABEL;
+                            }
+                        }
+                        pwnodes = (PWTXNODE *)AVLL_NEXT( tunnels->pwtree, pwnodes->pw_node);
+                    }
+                #endif
+                }
+            }
+            else    /*调用驱动失败，记录错误*/
+            {
+                //coverity[dead_error_begin]
+                NBB_TRC_DETAIL((NBB_FORMAT "Add TUNNELCH Error: iter rv=%d ", rv));
+                tunnelchips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                if( flag == 1 )
+                {
+                    NBB_MM_FREE(tunnels, MEM_SPM_TUNNELCH_CB);
+                }
+                NBB_SPRINTF(errorlog + str_len, "Line=%d iter rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: iter error \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+        }
+        else     if( tunnelchips->oper_basic == ATG_DCI_OPER_DEL) /*  删除子TLV*/
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del TUNNELCH Error: basic data "));
+            tunnelchips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }
+    }
+    EXIT_LABEL:
+
+    NBB_TRC_EXIT();
+    
+    NBB_TRC_DETAIL((NBB_FORMAT " PW:  rv = %d ", rv));
+
+    if(NULL == errorlog)
+    {
+        OS_PRINTF("Line=%d PW malloc mem NULL \n",__LINE__);
+    }
+    else
+    {
+        NBB_SPRINTF(errorlog + str_len, "\0");
+        if( rv != 0) 
+        {
+            NBB_EXCEPTION((PCT_SPM| 10, 1,  "s s", 
+                                                            " TUNNELCH ",
+                                                            errorlog));
+        }
+        NBB_MM_FREE(errorlog,0);
+    }
+}
+
+#endif

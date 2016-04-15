@@ -998,7 +998,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取接口物理配置.                                                   */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_PHYSICAL_PORT"));
-      spm_physical_port_proc((ATG_DCI_SET_PHYSICAL_PORT *) ips NBB_CCXT);
+      spm_rcv_dci_set_physical_port((ATG_DCI_SET_PHYSICAL_PORT *) ips NBB_CCXT);
       break;
 
     case IPS_ATG_DCI_SET_LOGICAL_PORT:
@@ -1006,7 +1006,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取端口逻辑配置.                                                   */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_LOGICAL_PORT"));
-      spm_logical_port_proc((ATG_DCI_SET_LOGICAL_PORT *) ips NBB_CCXT);
+      spm_rcv_dci_set_logical_port((ATG_DCI_SET_LOGICAL_PORT *) ips NBB_CCXT);
       break;
 
     case IPS_ATG_DCI_SET_LINK_AGGR:
@@ -1022,17 +1022,24 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取VC表配置.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_VC"));
-      spm_vc_process((ATG_DCI_SET_VC *) ips NBB_CCXT);
+      spm_rcv_dci_set_vc((ATG_DCI_SET_VC *) ips NBB_CCXT);
+      break;      
+
+    case IPS_ATG_DCI_SET_VPWS:
+      /***********************************************************************/
+      /* 获取VPWS配置.                                                       */
+      /***********************************************************************/
+      NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_VPWS"));
+      spm_rcv_dci_set_vpws((ATG_DCI_SET_VPWS *) ips NBB_CCXT);
       break;
 
     case IPS_ATG_DCI_SET_VPLS:
-        
       /***********************************************************************/
-      /* 获取VC表配置.                                                       */
+      /* 获取VPLS配置.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_VPLS"));
       spm_rcv_dci_set_vpls((ATG_DCI_SET_VPLS *) ips NBB_CCXT);
-      break;    
+      break;
 
     case IPS_ATG_DCI_SET_VPLS_MC:
       /***********************************************************************/
@@ -1097,7 +1104,15 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_CMD_MAC_WITHDRAW"));
       spm_rcv_dci_cmd_mac_withdraw((ATG_DCI_CMD_MAC_WITHDRAW*) ips NBB_CCXT);
       break;
-	  
+      
+    case IPS_ATG_DCI_SET_SWITCH_VC:
+      /***********************************************************************/
+      /* 获取SWITCH VC表配置.                                                */
+      /***********************************************************************/
+      NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_SWITCH_VC"));
+      spm_rcv_dci_set_switch_vc((ATG_DCI_SET_SWITCH_VC*) ips NBB_CCXT);
+      break;
+
     case IPS_ATG_DCI_SET_BYPASS:
       /***********************************************************************/
       /* 获取Bypass双归保护配置.                                             */
@@ -1199,7 +1214,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取ATG_DCI_SET_DS_DOMAIN配置.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_DS_DOMAIN"));
-      spm_rcv_dci_set_ds_domain_v1(( ATG_DCI_SET_DS_DOMAIN*) ips);
+      spm_rcv_dci_set_ds_domain(( ATG_DCI_SET_DS_DOMAIN*) ips   NBB_CCXT);
       break;   
 
     case IPS_ATG_DCI_SET_DIFF_SERV:
@@ -1207,7 +1222,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取ATG_DCI_SET_DS_DOMAIN配置.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "IPS_ATG_DCI_SET_DIFF_SERV"));
-      //spm_rcv_dci_set_ds(( ATG_DCI_SET_DIFF_SERV*) ips   NBB_CCXT);
+      spm_rcv_dci_set_ds(( ATG_DCI_SET_DIFF_SERV*) ips   NBB_CCXT);
       break; 
 
     case IPS_ATG_DCI_SET_ACL:
@@ -1215,7 +1230,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取IPS_ATG_DCI_SET_ACL配置.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_ACL"));
-      spm_rcv_dci_set_acl(( ATG_DCI_SET_ACL*) ips);
+      spm_rcv_dci_set_acl(( ATG_DCI_SET_ACL*) ips   NBB_CCXT);
       break; 
 
     case IPS_ATG_DCI_SET_QOS_POLICY:
@@ -1223,7 +1238,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取ATG_DCI_SET_QOS_POLICY配置.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_QOS_POLICY"));
-      spm_rcv_dci_set_policy(( ATG_DCI_SET_QOS_POLICY*) ips);
+      spm_rcv_dci_set_policy(( ATG_DCI_SET_QOS_POLICY*) ips   NBB_CCXT);
       break; 
 
 
@@ -1232,7 +1247,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取ATG_DCI_SET_QOS_BEHAVIOR配置.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_QOS_BEHAVIOR"));
-      spm_rcv_dci_set_action(( ATG_DCI_SET_QOS_BEHAVIOR*) ips);
+      spm_rcv_dci_set_action(( ATG_DCI_SET_QOS_BEHAVIOR*) ips   NBB_CCXT);
       break;
 
     case IPS_ATG_DCI_SET_QOS_CLASSIFY:
@@ -1240,7 +1255,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取ATG_DCI_SET_QOS_CLASSIFY配置.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_QOS_CLASSIFY"));
-      spm_rcv_dci_set_classify(( ATG_DCI_SET_QOS_CLASSIFY*) ips);
+      spm_rcv_dci_set_classify(( ATG_DCI_SET_QOS_CLASSIFY*) ips   NBB_CCXT);
       break;
 
     case IPS_ATG_DCI_SET_WRED:
@@ -1248,7 +1263,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取ATG_DCI_SET_WRED配置.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_WRED"));
-      spm_rcv_dci_set_wred(( ATG_DCI_SET_WRED*) ips);
+      spm_rcv_dci_set_wred(( ATG_DCI_SET_WRED*) ips   NBB_CCXT);
       break;  
       
     case IPS_ATG_DCI_SET_HQOS:
@@ -1256,7 +1271,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取IPS_ATG_DCI_SET_HQOS配置.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_HQOS"));
-      //spm_rcv_dci_set_hqos(( ATG_DCI_SET_HQOS*) ips   NBB_CCXT);
+      spm_rcv_dci_set_hqos(( ATG_DCI_SET_HQOS*) ips   NBB_CCXT);
       break; 
       
     case IPS_ATG_DCI_SET_USER_GROUP:
@@ -1264,7 +1279,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 获取ATG_DCI_SET_USR_GROUP配置.                                                       */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_USR_GROUP"));
-      //spm_rcv_dci_set_user_group(( ATG_DCI_SET_USER_GROUP*) ips   NBB_CCXT);
+      spm_rcv_dci_set_user_group(( ATG_DCI_SET_USER_GROUP*) ips   NBB_CCXT);
       break; 
 
     case IPS_ATG_DCI_SET_BFD_SESSION:
@@ -1354,7 +1369,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 处理防攻击开关.                                               */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_DEFEND_SWITCH"));
-      spm_rcv_dci_set_slot_defend((ATG_DCI_SET_DEFEND_SWITCH *) ips);
+      spm_rcv_dci_set_slot_defend((ATG_DCI_SET_DEFEND_SWITCH *) ips NBB_CCXT);
       break;
       
     case IPS_ATG_DCI_SET_DEFEND_POLICY:
@@ -1362,7 +1377,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 处理防攻击策略模板.                                               */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_DEFEND_POLICY"));
-      spm_rcv_dci_set_defend_policy((ATG_DCI_SET_DEFEND_POLICY *) ips);
+      spm_rcv_dci_set_defend_policy((ATG_DCI_SET_DEFEND_POLICY *) ips NBB_CCXT);
       break;
 
     case IPS_ATG_DCI_SET_TWAMP_IPV4:
@@ -1370,7 +1385,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 处理IPS_ATG_DCI_SET_TWAMP_IPV4模板.                                 */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "IPS_ATG_DCI_SET_TWAMP_IPV4"));
-      //spm_rcv_dci_set_twamp_ipv4((ATG_DCI_SET_TWAMP_IPV4*) ips NBB_CCXT);
+      spm_rcv_dci_set_twamp_ipv4((ATG_DCI_SET_TWAMP_IPV4*) ips NBB_CCXT);
       break;
 
     case IPS_ATG_DCI_SET_TWAMP_IPV6:
@@ -1378,7 +1393,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 处理IPS_ATG_DCI_SET_TWAMP_IPV6模板.                                 */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "IPS_ATG_DCI_SET_TWAMP_IPV6"));
-      //spm_rcv_dci_set_twamp_ipv6((ATG_DCI_SET_TWAMP_IPV6*) ips NBB_CCXT);
+      spm_rcv_dci_set_twamp_ipv6((ATG_DCI_SET_TWAMP_IPV6*) ips NBB_CCXT);
       break;
       
     case IPS_ATG_DCI_SET_SIGNALING_CTRL:
@@ -1386,7 +1401,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /* 信令控制.                                               */
       /***********************************************************************/
       NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_SIGNALING_CTRL"));
-      spm_rcv_dci_set_rcu_pir_control((ATG_DCI_SET_SIGNALING_CTRL*)ips);
+      spm_rcv_dci_set_rcu_pir_control((ATG_DCI_SET_SIGNALING_CTRL*)ips  NBB_CCXT);
       break;
        
 	 case IPS_ATG_DCI_SET_ASSOCIATE_IF:
@@ -1403,15 +1418,7 @@ NBB_VOID spm_rcv_dci_ips(NBB_IPS *ips  NBB_CCXT_T NBB_CXT)
       /***********************************************************************/
 	  NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_CMD_CLK_CTRL"));
       spm_rcv_dci_cmd_clock_ctrl((ATG_DCI_CMD_CLK_CTRL *) ips  NBB_CCXT);
-      break;   
-
-	  case IPS_ATG_DCI_SET_VPLS_L3_MC:
-
-	  /***********************************************************************/
-      /* 处理vpls_l3组播配置.                                               */
-      /***********************************************************************/
-      NBB_TRC_FLOW((NBB_FORMAT "ATG_DCI_SET_VPLS_L3_MC"));
-      spm_rcv_dci_set_vpls_l3_mc((ATG_DCI_SET_VPLS_L3_MC *) ips NBB_CCXT);
+      break;      
       
     default:
       /***********************************************************************/

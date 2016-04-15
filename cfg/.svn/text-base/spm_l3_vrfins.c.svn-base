@@ -1,0 +1,580 @@
+/**MOD+***********************************************************************/
+/* Module:    spml3.c                                                      */
+/*                                                                           */
+/* Purpose:   R8000     L3    cfgprocess                        */
+/*                                                                           */
+/* FiberHome        2003-2012                                                */
+/*                                                                           */
+/* $Revision: 1.0       $ $Date: 2012/9/2 07:09:09 $             */
+/**MOD-***********************************************************************/
+
+
+
+#define SHARED_DATA_TYPE SPM_SHARED_LOCAL
+#include <nbase.h>
+#include <spmincl.h>
+
+
+/********************
+VRF_M_ROUTE配置块
+********************/
+#ifdef VRF_VRF_INSTANCE
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_vrfinscomp
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_INT spm_l3_vrfinscomp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
+{
+
+    VRFINS_KEY *key1 = (VRFINS_KEY *)keyarg1;
+    VRFINS_KEY *key2 = (VRFINS_KEY *)keyarg2;
+    NBB_INT rv = 0;
+
+    //NBB_TRC_ENTRY("spm_l3_mcroutecomp");
+
+
+    rv = compare_ushort(&key1->vrfid, &key2->vrfid NBB_CCXT);
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+    
+    rv = compare_ulong(&key1->peerip, &key2->peerip NBB_CCXT);
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+
+    
+    EXIT_LABEL:
+    
+    //NBB_TRC_EXIT();
+
+    return(rv);
+
+}
+
+NBB_VOID spm_l3_vrfinstreeinit( NBB_CXT_T NBB_CXT)
+{
+    AVLL_INIT_TREE(SHARED.vrfins_tree,
+                    spm_l3_vrfinscomp,
+                    NBB_OFFSETOF(VRFINS, key),/*lint !e413 */
+                    NBB_OFFSETOF(VRFINS, ins_node));/*lint !e413 */
+}
+
+
+
+/**PROC+****************************************************************************************/
+/* Name:      spm_l3_vrfinsprocess                                   */
+/*                                                                              */
+/* Purpose:  组播配置处理               */
+/*                                                                              */
+/* Returns:                                             */
+/*                                                              */
+/*                                                              */
+/* Params:  内存释放还需要考虑          */
+/*                                                                              */
+/* Operation:                                                   */
+/*                                                                              */
+/**PROC-****************************************************************************************/
+NBB_VOID spm_l3_vrfinsprocess( ATG_DCI_SET_VRF_INSTANCE  *vrfinsips  NBB_CCXT_T NBB_CXT)
+{
+    NBB_INT             rv = 100;
+    NBB_INT             rv2 = 100;
+
+    NBB_INT             cudid = 0;
+
+    NBB_ULONG           nhid = 0;
+    
+    NBB_ULONG           portindex = 0;
+            
+    NBB_BYTE            *ucdata = NULL;
+    NBB_BYTE            flag = 0;
+    
+    NBB_BYTE            pwflag = 0 ;
+        
+    VRFINS_KEY          vrfinskey;
+
+    VRFINS_DIFSER       difs;
+
+    VRFINS_UPQOS        upqos;
+
+    ATG_DCI_VRF_INSTANCE_UP_VPN_QOS vrfupqos;
+
+    VRFINS              *vrfins = NULL;
+
+    SHASH_NODE          *node = NULL;
+    
+    TUNNELCH            *tunnels = NULL;
+
+    PWTXNODE            *pwnode = NULL;
+
+    TUNNELCH_KEY        tunskey;
+
+    CRTXLSP_KEY     txlspkey;
+
+    FTN_KEY             ftnkey;
+
+    FTN_TAB             *uftn = NULL;
+
+    CRTXLSP         *txlsp = NULL;
+    
+    LSPPROT_KEY     tunlkey;
+        
+    LSPPROT         *lspprot = NULL;
+
+    SPM_PORT_INFO_CB    portfo;
+    SPM_QOS_VRF_INSTANSE_KEY    qosvrfinskey;
+    SPM_QOS_TUNNEL_KEY          qostunl;
+
+    NBB_CHAR            *errorlog = NULL;
+    NBB_ULONG           str_len = 0;
+
+    NBB_TRC_ENTRY("spm_l3_vrfinsprocess");
+
+    errorlog = NBB_MM_ALLOC(300, NBB_NORETRY_ACT, 0);
+    if(NULL == errorlog)
+    {
+        goto EXIT_LABEL;
+    }
+
+    NBB_ASSERT(vrfinsips != NULL);
+
+    vrfinsips->return_code = ATG_DCI_RC_OK;
+
+    vrfinsips->diff_serv_return_code = ATG_DCI_RC_OK;
+
+    vrfinsips->up_vpn_qos_return_code = ATG_DCI_RC_OK;
+    
+    OS_MEMSET( &txlspkey, 0, sizeof( CRTXLSP_KEY ) );
+
+    OS_MEMSET( &qostunl, 0, sizeof( SPM_QOS_TUNNEL_KEY ) );
+    
+    OS_MEMSET( &vrfinskey, 0, sizeof( VRFINS_KEY ) );
+    
+    //coverity[bad_sizeof]
+    NBB_MEMCPY( &vrfinskey, &(vrfinsips->key), sizeof( VRFINS_KEY ) );
+
+    vrfinskey.res = 0;
+    if(( vrfinskey.vrfid == 0 ) && ( vrfinskey.peerip == 0 ))
+    {
+        NBB_PRINTF(" VRFINS  error key = 0 \n");
+        vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+        goto  EXIT_LABEL;
+    }
+    NBB_TRC_DETAIL((NBB_FORMAT "VRFINS vrfid=%d  peer =%x ",vrfinskey.vrfid, vrfinskey.peerip));
+    NBB_SPRINTF(errorlog, "vrfid=%d  peer =%x ",vrfinskey.vrfid, vrfinskey.peerip);
+    str_len = OS_STRLEN(errorlog);
+    
+    
+    /*操作之前，查看本地数据是否存在*/
+    vrfins =  (VRFINS *)AVLL_FIND( SHARED.vrfins_tree ,  &vrfinskey ); 
+    if( vrfinsips->delete_struct == 1) /*  删除*/
+    {
+        if( vrfins == NULL )
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del VRFINS Error: data null"));
+            vrfinsips->return_code = ATG_DCI_RC_OK;
+            rv = 0;
+            goto  EXIT_LABEL;
+        }
+        
+        #ifdef SPU
+        
+        OS_MEMSET( &qosvrfinskey, 0, sizeof( SPM_QOS_VRF_INSTANSE_KEY) );
+        qosvrfinskey.vrf_id = vrfinskey.vrfid;
+        qosvrfinskey.peer_ip = vrfinskey.peerip;
+        if( vrfins->difs.dserid != 0 )
+        {
+            spm_ds_add_vrf_node( 0, &qosvrfinskey, 0 NBB_CCXT);
+            vrfins->difs.dserid = 0;
+        }
+        if( vrfins->upqos.nodeindex != 0 )
+        {
+            spm_hqos_add_vrf_node( 0, 0,0,&qostunl,&qosvrfinskey,&vrfupqos NBB_CCXT);
+            vrfins->upqos.nodeindex = 0;
+        }
+        
+        #endif
+        
+        rv = 0;
+        AVLL_DELETE( SHARED.vrfins_tree , vrfins->ins_node);
+        NBB_MM_FREE(vrfins, MEM_SPM_VRFINS_CB);
+    }
+    else if( vrfinsips->delete_struct == 0) /* 增加*/
+    {
+        if( vrfins == NULL )
+        {
+            flag = 1;
+        }
+        else
+        {
+            flag = 2;
+        }
+        if( vrfinsips->oper_diff_serv == ATG_DCI_OPER_ADD) /* 增加*/
+        {
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(vrfinsips, &vrfinsips->diff_serv_data); 
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add VRFINS Error: diff_serv_data null"));
+                vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                vrfinsips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get diff serv data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &difs, 0, sizeof( VRFINS_DIFSER) );
+            NBB_MEMCPY( &difs, ucdata, sizeof( VRFINS_DIFSER) );
+            OS_MEMSET( &qosvrfinskey, 0, sizeof( SPM_QOS_VRF_INSTANSE_KEY) );
+            qosvrfinskey.vrf_id = vrfinskey.vrfid;
+            qosvrfinskey.peer_ip = vrfinskey.peerip;
+
+            //删除qos
+            //if (difs.dserid == 0)
+            //{
+            //  spm_ds_add_vrf_node( 0 , &qosvrfinskey, 0 NBB_CCXT);
+            //  rv = 0;
+            //}
+            //else
+            //{
+                tunskey.res = 0;
+                tunskey.vrfid = vrfinskey.vrfid;
+                tunskey.peerip = vrfinskey.peerip;
+                node =  (SHASH_NODE *)spm_hashtab_search( SHARED.tunnelchhash, &tunskey NBB_CCXT);
+                if(( node == NULL) || ( node->data == NULL))
+                {
+                    spm_ds_add_vrf_node( 0 , &qosvrfinskey, 0 NBB_CCXT);
+                    NBB_TRC_FLOW((NBB_FORMAT "Add VRFINS Error: lookup tunnelch  "));
+                    vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    vrfinsips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 8;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d spm_hashtab_search rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: lookup tunnelch\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                else
+                {
+                    rv = 0;
+                    pwflag = 0 ;
+                    tunnels = (TUNNELCH *)(node->data);
+                    pwnode =  (PWTXNODE *)AVLL_FIRST(tunnels->pwtree);
+                    while (pwnode != NULL)
+                    {
+                        qosvrfinskey.label = pwnode->key.label;
+                        nhid = pwnode->posid;
+                        rv2 = spm_ds_add_vrf_node( difs.dserid , &qosvrfinskey, nhid NBB_CCXT);
+                        rv = (rv|rv2);
+                        pwflag = 1 ;
+                        pwnode = (PWTXNODE *)AVLL_NEXT( tunnels->pwtree, pwnode->pw_node);
+                    }
+                    if(pwflag == 0)
+                    {
+                        spm_ds_add_vrf_node( 0 , &qosvrfinskey, 0 NBB_CCXT);
+                        NBB_TRC_FLOW((NBB_FORMAT "Add VRFINS Error: pwnode null  "));
+                        vrfinsips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                        rv = 8;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d pwnode rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                        NBB_SPRINTF(errorlog + str_len, "Add Error: pwnode = NULL\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                }
+                
+            //}
+            if( rv == 0) 
+            {
+                if( flag == 1 )
+                {
+                    vrfins = (VRFINS *)NBB_MM_ALLOC(sizeof(VRFINS), NBB_NORETRY_ACT, MEM_SPM_VRFINS_CB);
+                    if ( vrfins == NULL )
+                    {
+                        NBB_TRC_FLOW((NBB_FORMAT "Add VRFINS Error: malloc null  "));
+                        vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        vrfinsips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        rv = 1;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d malloc mem rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                                NBB_SPRINTF(errorlog + str_len, "Add Error: vrfins = NULL\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    } 
+                    NBB_MEMSET(vrfins, 0, sizeof(VRFINS));
+                    AVLL_INIT_NODE(vrfins->ins_node);  
+                    NBB_TRC_FLOW((NBB_FORMAT "Add VRFINS new node  "));
+                    NBB_MEMCPY( &(vrfins->key), &vrfinskey, sizeof( VRFINS_KEY) );
+                    
+                    //coverity[no_effect_test]
+                    AVLL_INSERT(SHARED.vrfins_tree, vrfins->ins_node);
+                }
+                if ( vrfins == NULL )
+                {
+                    vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    vrfinsips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 104;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d vrfins rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: vrfins = NULL\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                } 
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(vrfins->difs), &difs, sizeof( VRFINS_DIFSER) );
+
+            }
+            else
+            {
+                OS_PRINTF(" ds add vrf node  rv=%d \n",  rv);
+                NBB_TRC_DETAIL((NBB_FORMAT "Add VRFINS Error: qos rv=%d ", rv));
+                vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                vrfinsips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d ds_add_vrf_node rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: add vrf node\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+        }   
+        else if( vrfinsips->oper_diff_serv == ATG_DCI_OPER_DEL) /*  删除子TLV*/
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del VRFINS Error: diff_serv_data data "));
+            vrfinsips->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }
+        if( vrfinsips->oper_up_vpn_qos == ATG_DCI_OPER_ADD) /* 增加*/
+        {
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(vrfinsips, &vrfinsips->up_vpn_qos_data); 
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add VRFINS Error:upqos data null"));
+                vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                vrfinsips->up_vpn_qos_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get upqos data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &upqos, 0, sizeof(VRFINS_UPQOS));
+            NBB_MEMCPY( &upqos, ucdata, sizeof(VRFINS_UPQOS));
+            OS_MEMSET( &qosvrfinskey, 0, sizeof( SPM_QOS_VRF_INSTANSE_KEY) );
+            qosvrfinskey.vrf_id = vrfinskey.vrfid;
+            qosvrfinskey.peer_ip = vrfinskey.peerip;
+
+            //删除qos
+            //if ((upqos.qospid == 0) |(upqos.qeqospid == 0))
+            //{
+                //OS_MEMCPY( &vrfupqos, &upqos, sizeof( ATG_DCI_VRF_INSTANCE_UP_VPN_QOS ) );
+                //spm_hqos_add_vrf_node( 0, 0, 0, &qostunl,&qosvrfinskey,&vrfupqos NBB_CCXT);
+                //rv = 0;
+            //}
+            tunskey.res = 0;
+            tunskey.vrfid = vrfinskey.vrfid;
+            tunskey.peerip = vrfinskey.peerip;
+            node =  (SHASH_NODE *)spm_hashtab_search( SHARED.tunnelchhash, &tunskey NBB_CCXT);
+            if(( node == NULL) || ( node->data == NULL))
+            {
+                OS_MEMCPY( &vrfupqos, &upqos, sizeof( ATG_DCI_VRF_INSTANCE_UP_VPN_QOS ) );
+                spm_hqos_add_vrf_node( 0, 0, 0, &qostunl,&qosvrfinskey,&vrfupqos NBB_CCXT);
+                rv = 0;
+                goto  EXIT_LABEL;
+            }
+            tunnels = (TUNNELCH *)(node->data);
+            if( tunnels->base.tunnelid == 0)  /*FTN  TYPE*/
+            {
+                ftnkey.fec = tunskey.peerip;
+                ftnkey.vrfid = 0;
+                ftnkey.mask = 32;
+                ftnkey.res = 0;
+                
+                uftn =  (FTN_TAB *)AVLL_FIND( SHARED.ftn_tree ,  &ftnkey ); 
+                if( uftn == NULL)
+                {
+                    OS_MEMCPY( &vrfupqos, &upqos, sizeof( ATG_DCI_VRF_INSTANCE_UP_VPN_QOS ) );
+                    spm_hqos_add_vrf_node( 0, 0, 0, &qostunl,&qosvrfinskey,&vrfupqos NBB_CCXT);
+                    rv = 0;
+                    goto  EXIT_LABEL;
+            
+                }
+                portindex = uftn->dclsp[0].nextport  ;
+                qostunl.type = 0;
+            }
+            else  /*CRTX_LSP  TYPE */
+            {
+                tunlkey.ingress = tunnels->base.ingress;
+                tunlkey.egress = tunnels->base.egress;
+                tunlkey.tunnelid = tunnels->base.tunnelid;
+                node =  (SHASH_NODE *)spm_hashtab_search( SHARED.lspprothash, &tunlkey NBB_CCXT);
+                if(( node == NULL) || ( node->data == NULL))
+                {
+                    OS_MEMCPY( &vrfupqos, &upqos, sizeof( ATG_DCI_VRF_INSTANCE_UP_VPN_QOS ) );
+                    spm_hqos_add_vrf_node( 0, 0, 0, &qostunl,&qosvrfinskey,&vrfupqos NBB_CCXT);
+                    rv = 0;
+                    goto  EXIT_LABEL;
+                }
+                lspprot = (LSPPROT *)(node->data);
+                txlspkey.ingress = tunnels->base.ingress;
+                txlspkey.egress = tunnels->base.egress;
+                txlspkey.tunnelid = tunnels->base.tunnelid;
+                txlspkey.lspid = lspprot->lspb.lsp[0].lspid;
+                node =  (SHASH_NODE *)spm_hashtab_search( SHARED.crlsptxhash, &txlspkey NBB_CCXT);
+                if(( node == NULL) || ( node->data == NULL))
+                {
+                    OS_MEMCPY( &vrfupqos, &upqos, sizeof( ATG_DCI_VRF_INSTANCE_UP_VPN_QOS ) );
+                    spm_hqos_add_vrf_node( 0, 0, 0, &qostunl,&qosvrfinskey,&vrfupqos NBB_CCXT);
+                    rv = 0;
+                    goto  EXIT_LABEL;
+                }
+                txlsp = (CRTXLSP *)(node->data);
+                portindex = txlsp->dclsp.nextport  ;
+                qostunl.type = 1;
+            }
+            OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+            rv = spm_get_portid_from_logical_port_index(portindex, &portfo NBB_CCXT);
+            if( rv != 0)     
+            {
+                OS_MEMCPY( &vrfupqos, &upqos, sizeof( ATG_DCI_VRF_INSTANCE_UP_VPN_QOS ) );
+                spm_hqos_add_vrf_node( 0, 0, 0, &qostunl,&qosvrfinskey,&vrfupqos NBB_CCXT);
+                rv = 0;
+                goto  EXIT_LABEL;
+            }
+            else
+            {
+                rv = 0;
+                if(qostunl.type == 0)
+                {
+                qostunl.flag = 1;
+                OS_MEMCPY( &(qostunl.ftn), &ftnkey, sizeof( FTN_KEY ) );
+                }
+                if(qostunl.type == 1)
+                {
+                    qostunl.flag = 1;
+                    OS_MEMCPY( &(qostunl.tx_lsp), &txlspkey, sizeof( CRTXLSP_KEY ) );
+                }
+                pwflag = 0 ;
+                OS_MEMSET( &qosvrfinskey, 0, sizeof( SPM_QOS_VRF_INSTANSE_KEY) );
+                qosvrfinskey.vrf_id = vrfinskey.vrfid;
+                qosvrfinskey.peer_ip = vrfinskey.peerip;
+                OS_MEMCPY( &vrfupqos, &upqos, sizeof( ATG_DCI_VRF_INSTANCE_UP_VPN_QOS ) );
+                pwnode =  (PWTXNODE *)AVLL_FIRST(tunnels->pwtree);
+                while (pwnode != NULL)
+                {
+                    qosvrfinskey.label = pwnode->key.label;
+                    nhid = pwnode->posid;
+                    rv2 = spm_hqos_add_vrf_node( portfo.slot_id, portfo.port_id, nhid, 
+                                                                        &qostunl,&qosvrfinskey,&vrfupqos NBB_CCXT);
+                    rv = (rv|rv2);
+                    pwflag = 1 ;
+                    pwnode = (PWTXNODE *)AVLL_NEXT( tunnels->pwtree, pwnode->pw_node);
+                }
+                if(pwflag == 0)
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add VRFINS Error: pwnode null  "));
+                    vrfinsips->up_vpn_qos_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    rv = 8;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d pwnode rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: pwnode = NULL\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+            }
+            if ( rv == 0 )      
+            {
+                if ( vrfins == NULL )                                   
+                {
+                    vrfins = (VRFINS *)NBB_MM_ALLOC(sizeof(VRFINS), NBB_NORETRY_ACT, MEM_SPM_VRFINS_CB);
+                    if ( vrfins == NULL )
+                    {
+                        NBB_TRC_FLOW((NBB_FORMAT "Add VRFINS Error: malloc null  "));
+                        vrfinsips->up_vpn_qos_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                        rv = 1;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d malloc mem rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                                NBB_SPRINTF(errorlog + str_len, "Add Error: vrfins = NULL\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    } 
+                    NBB_MEMSET(vrfins, 0, sizeof(VRFINS));
+                    AVLL_INIT_NODE(vrfins->ins_node);  
+                    NBB_TRC_FLOW((NBB_FORMAT "Add VRFINS new node  "));
+                    
+                    //coverity[bad_sizeof]
+                    NBB_MEMCPY( &(vrfins->key), &vrfinskey, sizeof( VRFINS_KEY) );
+                    AVLL_INSERT(SHARED.vrfins_tree, vrfins->ins_node);
+                }
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(vrfins->upqos), &upqos, sizeof(VRFINS_UPQOS));
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(vrfins->txlspkey), &txlspkey, sizeof(CRTXLSP_KEY));
+                vrfins->slot = portfo.slot_id;
+                vrfins->port = portfo.port_id;
+                vrfins->porttype = portfo.port_type;
+            }
+            else
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Add LSP TX Error: upqos rv=%d ", rv));
+                vrfinsips->up_vpn_qos_return_code = ATG_DCI_RC_UNSUCCESSFUL; 
+                vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                NBB_SPRINTF(errorlog + str_len, "Line=%d spm_hqos_add_lsp_node rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: add upqos\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+        }   
+        else if( vrfinsips->oper_up_vpn_qos == ATG_DCI_OPER_DEL) /*  删除子TLV*/
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del MCROUTE Error: pmsi data "));
+            vrfinsips->up_vpn_qos_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            
+            //vrfinsips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }
+    }
+    
+    EXIT_LABEL:
+
+    NBB_TRC_EXIT();
+
+    NBB_TRC_DETAIL((NBB_FORMAT "VRF INS:  rv = %d ", rv));
+    if(NULL == errorlog)
+    {
+        OS_PRINTF("Line=%d VRF INS malloc mem NULL \n",__LINE__);
+    }
+    else
+    {
+        NBB_SPRINTF(errorlog + str_len, "\0");
+        if(( rv != 0) && ( rv != 8))
+        {
+            NBB_EXCEPTION((PCT_SPM| 10, 1,  "s s", 
+                                            " VRF INS",
+                                            errorlog));
+        }
+        NBB_MM_FREE(errorlog,0);
+    }
+
+}
+
+#endif
+

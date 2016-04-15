@@ -1,0 +1,389 @@
+K 25
+svn:wc:ra_dav:version-url
+V 101
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg
+END
+spm_vpws_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 117
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_vpws_proc.c
+END
+spm_bypass_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 119
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_bypass_proc.c
+END
+spm_efm_oam_task.c
+K 25
+svn:wc:ra_dav:version-url
+V 120
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_efm_oam_task.c
+END
+spm_ptp_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_ptp_proc.c
+END
+spm_l3_fun.c
+K 25
+svn:wc:ra_dav:version-url
+V 114
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_l3_fun.c
+END
+spm_lag_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_lag_proc.c
+END
+spm_oam_func.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_oam_func.c
+END
+spm_qos_ds.c
+K 25
+svn:wc:ra_dav:version-url
+V 114
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_ds.c
+END
+spm_mac_recycle_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 124
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_mac_recycle_proc.c
+END
+spm_l3_crlsptx.c
+K 25
+svn:wc:ra_dav:version-url
+V 118
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_l3_crlsptx.c
+END
+spm_qos_pm.c
+K 25
+svn:wc:ra_dav:version-url
+V 114
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_pm.c
+END
+spm_common_ctrl_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 124
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_common_ctrl_proc.c
+END
+spm_arp_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_arp_proc.c
+END
+spm_qos_defend.c
+K 25
+svn:wc:ra_dav:version-url
+V 118
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_defend.c
+END
+spm_cmd_switch_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 123
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_cmd_switch_proc.c
+END
+spm_qos_debug.c
+K 25
+svn:wc:ra_dav:version-url
+V 117
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_debug.c
+END
+spm_l3_mcroute.c
+K 25
+svn:wc:ra_dav:version-url
+V 118
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_l3_mcroute.c
+END
+spm_tp_cfm_search_tree.c
+K 25
+svn:wc:ra_dav:version-url
+V 126
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_tp_cfm_search_tree.c
+END
+spm_bfd_task.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_bfd_task.c
+END
+spm_bfd_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_bfd_proc.c
+END
+spm_qos_policy.c
+K 25
+svn:wc:ra_dav:version-url
+V 118
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_policy.c
+END
+spm_msp_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_msp_proc.c
+END
+spm_qos_wred.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_wred.c
+END
+spm_l3_ftn.c
+K 25
+svn:wc:ra_dav:version-url
+V 114
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_l3_ftn.c
+END
+spm_vpls_mc_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 120
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_vpls_mc_proc.c
+END
+spm_qos_hqos_slot.c
+K 25
+svn:wc:ra_dav:version-url
+V 121
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_hqos_slot.c
+END
+spm_oam_task.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_oam_task.c
+END
+spm_vpls_uc_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 120
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_vpls_uc_proc.c
+END
+spm_oam_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_oam_proc.c
+END
+spm_qos_action.c
+K 25
+svn:wc:ra_dav:version-url
+V 118
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_action.c
+END
+spm_l3_lspprot.c
+K 25
+svn:wc:ra_dav:version-url
+V 118
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_l3_lspprot.c
+END
+spm_logical_port_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 125
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_logical_port_proc.c
+END
+spm_qos_log.c
+K 25
+svn:wc:ra_dav:version-url
+V 115
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_log.c
+END
+spm_global_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 119
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_global_proc.c
+END
+spm_qos_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_proc.c
+END
+Spm_oam_dbg.c
+K 25
+svn:wc:ra_dav:version-url
+V 115
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/Spm_oam_dbg.c
+END
+spm_vc_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 115
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_vc_proc.c
+END
+spm_l3_crlsprx.c
+K 25
+svn:wc:ra_dav:version-url
+V 118
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_l3_crlsprx.c
+END
+spm_qos_hqos.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_hqos.c
+END
+spm_l3_vrfuroute.c
+K 25
+svn:wc:ra_dav:version-url
+V 120
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_l3_vrfuroute.c
+END
+spm_qos_control.c
+K 25
+svn:wc:ra_dav:version-url
+V 119
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_control.c
+END
+spm_physical_port_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 126
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_physical_port_proc.c
+END
+spm_ncache_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 119
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_ncache_proc.c
+END
+spm_l3_vrfins.c
+K 25
+svn:wc:ra_dav:version-url
+V 117
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_l3_vrfins.c
+END
+spm_nf_debug.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_nf_debug.c
+END
+spm_switch_vc_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 122
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_switch_vc_proc.c
+END
+spm_qos_group.c
+K 25
+svn:wc:ra_dav:version-url
+V 117
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_group.c
+END
+spm_l3_tunnelch.c
+K 25
+svn:wc:ra_dav:version-url
+V 119
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_l3_tunnelch.c
+END
+spm_l3_ilm.c
+K 25
+svn:wc:ra_dav:version-url
+V 114
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_l3_ilm.c
+END
+spm_qos_acl.c
+K 25
+svn:wc:ra_dav:version-url
+V 115
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_acl.c
+END
+spm_vpls_l3_mc_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 123
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_vpls_l3_mc_proc.c
+END
+spm_nf_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 115
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_nf_proc.c
+END
+spm_oam_tree.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_oam_tree.c
+END
+spm_clk_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_clk_proc.c
+END
+spm_qos_classify.c
+K 25
+svn:wc:ra_dav:version-url
+V 120
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_qos_classify.c
+END
+spm_port_mirror_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 124
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_port_mirror_proc.c
+END
+spm_bfd_global_variables.c
+K 25
+svn:wc:ra_dav:version-url
+V 128
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_bfd_global_variables.c
+END
+spm_efm_oam.c
+K 25
+svn:wc:ra_dav:version-url
+V 115
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_efm_oam.c
+END
+spm_cir_emu_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 120
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_cir_emu_proc.c
+END
+spm_bfd_dbg.c
+K 25
+svn:wc:ra_dav:version-url
+V 115
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_bfd_dbg.c
+END
+spm_vpls_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 117
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_vpls_proc.c
+END
+spm_oam_pm.c
+K 25
+svn:wc:ra_dav:version-url
+V 114
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_oam_pm.c
+END
+spm_status_rq_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 122
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_status_rq_proc.c
+END
+spm_associate_if_proc.c
+K 25
+svn:wc:ra_dav:version-url
+V 125
+/svn/8kv3/!svn/ver/5/Code/CiTRANS_R8000/FORWARDING/branches/brn_smart_for_V3R1/src/mod/plat/fhspm/cfg/spm_associate_if_proc.c
+END

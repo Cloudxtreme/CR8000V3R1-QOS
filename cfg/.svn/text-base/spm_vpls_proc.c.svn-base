@@ -1,0 +1,4898 @@
+/******************************************************************************
+
+                  版权所有 (C), 1999-2013, 烽火通信科技股份有限公司
+
+ ******************************************************************************
+  文 件 名   : spm_vpls_proc.c
+  版 本 号   : 初稿
+  作    者   : xiaoxiang
+  生成日期   : 2012年9月18日
+  最近修改   :
+  功能描述   : VPLS配置处理
+  函数列表   :
+  修改历史   :
+  1.日    期   : 2012年9月18日
+    作    者   : xiaoxiang
+    修改内容   : 创建文件
+
+******************************************************************************/
+
+#define SHARED_DATA_TYPE SPM_SHARED_LOCAL
+
+#include <nbase.h>
+#include <spmincl.h>
+
+#ifdef VPLS_CFG
+
+/* 打印VPLS配置开关 */
+extern unsigned char vpls_cfg_print_setting; 
+extern unsigned char vpws_cfg_print_setting; /*vpws配置块印开关*/
+
+/*****************************************************************************
+ 函 数 名  : spm_rcv_dci_set_vpls
+ 功能描述  : VPLS配置处理
+ 输入参数  : ATG_DCI_SET_VPLS *pstSetVpls        
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年10月30日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_VOID spm_rcv_dci_set_vpls(ATG_DCI_SET_VPLS *pstSetVpls NBB_CCXT_T NBB_CXT)
+{
+    NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+    NBB_BYTE ucMessageLen = 0;
+    
+    NBB_ULONG i = 0;
+    NBB_ULONG j = 0;
+    NBB_INT ret = SUCCESS;
+    NBB_BYTE ucC3Unit = 0;
+    NBB_BYTE ucSlot = 0;
+    NBB_BYTE ucProtectFlag = 0;
+    NBB_INT iNniExistPos = 0;
+    NBB_INT iUniExistPos = 0;
+	NBB_USHORT usFrrGroupId = 0;
+	NBB_USHORT usNniVpNo = 0;
+	NBB_USHORT usUniVpNo = 0;
+	NBB_USHORT usVsiMcId = 0;
+
+    NBB_INT iSlotNum = 0;
+    
+    SPM_VPLS_CB *pstVpls = NULL;
+
+    /* 获取的子配置 */
+    ATG_DCI_VPLS_BASIC_DATA *pstBasicData = NULL;
+    ATG_DCI_VPLS_NNI_DATA *pstNniData[ATG_DCI_VPLS_NNI_NUM];
+    ATG_DCI_VPLS_UNI_DATA *pstUniData[ATG_DCI_VPLS_UNI_NUM];  
+
+    /* IPS消息偏移的首地址 */
+    NBB_BYTE *pucBasicDataStart = NULL;
+    NBB_BYTE *pucNniDataStart   = NULL;
+    NBB_BYTE *pucUniDataStart   = NULL;
+
+    /* 子配置的操作模式 */
+    NBB_ULONG ulOperBasic = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperNni   = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperUni   = ATG_DCI_OPER_NULL;
+
+    SPM_VPN_PORT_INFO_CB stVplsPortInfo;
+    SPM_VPN_PORT_INFO_CB stVpPortInfo;
+    ATG_DCI_VC_KEY stVcKeyMainOld;
+    ATG_DCI_VC_KEY stVcKeyBackOld;
+    ATG_DCI_VC_KEY stVcKeyMainNew;
+    ATG_DCI_VC_KEY stVcKeyBackNew;
+    ATG_DCI_VC_KEY stTmpVcKey;
+    ATG_DCI_VC_KEY stTmpMainVcKey;
+    ATG_DCI_VC_KEY stTmpBackVcKey;
+    LSPPROT_KEY st_lspprot_key;  //LSPPROT  key值
+    LSPPROT_KEY st_lspprot_key_back;  //LSPPROT  key值
+    SPM_VC_INFO_CB stVcDrvInfoMainOld;
+    SPM_VC_INFO_CB stVcDrvInfoBackOld;
+    SPM_LOGICAL_PORT_INFO_CB stLogicalPortDrvInfo;
+    SPM_LOGICAL_PORT_CB *pstLogcialPort = NULL;
+
+    /* 条目的键值 */
+    NBB_USHORT usVplsIdKey = 0;
+
+    NBB_BYTE ucIfExist = ATG_DCI_EXIST;
+
+    /* UNI对应的逻辑端口索引*/
+    NBB_ULONG ulPortIndex = 0;
+
+    NBB_TRC_ENTRY("spm_rcv_dci_set_vpls");
+
+    /* 输入参数指针必须有效 */
+    NBB_ASSERT(pstSetVpls != NULL);
+
+	if (pstSetVpls == NULL)
+	{
+        NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:spm_rcv_dci_set_vpls(pstSetVpls==NULL)"));
+
+        OS_PRINTF("***ERROR***:spm_rcv_dci_set_vpls(pstSetVpls==NULL)\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***:spm_rcv_dci_set_vpls(pstSetVpls==NULL)\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", 0, 
+                                                         FUNC_IN_PARAM_IS_NULL, 
+                                                         "FUNC_IN_PARAM_IS_NULL", 
+                                                         ucMessage));        
+        goto EXIT_LABEL;
+    }
+
+    //首先将IPS消息的返回值设置为OK，如果有一个子配置失败，则置为FAIL
+    pstSetVpls->return_code = ATG_DCI_RC_OK;
+
+    /* 初始化NNI指针数组 */
+    for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+    {
+        pstNniData[i] = NULL;
+    }
+
+    /* 初始化UNI指针数组 */
+    for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+    {
+        pstUniData[i] = NULL;
+    }
+
+    OS_MEMSET(&stVplsPortInfo, 0, sizeof(SPM_VPN_PORT_INFO_CB));
+    OS_MEMSET(&stVpPortInfo, 0, sizeof(SPM_VPN_PORT_INFO_CB));
+    OS_MEMSET(&stVcKeyMainOld, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVcKeyBackOld, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVcKeyMainNew, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVcKeyBackNew, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&st_lspprot_key, 0, sizeof(LSPPROT_KEY));
+    OS_MEMSET(&st_lspprot_key_back, 0, sizeof(LSPPROT_KEY));
+    OS_MEMSET(&stTmpVcKey, 0, sizeof(ATG_DCI_VC_KEY));    
+    OS_MEMSET(&stTmpMainVcKey, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stTmpBackVcKey, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVcDrvInfoMainOld, 0, sizeof(SPM_VC_INFO_CB));
+    OS_MEMSET(&stVcDrvInfoBackOld, 0, sizeof(SPM_VC_INFO_CB));
+    OS_MEMSET(&stLogicalPortDrvInfo, 0, sizeof(SPM_LOGICAL_PORT_INFO_CB));
+    
+    usVplsIdKey = pstSetVpls->key;    
+    pstVpls = AVLL_FIND(SHARED.vpls_tree, &usVplsIdKey);
+    
+    if (pstVpls == NULL)    //条目不存在
+    {
+        ucIfExist = ATG_DCI_UNEXIST;
+    }    
+    
+    /* 获取子配置的操作类型 */
+    ulOperBasic = pstSetVpls->oper_basic;
+    ulOperNni   = pstSetVpls->oper_nni;
+    ulOperUni   = pstSetVpls->oper_uni;
+
+
+    /* 删除整个条目 */
+    if (pstSetVpls->delete_struct == TRUE)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  删除VPLS_ID=%ld的 VPLS配置", usVplsIdKey));        
+
+        /* 如果条目不存在，不删除 */
+        if (ucIfExist == ATG_DCI_UNEXIST)
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:要删除的配置并不存在!"));
+
+            OS_PRINTF("***ERROR***:要删除 VPLS_ID=%d 的VPLS配置并不存在!\n", usVplsIdKey);
+
+            OS_SPRINTF(ucMessage, "***ERROR***:要删除 VPLS_ID=%d 的VPLS配置并不存在!\n", usVplsIdKey);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             DEL_UNEXIST_CONFIG_ERROR, 
+                                                             "DEL_UNEXIST_CONFIG_ERROR", 
+                                                             ucMessage));
+            pstSetVpls->return_code = ATG_DCI_RC_OK;
+            
+            goto EXIT_LABEL;
+        }
+        
+        /* 存在，删除 */
+        else
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "  查询到此配置，删除此VPLS，并从tree中删除存储数据"));
+            spm_dbg_print_vpls_head(usVplsIdKey, SPM_OPER_DEL);
+            spm_dbg_record_vpls_head(usVplsIdKey, SPM_OPER_DEL);
+            
+#ifdef SPU
+            ret = SUCCESS;
+            
+            /* 删除VPLS */
+            for (ucC3Unit = 0; ucC3Unit < SHARED.c3_num; ucC3Unit++)
+            {
+                ret += ApiC3DelMplsVpn(ucC3Unit, L2VPN_VPLS, usVplsIdKey);
+            }
+
+            if (pstVpls == NULL)
+            {
+            	goto EXIT_LABEL;
+            }
+
+            //删除成功要删除VPLS下挂VC，逻辑接口，流的驱动返回信息
+            if (ret == SUCCESS)
+            {
+                for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+                {
+                    if (pstVpls->nni_cfg_cb[i] != NULL)
+                    {
+                        stVcKeyMainOld.vc_id   = pstVpls->nni_cfg_cb[i]->vc_id;
+                        stVcKeyMainOld.vc_type = pstVpls->nni_cfg_cb[i]->vc_type;
+                        stVcKeyMainOld.peer_ip = pstVpls->nni_cfg_cb[i]->peer_ip;
+
+                        stVcKeyBackOld.vc_id   = pstVpls->nni_cfg_cb[i]->vc_id_bak;
+                        stVcKeyBackOld.vc_type = pstVpls->nni_cfg_cb[i]->vc_type_bak;
+                        stVcKeyBackOld.peer_ip = pstVpls->nni_cfg_cb[i]->peer_ip_bak;
+
+						spm_get_vc_drvinfo(stVcKeyMainOld,&stVcDrvInfoMainOld NBB_CCXT);
+						spm_get_vc_drvinfo(stVcKeyBackOld,&stVcDrvInfoBackOld NBB_CCXT);
+						spm_get_vc_lspprotkey(stVcKeyMainOld,&st_lspprot_key NBB_CCXT);
+						spm_get_vc_lspprotkey(stVcKeyBackOld,&st_lspprot_key_back NBB_CCXT);
+                        
+						if (stVcDrvInfoMainOld.frr_group_id != 0)
+						{
+							usFrrGroupId = stVcDrvInfoMainOld.frr_group_id;
+						}
+						else if (stVcDrvInfoBackOld.frr_group_id != 0)
+						{
+							usFrrGroupId = stVcDrvInfoBackOld.frr_group_id;
+						}
+						
+						ucProtectFlag = pstVpls->nni_cfg_cb[i]->use_protect;
+
+						ret = SUCCESS;
+
+						if((usFrrGroupId != 0) && (ucProtectFlag == 1))
+						{
+							for(ucC3Unit = 0; ucC3Unit < SHARED.c3_num; ucC3Unit++)
+							{
+								ret += ApiC3DeleteFrrGroup(ucC3Unit,usFrrGroupId);
+							}
+
+							if(ret != SUCCESS)
+							{
+								NBB_TRC_DETAIL((NBB_FORMAT "***ERROR***: ApiC3DeleteFrrGroup() error! ret=%d", ret));
+
+								OS_SPRINTF(ucMessage, "***ERROR***: ApiC3DeleteFrrGroup() ret=%d VPLS_ID=%d\n", 
+                                    ret, usVplsIdKey);
+            					BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+            
+                				NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey,
+	                        		ret,
+	                        		"CALL_C3_FUNC_ERROR",
+	                        		"ApiC3DeleteFrrGroup()"));
+							}
+
+						 //调用dk的接口获取ftnIndex
+                                            if (ATG_DCI_FTN == stVcDrvInfoBackOld.lsp_option)
+                                            {
+                                            	spm_l3_delvpldp(stVcKeyBackOld.peer_ip, 
+                                            					stVcDrvInfoBackOld.vp_idx, 
+                                            					stVcDrvInfoBackOld.next_hop_id
+                                            					NBB_CCXT);		            
+                                            }
+                                            else if (ATG_DCI_CR_LSP == stVcDrvInfoBackOld.lsp_option)
+                                            {
+                                            	spm_l3_delvprsvp(&st_lspprot_key_back, 
+                                            					stVcDrvInfoBackOld.vp_idx, 
+                                            					stVcDrvInfoBackOld.next_hop_id
+                                            					NBB_CCXT);	
+                                            }                      
+                            
+						}						
+
+					 //调用dk的接口获取ftnIndex
+                                        if (ATG_DCI_FTN == stVcDrvInfoMainOld.lsp_option)
+                                        {
+                                        	spm_l3_delvpldp(stVcKeyMainOld.peer_ip, 
+                                        					stVcDrvInfoMainOld.vp_idx, 
+                                        					stVcDrvInfoMainOld.next_hop_id
+                                        					NBB_CCXT);		            
+                                        }
+                                        else if (ATG_DCI_CR_LSP == stVcDrvInfoMainOld.lsp_option)
+                                        {
+                                        	spm_l3_delvprsvp(&st_lspprot_key, 
+                                        					stVcDrvInfoMainOld.vp_idx, 
+                                        					stVcDrvInfoMainOld.next_hop_id
+                                        					NBB_CCXT);	
+                                        }	
+
+		    		    spm_lps_del_entity(FRR_TYPE, usFrrGroupId);
+
+						//回收next_hop_id
+		    		    //if (stVcDrvInfoMainOld.next_hop_id != 0)
+                                if (0 != pstVpls->nni_info_cb[i].next_hop_id)
+		    		    {
+		    		    	spm_free_vc_nhi_id(pstVpls->nni_info_cb[i].next_hop_id NBB_CCXT);
+		    		    }
+
+		    		    //if (stVcDrvInfoBackOld.next_hop_id != 0)
+                                if (0 != pstVpls->nni_info_cb[i].next_hop_id_p)
+		    		    {
+		    		    	spm_free_vc_nhi_id(pstVpls->nni_info_cb[i].next_hop_id_p NBB_CCXT);
+		    		    }
+		    		    
+                        spm_vc_drvinfo_clear(&stVcKeyMainOld NBB_CCXT);
+                        spm_vc_drvinfo_clear(&stVcKeyBackOld NBB_CCXT);
+                    }
+                }
+
+                for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+                {
+                    //增加删除下一跳ID
+                    if (pstVpls->uni_cfg_cb[i] != NULL)
+                    {
+                        ulPortIndex = pstVpls->uni_cfg_cb[i]->port_index;
+                        pstLogcialPort = AVLL_FIND(SHARED.logical_port_tree, &ulPortIndex);
+                   
+                        if (NULL != pstLogcialPort)
+                        {
+                            //回收next_hop_id资源
+                            if (pstLogcialPort->logic_port_info_cb.next_hop_id != 0)
+                            {
+                                spm_free_vc_nhi_id(pstLogcialPort->logic_port_info_cb.next_hop_id NBB_CCXT);
+                            }
+
+                            //清空逻辑接口配置中的驱动返回值
+                            spm_logical_port_drvinfo_clear(ulPortIndex NBB_CCXT);
+                        }                                            
+                    }
+                }
+
+            }
+            else
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:删除VPLS(ID=%d)失败! >>> ApiC3DelMplsVpn!"));
+
+                OS_PRINTF("***ERROR***:删除VPLS(ID=%d)失败! >>> ApiC3DelMplsVpn() ret=%d\n", 
+                    usVplsIdKey, ret);
+
+                OS_SPRINTF(ucMessage, "***ERROR***:删除VPLS(ID=%d)失败! >>> ApiC3DelMplsVpn() ret=%d\n", 
+                    usVplsIdKey, ret);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_C3_FUNC_ERROR", 
+                                                             ucMessage));
+                                                             
+                pstSetVpls->return_code = ATG_DCI_RC_DEL_FAILED;
+                
+                goto EXIT_LABEL;
+            }
+
+            //删除VPLS大组播组，要求删除后下挂的组播端口由驱动自动删除
+            //Arad删除组播组后自动删除下挂端口
+            if (pstVpls->basic_cfg_cb != NULL)
+            {
+            	ret = ApiAradDeleteMc(UNIT_0, pstVpls->basic_cfg_cb->vsi_id);
+            }
+
+            if (ret != SUCCESS)
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:删除VPLS(VPLS_ID=%d)的大组播组失败! >>> ApiAradDeleteMc() ret=%d", 
+                    usVplsIdKey,ret));
+
+                OS_PRINTF("***ERROR***:删除VPLS(VPLS_ID=%d)的大组播组失败! >>> ApiAradDeleteMc() ret=%d", 
+                    usVplsIdKey,ret);   
+
+                OS_SPRINTF(ucMessage, "***ERROR***:删除VPLS(VPLS_ID=%d)的大组播组失败! >>> ApiAradDeleteMc() ret=%d", 
+                    usVplsIdKey,ret);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+                                                             
+                pstSetVpls->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                goto EXIT_LABEL;
+            }
+            
+#endif
+
+#ifdef SRC 
+
+            /* 删除VPLS组播组，要求删除后下挂的组播端口由驱动自动删除*/ 
+            if (pstVpls->basic_cfg_cb != NULL)
+            {
+            	ret = ApiDfeMulticastDestroy(UNIT_0, pstVpls->basic_cfg_cb->vsi_id);
+            }
+
+            if (ret != SUCCESS)
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT 
+                    "  ***ERROR***:删除VPLS(VPLS_ID=%d)的大组播组失败! >>> ApiDfeMulticastDestroy() ret=%d",
+                    usVplsIdKey, ret));
+
+                OS_PRINTF("***ERROR***:删除VPLS(VPLS_ID=%d)的大组播组失败! >>> ApiDfeMulticastDestroy() ret=%d", 
+                    usVplsIdKey, ret);
+
+                OS_SPRINTF(ucMessage, "***ERROR***:删除VPLS(VPLS_ID=%d)的大组播组失败! >>> ApiDfeMulticastDestroy() ret=%d", 
+                    usVplsIdKey, ret);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+                                                             
+                pstSetVpls->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                goto EXIT_LABEL;
+            }
+#endif
+
+#ifdef SNU
+
+            /* 删除VPLS组播组，要求删除后下挂的组播端口由驱动自动删除*/ 
+            if (pstVpls->basic_cfg_cb != NULL)
+            {
+            	ret = ApiDfeMulticastDestroy(UNIT_0, pstVpls->basic_cfg_cb->vsi_id);
+            }
+
+            if (ret != SUCCESS)
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT 
+                    "  ***ERROR***:删除VPLS(VPLS_ID=%d)的大组播组失败! >>> ApiDfeMulticastDestroy() ret=%d", 
+                    usVplsIdKey, ret));
+
+                OS_PRINTF("***ERROR***:删除VPLS(VPLS_ID=%d)的大组播组失败! >>> ApiDfeMulticastDestroy() ret=%d", 
+                    usVplsIdKey, ret);
+
+                OS_SPRINTF(ucMessage, "***ERROR***:删除VPLS(VPLS_ID=%d)的大组播组失败! >>> ApiDfeMulticastDestroy() ret=%d", 
+                    usVplsIdKey, ret);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+                                                             
+                pstSetVpls->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                goto EXIT_LABEL;
+            }
+#endif
+			//if (pstVpls != NULL)
+			//{
+	            AVLL_DELETE(SHARED.vpls_tree, pstVpls->spm_vpls_node);    
+
+	            //释放VPLS节点的内存空间
+	            spm_free_vpls_cb(pstVpls NBB_CCXT);
+                
+			//}
+        }
+    }
+    
+    /* 增加或更新条目 */
+    else
+    {
+        
+        /* 如果条目不存在，新申请内存空间保存数据 */
+        if (ucIfExist == ATG_DCI_UNEXIST)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  增加VPLS_ID=%d的 VPLS配置，NNI num=%d UNI num=%d", 
+                usVplsIdKey, pstSetVpls->nni_num, pstSetVpls->uni_num));
+            spm_dbg_print_vpls_head(usVplsIdKey, SPM_OPER_ADD);
+            spm_dbg_record_vpls_head(usVplsIdKey, SPM_OPER_ADD);
+            
+            /* 申请一个新条目的内存空间 */
+            pstVpls = spm_alloc_vpls_cb(NBB_CXT);
+
+			if (pstVpls != NULL)
+			{
+	            //插入到tree中
+	            pstVpls->vpls_id_key = usVplsIdKey;
+
+	            //coverity[no_effect_test]
+	            AVLL_INSERT(SHARED.vpls_tree, pstVpls->spm_vpls_node);
+			}
+
+#ifdef SPU
+            ret = SUCCESS;
+            
+            /* 创建VPLS */
+            for (ucC3Unit = 0; ucC3Unit < SHARED.c3_num; ucC3Unit++)
+            {
+                ret += ApiC3CreateMplsVpn(ucC3Unit, L2VPN_VPLS, usVplsIdKey);
+            }
+
+            if (ret != SUCCESS)
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:创建VPLS(ID=%d)失败! >>> ApiC3CreateMplsVpn() ret=%d!", 
+                    usVplsIdKey, ret));
+
+                OS_PRINTF("***ERROR***:创建VPLS(ID=%d)失败! >>> ApiC3CreateMplsVpn() ret=%d\n", 
+                    usVplsIdKey, ret);
+
+                OS_SPRINTF(ucMessage, "***ERROR***:创建VPLS(ID=%d)失败! >>> ApiC3CreateMplsVpn() ret=%d\n", 
+                    usVplsIdKey, ret);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_C3_FUNC_ERROR", 
+                                                             ucMessage));
+                                                             
+                pstSetVpls->return_code = ATG_DCI_RC_ADD_FAILED;
+                pstSetVpls->basic_return_code = ATG_DCI_RC_ADD_FAILED;
+
+                for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+                {
+                    pstSetVpls->nni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+                }
+
+                for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+                {
+                    pstSetVpls->uni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+                } 
+                
+                goto EXIT_LABEL;
+            }
+#endif
+        }
+        else
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  更新VPLS_ID=%ld的 VPLS配置，NNI=%d UNI=%d", 
+                usVplsIdKey, pstSetVpls->nni_num, pstSetVpls->uni_num));
+            spm_dbg_print_vpls_head(usVplsIdKey, SPM_OPER_UPD);
+            spm_dbg_record_vpls_head(usVplsIdKey, SPM_OPER_UPD);
+        }
+
+		//增加此判断，取消PC-Lint告警
+		if (pstVpls == NULL)
+		{
+            NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:要增加 VPLS_ID=%d 的VPLS配置未能成功申请内存!\n", usVplsIdKey));
+
+            OS_PRINTF("***ERROR***:要增加 VPLS_ID=%d 的VPLS配置未能成功申请内存!\n", usVplsIdKey);
+
+            OS_SPRINTF(ucMessage, "***ERROR***:要增加 VPLS_ID=%d 的VPLS配置未能成功申请内存!\n", usVplsIdKey);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ALLOC_MEMORY_ERROR, 
+                                                             "ALLOC_MEMORY_ERROR", 
+                                                             ucMessage));
+            pstSetVpls->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+            
+            goto EXIT_LABEL;
+        }
+
+        /***************************************************************************/
+        /*                              获取配置                                   */
+        /***************************************************************************/
+        /******************************** 基本配置 *********************************/
+        if (ulOperBasic == ATG_DCI_OPER_ADD)
+        {            
+
+            /* 计算第一个entry的地址。*/
+            pucBasicDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetVpls, &pstSetVpls->basic_data);    
+
+            /* 如果指针为NULL，无数据 */
+            if (pucBasicDataStart == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  pucBasicDataStart is NULL."));
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+
+                //如果为新增，且基本配置未下发，那么直接退出，不处理
+                if (ucIfExist == ATG_DCI_UNEXIST)
+                {
+                    pstSetVpls->return_code = ATG_DCI_RC_VPLS_NO_BASIC_DATA;
+                    pstSetVpls->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+                    for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+                    {
+                        pstSetVpls->nni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+                    }
+
+                    for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+                    {
+                        pstSetVpls->uni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+                    }
+                    
+                    goto EXIT_LABEL;
+                }
+            }
+            else
+            {
+                pstBasicData = (ATG_DCI_VPLS_BASIC_DATA *)pucBasicDataStart;
+
+                /* 配置处理 */
+                NBB_TRC_DETAIL((NBB_FORMAT "  MAC学习容量限制 = %d", pstBasicData->mac_learning_capacity));
+                NBB_TRC_DETAIL((NBB_FORMAT "  VSI ID = %d", pstBasicData->vsi_id));
+                NBB_TRC_DETAIL((NBB_FORMAT "  MC ID = %d", pstBasicData->mc_id));
+
+                if (vpls_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  1）基本配置\n");
+                    spm_dbg_print_vpls_basic_cfg(pstBasicData);
+                }
+
+                OS_SPRINTF(ucMessage,"  1）基本配置\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                
+                //spm_dbg_record_vpls_basic_cfg(pstBasicData);
+
+                usVsiMcId = pstBasicData->mc_id;
+
+#ifdef SRC
+                if (ucIfExist == ATG_DCI_UNEXIST)
+                {
+                	//FE1600只有一片
+                    ret = ApiDfeMulticastCreate(UNIT_0, usVsiMcId);
+
+                    NBB_TRC_DETAIL((NBB_FORMAT "  ApiDfeMulticastCreate() ret=%d", ret));
+
+                    if (ret != SUCCESS)
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:ApiDfeMulticastCreate() error! ret=%d", ret));
+
+                        OS_PRINTF("***ERROR***:ApiDfeMulticastCreate() ret=%d\n", ret);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***:ApiDfeMulticastCreate() ret=%d\n", ret);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+                                                             
+                        pstSetVpls->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+                        goto EXIT_LABEL;
+                    }
+                }
+
+                //更改MAC地址学习方案后，在C3上学习，故该函数无效，屏蔽
+                //ApiMacSetMacLearnLimitByVsi(usVplsIdKey, pstBasicData->mac_learning_capacity);
+                
+#endif
+
+#ifdef SNU
+                if (ucIfExist == ATG_DCI_UNEXIST)
+                {
+                	//FE1600只有一片
+                    ret = ApiDfeMulticastCreate(UNIT_0, usVsiMcId);
+
+                    NBB_TRC_DETAIL((NBB_FORMAT "  ApiDfeMulticastCreate() ret=%d", ret));
+
+                    if (ret != SUCCESS)
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:ApiDfeMulticastCreate() error! ret=%d", ret));
+
+                        OS_PRINTF("***ERROR***:ApiDfeMulticastCreate() ret=%d\n", ret);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***:ApiDfeMulticastCreate() ret=%d\n", ret);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+                                                             
+                        pstSetVpls->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+                        goto EXIT_LABEL;
+                    }
+                }     
+#endif
+
+#ifdef SPU
+
+                //VPLS本身也是一个大组播组，也需要创建组播组
+                if (ucIfExist == ATG_DCI_UNEXIST)
+                {
+                    //Arad只有一片
+                    ret = ApiAradSetupEngressMc(UNIT_0, usVsiMcId);
+
+                    NBB_TRC_DETAIL((NBB_FORMAT "  ApiAradSetupEngressMc() ret=%d", ret));
+
+                    if (ret != SUCCESS)
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:ApiAradSetupEngressMc() error! ret=%d", ret));
+
+                        OS_PRINTF("***ERROR***:ApiAradSetupEngressMc() ret=%d\n", ret);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***:ApiAradSetupEngressMc() ret=%d\n", ret);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+                                                             
+                        pstSetVpls->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+                        goto EXIT_LABEL;
+                    }
+                }
+
+                ret = SUCCESS;
+                
+                for (ucC3Unit = 0; ucC3Unit < SHARED.c3_num; ucC3Unit++)
+                {
+                    ret += ApiC3SetL2MacLimitByVid(ucC3Unit, usVplsIdKey, pstBasicData->mac_learning_capacity);
+
+                    NBB_TRC_DETAIL((NBB_FORMAT "  ApiC3SetL2MacLimitByVid() ret=%d", ret));
+
+                }
+                
+                if (ret != SUCCESS)
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT 
+                        "  ***ERROR***:ApiC3SetL2MacLimitByVid ret=%d VPLS_ID=%d ucC3Unit=%d !", 
+                        ret,usVplsIdKey,ucC3Unit));
+
+                    OS_PRINTF("***ERROR***:ApiC3SetL2MacLimitByVid ret=%d VPLS_ID=%d ucC3Unit=%d !\n", 
+                        ret,usVplsIdKey,ucC3Unit);
+
+                    OS_SPRINTF(ucMessage, 
+                        "***ERROR***:ApiC3SetL2MacLimitByVid ret=%d VPLS_ID=%d ucC3Unit=%d !\n", 
+                        ret,usVplsIdKey,ucC3Unit);
+                    BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                    NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_C3_FUNC_ERROR", 
+                                                             ucMessage));
+                                                             
+                    pstSetVpls->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+                    goto EXIT_LABEL;
+                }
+#endif
+
+                /* 保存数据 */
+                if (pstVpls->basic_cfg_cb == NULL)
+                {
+                    pstVpls->basic_cfg_cb = (ATG_DCI_VPLS_BASIC_DATA *)NBB_MM_ALLOC(sizeof(ATG_DCI_VPLS_BASIC_DATA),
+                                                            NBB_NORETRY_ACT,
+                                                            MEM_SPM_VPLS_BASIC_CB);
+                }  
+                
+                OS_MEMCPY(pstVpls->basic_cfg_cb, pstBasicData, sizeof(ATG_DCI_VPLS_BASIC_DATA));
+
+            }            
+        }
+        else if (ulOperBasic == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperBasic == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }  
+        
+        /******************************** NNI配置 *********************************/
+        if (ulOperNni == ATG_DCI_OPER_ADD)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  NNI ADD")); 
+                
+            /* 计算第一个entry的地址。*/
+            pucNniDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetVpls, &pstSetVpls->nni_data);    
+
+            /* 如果指针为NULL，无数据 */
+            if (pucNniDataStart == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  pucNniDataStart is NULL."));
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                if (vpls_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  2）NNI接口配置[1-512] (nni_num=%d) ADD\n", pstSetVpls->nni_num);
+                }
+
+                OS_SPRINTF(ucMessage,"  2）NNI接口配置[1-512] (nni_num=%d) ADD\n", 
+                    pstSetVpls->nni_num);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                 //如果基本配置未下发，那么直接退出，不处理
+                if(NULL == pstVpls->basic_cfg_cb)
+                {
+                    pstSetVpls->return_code = ATG_DCI_RC_VPLS_NO_BASIC_DATA;
+                    pstSetVpls->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+                    for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+                    {
+                        pstSetVpls->nni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+                    }
+
+                    for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+                    {
+                        pstSetVpls->uni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+                    }
+                   
+                    OS_PRINTF("usVplsIdKey=%ld, NNI接口配置失配，基本配置无法获取!\n", 
+                        usVplsIdKey);
+
+                    OS_SPRINTF(ucMessage, "usVplsIdKey=%ld, NNI接口配置失配，基本配置无法获取!\n", 
+                        usVplsIdKey);
+                    BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                    NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, BASIC_CONFIG_NOT_EXIST,
+                            "BASIC_CONFIG_NOT_EXIST", ucMessage));
+                    goto EXIT_LABEL;
+                    
+                }
+                else
+                {
+                    usVsiMcId = pstVpls->basic_cfg_cb->mc_id;
+                }
+                
+                for (i = 0; i < pstSetVpls->nni_num; i++)
+                {
+                    
+                    pstNniData[i] = (ATG_DCI_VPLS_NNI_DATA *)
+                                  (pucNniDataStart + (NBB_ALIGN_OFFSET(sizeof(ATG_DCI_VPLS_NNI_DATA))) * i);
+
+                    NBB_TRC_DETAIL((NBB_FORMAT "  NNI ID = %d", i + 1));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  VC ID = %ld", pstNniData[i]->vc_id));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  PEER_IP = %s", 
+                        spm_set_ulong_to_ipv4(pstNniData[i]->peer_ip NBB_CCXT)));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  VC_TYPE = %d", pstNniData[i]->vc_type));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  保护 = %s", pstNniData[i]->use_protect ? "有" : "无"));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  备VC ID = %ld", pstNniData[i]->vc_id_bak));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  备PEER_IP = %s", 
+                        spm_set_ulong_to_ipv4(pstNniData[i]->peer_ip_bak NBB_CCXT)));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  备VC_TYPE = %d", pstNniData[i]->vc_type_bak));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  保护类型 = %d", pstNniData[i]->prot_type));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  保护是否返回 = %s", pstNniData[i]->if_return ? "返回" : "不返回"));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  等待恢复时间 = %d(分钟)", pstNniData[i]->restore_time));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  拖延时间 = %d(10毫秒)", pstNniData[i]->holdoff_time));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  Virtual Index = %ld", pstNniData[i]->virtual_index));
+
+                    if (vpls_cfg_print_setting == SPM_PRINT_CFG)
+                    {
+                        spm_dbg_print_vpls_nni_cfg(pstNniData[i], i);
+                    }
+
+                    //spm_dbg_record_vpls_nni_cfg(pstNniData[i], i);
+
+                    //stVcKeyMainNew.vc_id = pstNniData[i]->vc_id;
+                    //stVcKeyMainNew.vc_type = pstNniData[i]->vc_type;
+                    //stVcKeyMainNew.peer_ip = pstNniData[i]->peer_ip;
+
+                    //stVcKeyBackNew.vc_id = pstNniData[i]->vc_id_bak;
+                    //stVcKeyBackNew.vc_type = pstNniData[i]->vc_type_bak;
+                    //stVcKeyBackNew.peer_ip = pstNniData[i]->peer_ip_bak;
+
+                    usNniVpNo = pstNniData[i]->nni_no;
+
+                    iNniExistPos = spm_if_vpn_nni_exist(L2VPN_VPLS, usNniVpNo, pstVpls NBB_CCXT);
+
+                    OS_MEMSET(&stVplsPortInfo, 0, sizeof(SPM_VPN_PORT_INFO_CB));
+                    OS_MEMSET(&stVpPortInfo, 0, sizeof(SPM_VPN_PORT_INFO_CB));
+
+                    //1、VPLS不存在
+                    //2、VPLS存在，但NNI不存在
+                    if ((ucIfExist == UNEXIST) 
+                     || ((ucIfExist == EXIST) && (iNniExistPos == 0)))
+                    {                    
+                        ret = SUCCESS;
+                        
+                        //函数i+1暂时无用
+                        ret += spm_vpn_add_vp_nni(L2VPN_VPLS, usVplsIdKey, usVsiMcId, pstNniData[i], 
+                            &stVpPortInfo NBB_CCXT);  
+                        spm_vpls_add_mc_vp(SPM_VP_NNI, usVplsIdKey, usVsiMcId, pstNniData[i], 
+                            &stVpPortInfo NBB_CCXT);
+
+                        if (ret == SUCCESS)
+                        {
+                            //在NNI的数组中找一个存储位置
+                            for (j = 0; j < ATG_DCI_VPLS_NNI_NUM; j++)
+                            {
+                                //如果为NULL，说明这个位置为无数据，可以存储数据
+                                if (pstVpls->nni_cfg_cb[j] == NULL)
+                                {
+                                    pstVpls->nni_cfg_cb[j] = 
+                                        (ATG_DCI_VPLS_NNI_DATA *)NBB_MM_ALLOC(sizeof(ATG_DCI_VPLS_NNI_DATA),
+                                                                            NBB_NORETRY_ACT,
+                                                                            MEM_SPM_VPLS_NNI_CB);
+
+                                    pstVpls->nni_info_cb[j].vp_idx = stVpPortInfo.vp_idx;
+                                    pstVpls->nni_info_cb[j].port_index = stVpPortInfo.port_index;
+                                    pstVpls->nni_info_cb[j].slot_id = stVpPortInfo.slot_id;
+                                    pstVpls->nni_info_cb[j].port_type = stVpPortInfo.port_type;
+                                    pstVpls->nni_info_cb[j].frr_group_id = stVpPortInfo.frr_group_id;
+                                    pstVpls->nni_info_cb[j].port_num = stVpPortInfo.port_num;
+                                    pstVpls->nni_info_cb[j].next_hop_id = stVpPortInfo.next_hop_id;
+                                    pstVpls->nni_info_cb[j].next_hop_id_p = stVpPortInfo.next_hop_id_p;
+
+                                    OS_MEMCPY(pstVpls->nni_info_cb[j].port_index_mc, stVpPortInfo.port_index_mc, 
+                                        sizeof(NBB_ULONG) * ATG_DCI_ECMP_PORT_NUM);
+                                    OS_MEMCPY(pstVpls->nni_info_cb[j].port_id_mc, stVpPortInfo.port_id_mc, 
+                                        sizeof(NBB_USHORT) * ATG_DCI_ECMP_PORT_NUM);
+                                    OS_MEMCPY(pstVpls->nni_info_cb[j].slot_id_mc, stVpPortInfo.slot_id_mc, 
+                                        sizeof(NBB_BYTE) * ATG_DCI_ECMP_PORT_NUM);
+                                    OS_MEMCPY(pstVpls->nni_info_cb[j].port_type_mc, stVpPortInfo.port_type_mc, 
+                                        sizeof(NBB_BYTE) * ATG_DCI_ECMP_PORT_NUM);
+                                    OS_MEMCPY(pstVpls->nni_cfg_cb[j], pstNniData[i], sizeof(ATG_DCI_VPLS_NNI_DATA));
+
+                                    pstVpls->nni_num++;
+
+                                    break;
+                                }
+                            }                    
+                        }
+                        else
+                        {
+                            pstSetVpls->nni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+
+                            NBB_TRC_DETAIL((NBB_FORMAT 
+                                "  ***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_nni() VPLS error! ret=%d", 
+                                usVplsIdKey, ret));
+
+                            OS_PRINTF("***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_nni() VPLS ret=%d\n", 
+                                usVplsIdKey, ret);
+
+                            OS_SPRINTF(ucMessage, "***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_nni() VPLS ret=%d\n", 
+                                usVplsIdKey, ret);
+                            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                            NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                                 ret, 
+                                                                 "CALL_FUNC_ERROR", 
+                                                                 ucMessage));
+                        }
+                    }
+                    
+                    //3、VPLS存在，且NNI存在，更新NNI
+                    else if ((ucIfExist == EXIST) && (iNniExistPos != 0))
+                    {
+						ucProtectFlag = pstVpls->nni_cfg_cb[iNniExistPos - 1]->use_protect;
+						
+                        //清空旧主用VC配置中的驱动返回值
+                        stTmpMainVcKey.vc_id = pstVpls->nni_cfg_cb[iNniExistPos - 1]->vc_id;
+                        stTmpMainVcKey.vc_type = pstVpls->nni_cfg_cb[iNniExistPos - 1]->vc_type;
+                        stTmpMainVcKey.peer_ip = pstVpls->nni_cfg_cb[iNniExistPos - 1]->peer_ip;
+
+                        //清空之前先保存
+                        spm_get_vc_drvinfo(stTmpMainVcKey, &stVcDrvInfoMainOld NBB_CCXT);
+                        spm_get_vc_lspprotkey(stTmpMainVcKey,&st_lspprot_key NBB_CCXT);
+                        
+	                 //调用dk的接口获取ftnIndex
+                        if (ATG_DCI_FTN == stVcDrvInfoMainOld.lsp_option)
+                        {
+                        	spm_l3_delvpldp(stTmpMainVcKey.peer_ip, 
+                        					stVcDrvInfoMainOld.vp_idx, 
+                        					stVcDrvInfoMainOld.next_hop_id
+                        					NBB_CCXT);		            
+                        }
+                        else if (ATG_DCI_CR_LSP == stVcDrvInfoMainOld.lsp_option)
+                        {
+                        	spm_l3_delvprsvp(&st_lspprot_key, 
+                        					stVcDrvInfoMainOld.vp_idx, 
+                        					stVcDrvInfoMainOld.next_hop_id
+                        					NBB_CCXT);	
+                        }
+                        
+                        spm_vc_drvinfo_nhi_clear(&stTmpMainVcKey NBB_CCXT);
+                        
+						//如果上一次配置了保护
+						if(ucProtectFlag == 1)
+						{
+							
+							//清空旧备用VC配置中的驱动返回值
+                        	stTmpBackVcKey.vc_id = pstVpls->nni_cfg_cb[iNniExistPos - 1]->vc_id_bak;
+                        	stTmpBackVcKey.vc_type = pstVpls->nni_cfg_cb[iNniExistPos - 1]->vc_type_bak;
+                        	stTmpBackVcKey.peer_ip = pstVpls->nni_cfg_cb[iNniExistPos - 1]->peer_ip_bak;
+
+                        	//清空之前先保存
+                        	spm_get_vc_drvinfo(stTmpBackVcKey, &stVcDrvInfoBackOld NBB_CCXT);
+                            spm_get_vc_lspprotkey(stTmpBackVcKey,&st_lspprot_key_back NBB_CCXT);
+                            
+		              //调用dk的接口获取ftnIndex
+                            if (ATG_DCI_FTN == stVcDrvInfoBackOld.lsp_option)
+                            {
+                            	spm_l3_delvpldp(stTmpBackVcKey.peer_ip, 
+                            					stVcDrvInfoBackOld.vp_idx, 
+                            					stVcDrvInfoBackOld.next_hop_id
+                            					NBB_CCXT);		            
+                            }
+                            else if (ATG_DCI_CR_LSP == stVcDrvInfoBackOld.lsp_option)
+                            {
+                            	spm_l3_delvprsvp(&st_lspprot_key_back, 
+                            					stVcDrvInfoBackOld.vp_idx, 
+                            					stVcDrvInfoBackOld.next_hop_id
+                            					NBB_CCXT);	
+                            }
+											
+                        	spm_vc_drvinfo_nhi_clear(&stTmpBackVcKey NBB_CCXT);
+
+							//保存保护组id
+							if (stVcDrvInfoMainOld.frr_group_id != 0)
+							{
+								stVpPortInfo.frr_group_id = stVcDrvInfoMainOld.frr_group_id;
+							}
+							else if (stVcDrvInfoBackOld.frr_group_id != 0)
+							{
+								stVpPortInfo.frr_group_id = stVcDrvInfoBackOld.frr_group_id;
+							}
+						}
+                        
+                        stVpPortInfo.vp_idx = pstVpls->nni_cfg_cb[iNniExistPos - 1]->nni_no;
+                        stVpPortInfo.next_hop_id = pstVpls->nni_info_cb[iNniExistPos - 1].next_hop_id;
+                        stVpPortInfo.next_hop_id_p = pstVpls->nni_info_cb[iNniExistPos - 1].next_hop_id_p;   
+                        
+                        ret = SUCCESS;
+                        ret += spm_vpn_add_vp_nni(L2VPN_VPLS, usVplsIdKey, 
+                            usVsiMcId, pstNniData[i], &stVpPortInfo NBB_CCXT); 
+                        
+                        //ret += spm_vpls_add_mc_vp(SPM_VP_NNI, usVplsIdKey, pstNniData[i], &stVplsPortInfo);
+                        
+                        //成功，保存数据
+                        if (ret == SUCCESS)
+                        {
+                            pstVpls->nni_info_cb[iNniExistPos - 1].port_index = stVpPortInfo.port_index;
+                            pstVpls->nni_info_cb[iNniExistPos - 1].slot_id = stVpPortInfo.slot_id;
+                            pstVpls->nni_info_cb[iNniExistPos - 1].port_type = stVpPortInfo.port_type;
+                            pstVpls->nni_info_cb[iNniExistPos - 1].frr_group_id = stVpPortInfo.frr_group_id;
+                            pstVpls->nni_info_cb[iNniExistPos - 1].port_num = stVpPortInfo.port_num;
+                            pstVpls->nni_info_cb[iNniExistPos - 1].next_hop_id = stVpPortInfo.next_hop_id;
+                            pstVpls->nni_info_cb[iNniExistPos - 1].next_hop_id_p = stVpPortInfo.next_hop_id_p;
+
+                            OS_MEMCPY(pstVpls->nni_info_cb[iNniExistPos - 1].port_index_mc,stVpPortInfo.port_index_mc, 
+                                sizeof(NBB_ULONG) * ATG_DCI_ECMP_PORT_NUM);
+                            OS_MEMCPY(pstVpls->nni_info_cb[iNniExistPos - 1].port_id_mc, stVpPortInfo.port_id_mc, 
+                                sizeof(NBB_USHORT) * ATG_DCI_ECMP_PORT_NUM);
+                            OS_MEMCPY(pstVpls->nni_info_cb[iNniExistPos - 1].slot_id_mc, stVpPortInfo.slot_id_mc, 
+                                sizeof(NBB_BYTE) * ATG_DCI_ECMP_PORT_NUM);
+                            OS_MEMCPY(pstVpls->nni_info_cb[iNniExistPos - 1].port_type_mc, stVpPortInfo.port_type_mc, 
+                                sizeof(NBB_BYTE) * ATG_DCI_ECMP_PORT_NUM);                            
+
+                            OS_MEMCPY(pstVpls->nni_cfg_cb[iNniExistPos - 1], 
+                                pstNniData[i], sizeof(ATG_DCI_VPLS_NNI_DATA));
+
+                            
+                        }
+                        else    //如果删除NNI口失败记录错误状态
+                        {
+							//还原VC表的驱动返回值
+							spm_set_vc_drvinfo(stTmpMainVcKey, &stVcDrvInfoMainOld NBB_CCXT);
+
+							if(ucProtectFlag == 1)
+							{
+								spm_set_vc_drvinfo(stTmpBackVcKey, &stVcDrvInfoBackOld NBB_CCXT);
+							}
+							
+                            pstSetVpls->nni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+
+                            NBB_TRC_DETAIL((NBB_FORMAT
+                                "  ***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_nni() 更新 VPLS error! ret=%d", 
+                                usVplsIdKey, ret));
+
+                            OS_PRINTF("***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_nni() 更新 VPLS error! ret=%d\n", 
+                                usVplsIdKey, ret);
+
+                            OS_SPRINTF(ucMessage, 
+                                "***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_nni() 更新 VPLS error! ret=%d\n", 
+                                usVplsIdKey, ret);
+                            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                            NBB_EXCEPTION((PCT_SPM | VPWS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                         ret, 
+                                                         "CALL_FUNC_ERROR", 
+                                                         ucMessage));
+                        }
+                    }                    
+                }
+                
+                spm_vpls_refresh_arad_vp(usVplsIdKey, usVsiMcId, 0, 0 NBB_CCXT);
+            }
+        }
+        else if (ulOperNni == ATG_DCI_OPER_DEL)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  NNI DEL")); 
+            
+            //如果此Key值的VPLS配置不存在，则无法删除VPLS内的端口
+            if (ucIfExist == ATG_DCI_UNEXIST)
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT 
+                    "  ***ERROR***:单独删除VPLS内NNI端口时，VPLS_ID=%d 的业务不存在，无法处理!", 
+                    usVplsIdKey));
+
+                OS_PRINTF("***ERROR***:单独删除VPLS内NNI端口时，VPLS_ID=%d 的业务不存在，无法处理!\n", 
+                    usVplsIdKey);
+
+                OS_SPRINTF(ucMessage, "***ERROR***:单独删除VPLS内NNI端口时，VPLS_ID=%d 的业务不存在，无法处理!\n", 
+                    usVplsIdKey);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             BASIC_CONFIG_NOT_EXIST, 
+                                                             "BASIC_CONFIG_NOT_EXIST", 
+                                                             ucMessage));
+                goto EXIT_LABEL;
+            }
+                              
+            /* 计算第一个entry的地址。*/
+            pucNniDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetVpls, &pstSetVpls->nni_data);    
+
+            /* 如果指针为NULL，无数据 */
+            if (pucNniDataStart == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  pucNniDataStart is NULL."));
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                if (vpls_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  2）NNI接口配置[1-512] (nni_num=%d) DEL\n", pstSetVpls->nni_num);
+                }
+
+                OS_SPRINTF(ucMessage,"  2）NNI接口配置[1-512] (nni_num=%d) DEL\n", 
+                    pstSetVpls->nni_num);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                
+                if(NULL != pstVpls->basic_cfg_cb)
+                {                   
+                    usVsiMcId = pstVpls->basic_cfg_cb->mc_id;
+                }
+
+                for (i = 0; i < pstSetVpls->nni_num; i++)
+                {
+                    pstNniData[i] = (ATG_DCI_VPLS_NNI_DATA *)
+                                  (pucNniDataStart + (NBB_ALIGN_OFFSET(sizeof(ATG_DCI_VPLS_NNI_DATA))) * i);
+
+                    NBB_TRC_DETAIL((NBB_FORMAT "  NNI ID = %d", i + 1));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  VC ID = %ld", pstNniData[i]->vc_id));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  PEER_IP = %s", 
+                        spm_set_ulong_to_ipv4(pstNniData[i]->peer_ip NBB_CCXT)));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  VC_TYPE = %d", pstNniData[i]->vc_type));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  保护 = %s", pstNniData[i]->use_protect ? "有" : "无"));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  备VC ID = %ld", pstNniData[i]->vc_id_bak));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  备PEER_IP = %s", 
+                        spm_set_ulong_to_ipv4(pstNniData[i]->peer_ip_bak NBB_CCXT)));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  备VC_TYPE = %d", pstNniData[i]->vc_type_bak));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  保护类型 = %d", pstNniData[i]->prot_type));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  保护是否返回 = %s", 
+                        pstNniData[i]->if_return ? "返回" : "不返回"));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  等待恢复时间 = %d(分钟)", pstNniData[i]->restore_time));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  拖延时间 = %d(10毫秒)", pstNniData[i]->holdoff_time));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  Virtual Index = %ld", pstNniData[i]->virtual_index));
+
+                    if (vpls_cfg_print_setting == SPM_PRINT_CFG)
+                    {
+                        spm_dbg_print_vpls_nni_cfg(pstNniData[i], i);
+                    }
+
+                    //spm_dbg_record_vpls_nni_cfg(pstNniData[i], i);
+
+                    ret = SUCCESS;
+                    ret = spm_vpls_del_mc_vp(SPM_VP_NNI, usVplsIdKey, usVsiMcId, pstNniData[i] NBB_CCXT);
+
+                    if (ret != SUCCESS)
+                    {
+                        //pstSetVpls->nni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+                        
+                        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: <VPLS_ID=%d> spm_vpls_del_mc_vp() error! ret=%d", 
+                        usVplsIdKey, ret));
+
+                        OS_PRINTF("***ERROR***: <VPLS_ID=%d> spm_vpls_del_mc_vp() NNI ret=%d\n", 
+                            usVplsIdKey, ret);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***: <VPLS_ID=%d> spm_vpls_del_mc_vp() NNI ret=%d\n", 
+                            usVplsIdKey, ret);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_FUNC_ERROR", 
+                                                             ucMessage));
+                    }
+
+                    ret = SUCCESS;
+                    ret = spm_vpn_del_vp_nni(L2VPN_VPLS, usVplsIdKey, usVsiMcId, pstNniData[i] NBB_CCXT);
+                    
+                    if (ret == SUCCESS)
+                    {
+                        for (j = 0; j < ATG_DCI_VPLS_NNI_NUM; j++)
+                        {
+                            if ((pstVpls->nni_cfg_cb[j] != NULL) 
+                             && (pstVpls->nni_cfg_cb[j]->nni_no == pstNniData[i]->nni_no))
+                            {
+                            
+                                //free
+                                NBB_MM_FREE(pstVpls->nni_cfg_cb[j], MEM_SPM_VPLS_NNI_CB);
+
+                                pstVpls->nni_cfg_cb[j] = NULL;
+                                pstVpls->nni_num--;
+
+                                ucSlot = pstVpls->nni_info_cb[j].slot_id;
+                                
+				    //回收next_hop_id
+                                if (0 != pstVpls->nni_info_cb[j].next_hop_id)
+		    		    {
+		    		    	spm_free_vc_nhi_id(pstVpls->nni_info_cb[j].next_hop_id NBB_CCXT);
+		    		    }
+                                
+                                if (0 != pstVpls->nni_info_cb[j].next_hop_id_p)
+		    		    {
+		    		    	spm_free_vc_nhi_id(pstVpls->nni_info_cb[j].next_hop_id_p NBB_CCXT);
+                            
+		    		    }
+                                
+                                OS_MEMSET(&pstVpls->nni_info_cb[j], 0, sizeof(SPM_VPN_PORT_INFO_CB));
+
+
+#ifdef SRC
+
+                                //OS_MEMSET(&pstVpls->nni_info_cb[j], 0, sizeof(SPM_VPN_PORT_INFO_CB));
+                                
+                                iSlotNum = spm_get_vpls_slot_num(pstVpls, ucSlot NBB_CCXT);
+
+                                if (iSlotNum == 0)
+                                {
+                                    ret = ApiDfeMulticastDelete(UNIT_0, usVsiMcId, ucSlot);
+
+                                    NBB_TRC_DETAIL((NBB_FORMAT "  ApiDfeMulticastDelete() ret=%d", ret));
+                                    
+                                    if (ret != SUCCESS)
+                                    {
+                                        NBB_TRC_DETAIL((NBB_FORMAT 
+                                            "  ***ERROR***: ApiDfeMulticastDelete() error! ret=%d", 
+                                            ret));
+
+                                        OS_PRINTF("***ERROR***: ApiDfeMulticastDelete() ret=%d\n", ret);
+
+                                        OS_SPRINTF(ucMessage, "***ERROR***: ApiDfeMulticastDelete() ret=%d\n", 
+                                            ret);
+                                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                                        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                                                             ret, 
+                                                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                                                             ucMessage));
+                                        ret = ERROR;
+                                        
+                                        goto EXIT_LABEL;
+                                    }
+                                }
+#endif
+
+#ifdef SNU
+
+                                //OS_MEMSET(&pstVpls->nni_info_cb[j], 0, sizeof(SPM_VPN_PORT_INFO_CB));
+                                
+                                iSlotNum = spm_get_vpls_slot_num(pstVpls, ucSlot NBB_CCXT);
+
+                                if (iSlotNum == 0)
+                                {
+                                    ret = ApiDfeMulticastDelete(UNIT_0, usVsiMcId, ucSlot);
+
+                                    NBB_TRC_DETAIL((NBB_FORMAT "  ApiDfeMulticastDelete() ret=%d", ret));
+                                    
+                                    if (ret != SUCCESS)
+                                    {
+                                        NBB_TRC_DETAIL((NBB_FORMAT 
+                                            "  ***ERROR***: ApiDfeMulticastDelete() error! ret=%d",
+                                            ret));
+
+                                        OS_PRINTF("***ERROR***: ApiDfeMulticastDelete() ret=%d\n", ret);
+
+                                        OS_SPRINTF(ucMessage, "***ERROR***: ApiDfeMulticastDelete() ret=%d\n", 
+                                            ret);
+                                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                                        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                                                             ret, 
+                                                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                                                             ucMessage));
+                                        ret = ERROR;
+                                        
+                                        goto EXIT_LABEL;
+                                    }
+                                }
+#endif
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        pstSetVpls->nni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+                        
+                        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: <VPLS_ID=%d> spm_vpn_del_vp_nni() error! ret=%d", 
+                            usVplsIdKey, ret));
+
+                        OS_PRINTF("***ERROR***: <VPLS_ID=%d> spm_vpn_del_vp_nni() ret=%d\n", 
+                            usVplsIdKey, ret);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***: <VPLS_ID=%d> spm_vpn_del_vp_nni() ret=%d\n", 
+                            usVplsIdKey, ret);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_FUNC_ERROR", 
+                                                             ucMessage));
+                    }
+                }
+
+                spm_vpls_refresh_arad_vp(usVplsIdKey, usVsiMcId, 0, 0 NBB_CCXT);
+            }
+        }
+        else if (ulOperNni == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }  
+
+        /******************************** UNI配置 *********************************/        
+        if (ulOperUni == ATG_DCI_OPER_ADD)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  UNI ADD"));             
+
+            /* 计算第一个entry的地址。*/
+            pucUniDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetVpls, &pstSetVpls->uni_data);    
+
+            /* 如果指针为NULL，无数据 */
+            if (pucUniDataStart == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  pucUniDataStart is NULL."));
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                if (vpls_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  3）UNI接口配置[1-64] (uni_num=%d) ADD\n", pstSetVpls->uni_num);   
+                }
+
+                OS_SPRINTF(ucMessage,"  3）UNI接口配置[1-64] (uni_num=%d) ADD\n", 
+                    pstSetVpls->uni_num);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                //如果基本配置未下发，那么直接退出，不处理
+                if(NULL == pstVpls->basic_cfg_cb)
+                {
+                    pstSetVpls->return_code = ATG_DCI_RC_VPLS_NO_BASIC_DATA;
+                    pstSetVpls->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+                    for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+                    {
+                        pstSetVpls->nni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+                    }
+
+                    for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+                    {
+                        pstSetVpls->uni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+                    }
+                   
+                    OS_PRINTF("usVplsIdKey=%ld, UNI接口配置失配，基本配置无法获取!\n", usVplsIdKey);
+
+                    OS_SPRINTF(ucMessage, "usVplsIdKey=%ld, UNI接口配置失配，基本配置无法获取!\n", usVplsIdKey);
+                    BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                    NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, BASIC_CONFIG_NOT_EXIST,
+                            "BASIC_CONFIG_NOT_EXIST", ucMessage));
+                    goto EXIT_LABEL;
+                    
+                }
+                else
+                {
+                    usVsiMcId = pstVpls->basic_cfg_cb->mc_id;
+                }
+                
+                for (i = 0; i < pstSetVpls->uni_num; i++)
+                {
+                    pstUniData[i] = (ATG_DCI_VPLS_UNI_DATA *)
+                                  (pucUniDataStart + (NBB_ALIGN_OFFSET(sizeof(ATG_DCI_VPLS_UNI_DATA))) * i); 
+
+                    NBB_TRC_DETAIL((NBB_FORMAT "  UNI ID = %d", i + 1));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  端口Index = %ld", pstUniData[i]->port_index));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  UNI NO = %d", pstUniData[i]->uni_no));
+
+                    if (vpls_cfg_print_setting == SPM_PRINT_CFG)
+                    {
+                        spm_dbg_print_vpls_uni_cfg(pstUniData[i], i);
+                    }
+
+                    //spm_dbg_record_vpls_uni_cfg(pstUniData[i], i);
+
+                    OS_MEMSET(&stVplsPortInfo, 0, sizeof(SPM_VPN_PORT_INFO_CB));
+                    OS_MEMSET(&stVpPortInfo, 0, sizeof(SPM_VPN_PORT_INFO_CB));
+
+                    iUniExistPos = spm_if_vpn_uni_exist(L2VPN_VPLS, pstUniData[i]->port_index, pstVpls NBB_CCXT);
+
+                    //1、VPLS不存在
+                    //2、VPLS存在，但UNI不存在
+                    if ((ucIfExist == UNEXIST) 
+                     || ((ucIfExist == EXIST) && (iUniExistPos == 0)))
+                    {
+                        ret = SUCCESS;                        
+                        ret += spm_vpn_add_vp_uni(L2VPN_VPLS, usVplsIdKey, 
+                            usVsiMcId, pstUniData[i], &stVpPortInfo NBB_CCXT);
+                        spm_vpls_add_mc_vp(SPM_VP_UNI, usVplsIdKey, 
+                            usVsiMcId, pstUniData[i], &stVpPortInfo NBB_CCXT);
+                        
+                        if (ret == SUCCESS)
+                        {
+                            for (j = 0; j < ATG_DCI_VPLS_UNI_NUM; j++)
+                            {   
+                                    
+                                //如果为NULL，说明这个位置为无数据，可以存储数据
+                                if (pstVpls->uni_cfg_cb[j] == NULL)
+                                {
+                                        
+                                    pstVpls->uni_cfg_cb[j] = 
+                                        (ATG_DCI_VPLS_UNI_DATA *)NBB_MM_ALLOC(sizeof(ATG_DCI_VPLS_UNI_DATA),
+                                                                            NBB_NORETRY_ACT,
+                                                                            MEM_SPM_VPLS_UNI_CB);
+
+                                    pstVpls->uni_info_cb[j].vp_idx = stVpPortInfo.vp_idx;
+                                    pstVpls->uni_info_cb[j].port_index = stVpPortInfo.port_index;
+                                    pstVpls->uni_info_cb[j].slot_id = stVpPortInfo.slot_id;
+                                    pstVpls->uni_info_cb[j].port_type = stVpPortInfo.port_type;
+
+                                    OS_MEMCPY(pstVpls->uni_cfg_cb[j], pstUniData[i], sizeof(ATG_DCI_VPLS_UNI_DATA));
+
+                                    pstVpls->uni_num++;
+                                    
+                                    break;                            
+                                }
+                            }
+#ifdef SRC
+                            spm_vpls_uni_mac_port(pstUniData[i]->port_index, usVplsIdKey, ATG_DCI_OPER_ADD NBB_CCXT);
+#endif
+                        }
+                        else
+                        {
+                            pstSetVpls->uni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+
+                            NBB_TRC_DETAIL((NBB_FORMAT 
+                                "  ***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_uni() VPLS error! ret=%d", 
+                                usVplsIdKey, ret));
+
+                            OS_PRINTF("***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_uni() VPLS ret=%d\n", 
+                                usVplsIdKey, ret);   
+
+                            OS_SPRINTF(ucMessage, "***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_uni() VPLS ret=%d\n", 
+                                usVplsIdKey, ret);
+                            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                            NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_FUNC_ERROR", 
+                                                             ucMessage));
+                        }
+                    }
+                    
+                    //3、VPLS存在，且UNI存在
+                    //此时更新一个UNI
+                    else if ((ucIfExist == EXIST) && (iUniExistPos != 0))
+                    {
+                        stVpPortInfo.vp_idx = pstVpls->uni_info_cb[iUniExistPos - 1].vp_idx;
+
+						//清空之前先保存逻辑接口的驱动返回值
+						spm_get_logical_port_drvinfo(pstUniData[i]->port_index, &stLogicalPortDrvInfo NBB_CCXT);
+
+                        //清空逻辑接口配置中的驱动返回值
+                        //spm_uni_logical_port_drvinfo_clear(pstUniData[i]->port_index NBB_CCXT);
+                        spm_uni_logical_port_drvinfo_nhi_clear(pstUniData[i]->port_index NBB_CCXT);
+                        
+                        ret = SUCCESS;                        
+                        ret += spm_vpn_add_vp_uni(L2VPN_VPLS, usVplsIdKey, 
+                            usVsiMcId, pstUniData[i], &stVpPortInfo NBB_CCXT);
+                        
+                        //成功，保存数据
+                        if (ret == SUCCESS)
+                        {
+                        	pstVpls->uni_info_cb[iUniExistPos - 1].port_index = stVpPortInfo.port_index;
+                        	pstVpls->uni_info_cb[iUniExistPos - 1].vp_idx = stVpPortInfo.vp_idx;
+                        	pstVpls->uni_info_cb[iUniExistPos - 1].slot_id = stVpPortInfo.slot_id;
+                        	pstVpls->uni_info_cb[iUniExistPos - 1].port_type = stVpPortInfo.port_type;
+                            OS_MEMCPY(pstVpls->uni_cfg_cb[iUniExistPos - 1], 
+                                pstUniData[i], sizeof(ATG_DCI_VPLS_UNI_DATA));
+                        }
+                        else    //如果删除NNI口失败记录错误状态
+                        {
+                        
+                        	//失败就还原驱动返回值
+                        	spm_set_logical_port_drvinfo(pstUniData[i]->port_index, &stLogicalPortDrvInfo NBB_CCXT);
+                        	
+                            pstSetVpls->uni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+
+                            NBB_TRC_DETAIL((NBB_FORMAT
+                                "  ***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_uni() 更新 VPLS error! ret=%d", 
+                                usVplsIdKey, ret));
+
+                            OS_PRINTF("***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_uni() 更新 VPLS error! ret=%d\n", 
+                                usVplsIdKey, ret);
+
+                            OS_SPRINTF(ucMessage, 
+                                "***ERROR***: <VPLS_ID=%d> spm_vpn_add_vp_uni() 更新 VPLS error! ret=%d\n", 
+                                usVplsIdKey, ret);
+                            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                            NBB_EXCEPTION((PCT_SPM | VPWS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                         ret, 
+                                                         "CALL_FUNC_ERROR", 
+                                                         ucMessage));
+                        }
+                    }
+                }
+
+                spm_vpls_refresh_arad_vp(usVplsIdKey, usVsiMcId, 0, 0 NBB_CCXT);
+            }  
+        }
+        else if (ulOperUni == ATG_DCI_OPER_DEL)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  UNI DEL")); 
+
+            //如果此Key值的VPLS配置不存在，则无法删除VPLS内的端口
+            if (ucIfExist == ATG_DCI_UNEXIST)
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:单独删除VPLS内UNI端口时，VPLS_ID=%d 的业务不存在，无法处理!", usVplsIdKey));
+
+                OS_PRINTF("***ERROR***:单独删除VPLS内UNI端口时，VPLS_ID=%d 的业务不存在，无法处理!\n", usVplsIdKey);
+
+                OS_SPRINTF(ucMessage, "***ERROR***:单独删除VPLS内UNI端口时，VPLS_ID=%d 的业务不存在，无法处理!\n", usVplsIdKey);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             BASIC_CONFIG_NOT_EXIST, 
+                                                             "BASIC_CONFIG_NOT_EXIST", 
+                                                             ucMessage));
+                goto EXIT_LABEL;
+            }
+            
+            /* 计算第一个entry的地址。*/
+            pucUniDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetVpls, &pstSetVpls->uni_data);    
+
+            /* 如果指针为NULL，无数据 */
+            if (pucUniDataStart == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  pucUniDataStart is NULL."));
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                if (vpls_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  3）UNI接口配置[1-64] (uni_num=%d) DEL\n", pstSetVpls->uni_num);   
+                }
+
+                OS_SPRINTF(ucMessage,"  3）UNI接口配置[1-64] (uni_num=%d) DEL\n", pstSetVpls->uni_num);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                if(NULL != pstVpls->basic_cfg_cb)
+                {                   
+                    usVsiMcId = pstVpls->basic_cfg_cb->mc_id;
+                }
+                
+                for (i = 0; i < pstSetVpls->uni_num; i++)
+                {
+                    pstUniData[i] = (ATG_DCI_VPLS_UNI_DATA *)
+                                  (pucUniDataStart + (NBB_ALIGN_OFFSET(sizeof(ATG_DCI_VPLS_UNI_DATA))) * i); 
+
+                    NBB_TRC_DETAIL((NBB_FORMAT "  UNI ID = %d", i + 1));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  端口Index = %ld", pstUniData[i]->port_index));
+                    NBB_TRC_DETAIL((NBB_FORMAT "  UNI NO = %d", pstUniData[i]->uni_no));
+
+                    if (vpls_cfg_print_setting == SPM_PRINT_CFG)
+                    {
+                        spm_dbg_print_vpls_uni_cfg(pstUniData[i], i);
+                    }
+
+                    //spm_dbg_record_vpls_uni_cfg(pstUniData[i], i);
+
+                    ret = SUCCESS;
+                    ret = spm_vpls_del_mc_vp(SPM_VP_UNI, usVplsIdKey, usVsiMcId, pstUniData[i] NBB_CCXT);
+
+                    if (ret != SUCCESS)
+                    {
+                        //pstSetVpls->nni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+                        
+                        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: <VPLS_ID=%d> spm_vpls_del_mc_vp() error! ret=%d", 
+                        usVplsIdKey, ret));
+
+                        OS_PRINTF("***ERROR***: <VPLS_ID=%d> spm_vpls_del_mc_vp() UNI ret=%d\n", usVplsIdKey, ret);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***: <VPLS_ID=%d> spm_vpls_del_mc_vp() UNI ret=%d\n", 
+                            usVplsIdKey, ret);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_FUNC_ERROR", 
+                                                             ucMessage));
+                    }
+
+                    ret = SUCCESS;
+                    ret = spm_vpn_del_vp_uni(L2VPN_VPLS, usVplsIdKey, usVsiMcId, pstUniData[i] NBB_CCXT);
+                    
+                    if (ret == SUCCESS)
+                    {
+                        for (j = 0; j < ATG_DCI_VPLS_UNI_NUM; j++)
+                        {
+                            if ((pstVpls->uni_cfg_cb[j] != NULL) 
+                             && (pstVpls->uni_cfg_cb[j]->port_index == pstUniData[i]->port_index))
+                            {
+                                //free
+                                NBB_MM_FREE(pstVpls->uni_cfg_cb[j], MEM_SPM_VPLS_UNI_CB);
+
+                                pstVpls->uni_cfg_cb[j] = NULL;
+                                pstVpls->uni_num--;
+
+                                ucSlot = pstVpls->uni_info_cb[j].slot_id;
+
+                                OS_MEMSET(&pstVpls->uni_info_cb[j], 0, sizeof(SPM_VPN_PORT_INFO_CB));
+
+#ifdef SRC
+
+                                //OS_MEMSET(&pstVpls->uni_info_cb[j], 0, sizeof(SPM_VPN_PORT_INFO_CB));
+                                
+                                iSlotNum = spm_get_vpls_slot_num(pstVpls, ucSlot NBB_CCXT);
+
+                                if (iSlotNum == 0)
+                                {
+                                    ret = ApiDfeMulticastDelete(UNIT_0, usVplsIdKey, ucSlot);
+
+                                    NBB_TRC_DETAIL((NBB_FORMAT "  ApiDfeMulticastDelete() ret=%d", ret));
+                                    
+                                    if (ret != SUCCESS)
+                                    {
+                                        NBB_TRC_DETAIL((NBB_FORMAT 
+                                            "  ***ERROR***: ApiDfeMulticastDelete() error! ret=%d", 
+                                            ret));
+
+                                        OS_PRINTF("***ERROR***: ApiDfeMulticastDelete() ret=%d\n", ret);
+
+                                        OS_SPRINTF(ucMessage, "***ERROR***: ApiDfeMulticastDelete() ret=%d\n", ret);
+                                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                                        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                                                             ret, 
+                                                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                                                             ucMessage));
+                                        ret = ERROR;
+                                        
+                                        goto EXIT_LABEL;
+                                    }
+                                }
+#endif
+
+#ifdef SNU
+
+                                //OS_MEMSET(&pstVpls->uni_info_cb[j], 0, sizeof(SPM_VPN_PORT_INFO_CB));
+                                
+                                iSlotNum = spm_get_vpls_slot_num(pstVpls, ucSlot NBB_CCXT);
+
+                                if (iSlotNum == 0)
+                                {
+                                    ret = ApiDfeMulticastDelete(UNIT_0, usVplsIdKey, ucSlot);
+
+                                    NBB_TRC_DETAIL((NBB_FORMAT "  ApiDfeMulticastDelete() ret=%d", ret));
+                                    
+                                    if (ret != SUCCESS)
+                                    {
+                                        NBB_TRC_DETAIL((NBB_FORMAT 
+                                            "  ***ERROR***: ApiDfeMulticastDelete() error! ret=%d", 
+                                            ret));
+
+                                        OS_PRINTF("***ERROR***: ApiDfeMulticastDelete() ret=%d\n", ret);
+
+                                        OS_SPRINTF(ucMessage, "***ERROR***: ApiDfeMulticastDelete() ret=%d\n", ret);
+                                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                                        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                                                             ret, 
+                                                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                                                             ucMessage));
+                                        ret = ERROR;
+                                        
+                                        goto EXIT_LABEL;
+                                    }
+                                }
+#endif
+                                break;
+                            }
+                        }    
+#ifdef SRC
+                        spm_vpls_uni_mac_port(pstUniData[i]->port_index, usVplsIdKey, ATG_DCI_OPER_DEL NBB_CCXT);
+#endif
+                    }
+                    else
+                    {
+                        pstSetVpls->uni_return_code[i] = ATG_DCI_RC_UNSUCCESSFUL;
+
+                        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: <VPLS_ID=%d> spm_vpn_del_vp_uni() error! ret=%d", 
+                            usVplsIdKey, ret));
+
+                        OS_PRINTF("***ERROR***: <VPLS_ID=%d> spm_vpn_del_vp_uni() ret=%d\n", usVplsIdKey, ret);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***: <VPLS_ID=%d> spm_vpn_del_vp_uni() ret=%d\n", 
+                            usVplsIdKey, ret);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsIdKey, 
+                                                             ret, 
+                                                             "CALL_FUNC_ERROR", 
+                                                             ucMessage));
+                    }
+                }
+
+                spm_vpls_refresh_arad_vp(usVplsIdKey, usVsiMcId, 0, 0 NBB_CCXT);
+            }      
+        }
+        else if (ulOperUni == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }
+
+    }
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+
+/*
+if ((usVplsIdKey == 1024) && (pstSetVpls->delete_struct == TRUE))
+{        
+
+    sleep(1);
+    sysinfo(&s_info2);
+    printf("After:\n");
+    printf("RAM: total %dk / free %dk\n",
+          s_info2.totalram/1024, s_info2.freeram/1024);
+
+
+    printf("free1 - free2 = %dk\n", (s_info2.freeram/1024 - s_info1.freeram/1024));
+}
+*/
+    return;
+
+}
+
+
+/*****************************************************************************
+ 函 数 名  : spm_vpn_del_vp_nni
+ 功能描述  : 从VPLS中删除一个VP(NNI)
+ 输入参数  : NBB_BYTE ucNniId                   
+             NBB_ULONG ulVplsId                 
+             ATG_DCI_VPLS_NNI_DATA* pstNniData  
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年11月1日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_vpn_del_vp_nni(NBB_BYTE ucVpnType, 
+                                                     NBB_USHORT usVpnId, 
+                                                     NBB_USHORT usVsiMcId, 
+                                                     NBB_VOID* pstNniData
+                                                     NBB_CCXT_T NBB_CXT )
+{
+	NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+	
+    SPM_VC_CB *pstVcTbl = NULL;
+    SPM_VC_CB *pstVcTblBack = NULL;
+    ATG_DCI_VC_KEY stVcKey;
+    ATG_DCI_VC_KEY stVcKeyBack;
+    NBB_INT ret = SUCCESS;
+    NBB_BYTE ucC3Unit = 0;
+    NBB_UINT iVpId = 0;
+    NBB_USHORT usFrrGroupId = 0;
+    CRTXLSP_KEY stCrLspKey;
+    FTN_KEY stFtnKey;
+    SPM_QOS_TUNNEL_KEY stQosTunKey;
+    ATG_DCI_VC_UP_VPN_QOS_POLICY stUpVpnData;
+    LSPPROT_KEY st_lspprot_key;  //LSPPROT  key值
+    LSPPROT_KEY st_lspprot_key_back;  //LSPPROT  key值
+    ATG_DCI_VPWS_NNI_DATA *pstVpwsNni = NULL;
+    ATG_DCI_VPLS_NNI_DATA *pstVplsNni = NULL;
+    NBB_BYTE ucprotectflag = 0;    
+
+    NBB_TRC_ENTRY("spm_vpn_del_vp_nni");
+
+    if (pstNniData == NULL)
+    {        
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_vpn_del_vp_nni(pstNniData=NULL)"));
+
+        OS_SPRINTF(ucMessage, "  1）基本配置\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        OS_PRINTF("***ERROR***: spm_vpn_del_vp_nni(pstNniData=NULL)\n");
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             FUNC_IN_PARAM_IS_NULL, 
+                                                             "FUNC_IN_PARAM_IS_NULL", 
+                                                             ucMessage));
+                                                             
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+    OS_MEMSET(&stVcKey, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVcKeyBack, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stCrLspKey, 0, sizeof(CRTXLSP_KEY));
+    OS_MEMSET(&stFtnKey, 0, sizeof(FTN_KEY));
+    OS_MEMSET(&st_lspprot_key, 0, sizeof(LSPPROT_KEY));
+    OS_MEMSET(&st_lspprot_key_back, 0, sizeof(LSPPROT_KEY));    
+    OS_MEMSET(&stQosTunKey, 0, sizeof(SPM_QOS_TUNNEL_KEY));
+    OS_MEMSET(&stUpVpnData, 0, sizeof(ATG_DCI_VC_UP_VPN_QOS_POLICY));
+    
+    if (ucVpnType == L2VPN_VPWS)
+    {
+        pstVpwsNni = (ATG_DCI_VPWS_NNI_DATA*)pstNniData;
+
+        iVpId = pstVpwsNni->nni_no;
+        ucprotectflag = pstVpwsNni->use_protect;       
+        
+        stVcKey.vc_id   = pstVpwsNni->vc_id;
+        stVcKey.vc_type = pstVpwsNni->vc_type;
+        stVcKey.peer_ip = pstVpwsNni->peer_ip;
+
+        stVcKeyBack.vc_id   = pstVpwsNni->vc_id_bak;
+        stVcKeyBack.vc_type = pstVpwsNni->vc_type_bak;
+        stVcKeyBack.peer_ip = pstVpwsNni->peer_ip_bak;
+    }
+    else if (ucVpnType == L2VPN_VPLS)
+    {
+        pstVplsNni = (ATG_DCI_VPLS_NNI_DATA*)pstNniData;
+
+        iVpId = pstVplsNni->nni_no;
+        ucprotectflag = pstVplsNni->use_protect;       
+        
+        stVcKey.vc_id   = pstVplsNni->vc_id;
+        stVcKey.vc_type = pstVplsNni->vc_type;
+        stVcKey.peer_ip = pstVplsNni->peer_ip;
+
+        stVcKeyBack.vc_id   = pstVplsNni->vc_id_bak;
+        stVcKeyBack.vc_type = pstVplsNni->vc_type_bak;
+        stVcKeyBack.peer_ip = pstVplsNni->peer_ip_bak;
+    }
+
+	//如果NNI_NO为0，直接报错返回
+    if (iVpId == 0)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: VPN_ID=%d ucVpnType=%d iVpId=%d DEL NNI", 
+            usVpnId, ucVpnType, iVpId));
+
+        OS_PRINTF("***ERROR***: VPN_ID=%d ucVpnType=%d iVpId=%d DEL NNI\n", usVpnId, ucVpnType, iVpId);
+
+        OS_SPRINTF(ucMessage, "***ERROR***: VPN_ID=%d ucVpnType=%d iVpId=%d DEL NNI\n", usVpnId, ucVpnType, iVpId);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPWS_PD, 0, "ld d s s", usVpnId,
+                BASIC_CONFIG_NOT_EXIST,
+                "BASIC_CONFIG_NOT_EXIST",
+                ucMessage));
+                
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+    
+    pstVcTbl = AVLL_FIND(SHARED.vc_tree, &stVcKey);
+    pstVcTblBack = AVLL_FIND(SHARED.vc_tree, &stVcKeyBack);
+
+    //如果主用VC不存在，说明VP不存在，无法删除
+/*
+    if (pstVcTbl == NULL)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT"  ***ERROR***:删除 VPNID=%d VPNTYPE=%d 时，主用VC不存在!", usVpnId, ucVpnType));
+
+        OS_PRINTF("***ERROR***:删除 VPNID=%d VPNTYPE=%d 时，主用VC不存在!\n", usVpnId, ucVpnType);
+
+        OS_SPRINTF(ucMessage, "***ERROR***:删除 VPNID=%d VPNTYPE=%d 时，主用VC不存在!\n", usVpnId, ucVpnType);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             BASIC_CONFIG_NOT_EXIST, 
+                                                             "BASIC_CONFIG_NOT_EXIST", 
+                                                             ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+*/
+
+	//现在只考虑LDP
+	if ((pstVcTblBack != NULL) && (pstVcTblBack->basic_cfg_cb != NULL))
+	{
+		stFtnKey.fec = pstVcTblBack->basic_cfg_cb->next_hop_ip;
+        stFtnKey.mask = 32;
+        stFtnKey.vrfid = 0;
+
+		if (pstVcTblBack->vc_info_cb.frr_group_id != 0)
+		{
+        	usFrrGroupId = pstVcTblBack->vc_info_cb.frr_group_id;
+		}
+	}
+	
+	if ((pstVcTbl != NULL) && (pstVcTbl->basic_cfg_cb != NULL))
+	{
+		stFtnKey.fec = pstVcTbl->basic_cfg_cb->next_hop_ip;
+        stFtnKey.mask = 32;
+        stFtnKey.vrfid = 0;
+
+		if (pstVcTbl->vc_info_cb.frr_group_id != 0)
+		{
+        	usFrrGroupId = pstVcTbl->vc_info_cb.frr_group_id;
+		}
+	}
+
+#ifdef SPU
+        ret = SUCCESS;
+
+        if((usFrrGroupId != 0) && (ucprotectflag == 1))
+        {
+            for(ucC3Unit = 0; ucC3Unit < SHARED.c3_num; ucC3Unit++)
+            {
+                ret += ApiC3DeleteFrrGroup(ucC3Unit, usFrrGroupId);
+            }
+
+            if(ret != SUCCESS)
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "***ERROR***: nni ApiC3DeleteFrrGroup() error! ret=%d", ret));
+
+                OS_SPRINTF(ucMessage, "***ERROR***: nni ApiC3DeleteFrrGroup() ret=%d VPNID=%d\n", ret, usVpnId);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                NBB_EXCEPTION((PCT_SPM | VPWS_PD, 0, "ld d s s", usVpnId,
+                ret,
+                "CALL_C3_FUNC_ERROR",
+                "ApiC3DeleteFrrGroup()"));
+            }
+
+            if ((vpls_cfg_print_setting == SPM_PRINT_CFG) 
+                || (vpws_cfg_print_setting == SPM_PRINT_CFG))
+            {
+                printf("   NNI : ApiC3DeleteFrrGroup ret=%d\n", ret);
+            }            
+
+        }
+  #endif      
+
+	//如果主用VC存在，要删除主用VC中驱动返回的信息
+	if ((pstVcTbl != NULL) && (pstVcTbl->basic_cfg_cb != NULL))
+	{
+        //删除QOS配置
+        spm_ds_add_vc_node(0, 
+                           &stVcKey, 
+                           pstVcTbl->vc_info_cb.vp_idx, 
+                           pstVcTbl->vc_info_cb.if_main
+                           NBB_CCXT);
+		                         
+		if (pstVcTbl->up_vpn_cfg_cb != NULL)
+		{
+        	stQosTunKey.flag   			= 1;
+        	stQosTunKey.type   			= pstVcTbl->basic_cfg_cb->lsp_option;                	
+            stQosTunKey.tx_lsp.egress   = pstVcTbl->basic_cfg_cb->egress;
+            stQosTunKey.tx_lsp.ingress  = pstVcTbl->basic_cfg_cb->ingress;
+            stQosTunKey.tx_lsp.tunnelid = pstVcTbl->basic_cfg_cb->tunnel_id;
+            stQosTunKey.ftn.fec			= pstVcTbl->basic_cfg_cb->next_hop_ip;
+            stQosTunKey.ftn.mask        = 32;
+            stQosTunKey.ftn.vrfid       = 0;
+
+        	stUpVpnData.node_index		= pstVcTbl->up_vpn_cfg_cb->node_index;
+        	stUpVpnData.qos_policy_index = 0;
+        	stUpVpnData.flow_queue_qos_policy_index = 0;
+
+            spm_hqos_add_vc_node(pstVcTbl->vc_info_cb.slot_id, 
+                                 pstVcTbl->vc_info_cb.port_id, 
+                                 pstVcTbl->vc_info_cb.vp_idx, 
+                                 pstVcTbl->vc_info_cb.if_main,
+                                 &stQosTunKey,
+                                 &stVcKey,
+                                 &stUpVpnData
+                                 NBB_CCXT);
+		}
+	}
+
+    //如果备用VC存在，要删除备用VC中驱动返回的信息
+    if ((pstVcTblBack != NULL) && (pstVcTblBack->basic_cfg_cb != NULL))
+    {
+        //删除QOS配置
+        spm_ds_add_vc_node(0, 
+                           &stVcKeyBack, 
+                           pstVcTblBack->vc_info_cb.vp_idx, 
+                           pstVcTblBack->vc_info_cb.if_main
+                           NBB_CCXT);
+		                         
+		if (pstVcTblBack->up_vpn_cfg_cb != NULL)
+		{
+        	stQosTunKey.flag   			= 1;
+        	stQosTunKey.type   			= pstVcTblBack->basic_cfg_cb->lsp_option;                	
+            stQosTunKey.tx_lsp.egress   = pstVcTblBack->basic_cfg_cb->egress;
+            stQosTunKey.tx_lsp.ingress  = pstVcTblBack->basic_cfg_cb->ingress;
+            stQosTunKey.tx_lsp.tunnelid = pstVcTblBack->basic_cfg_cb->tunnel_id;
+            stQosTunKey.ftn.fec			= pstVcTblBack->basic_cfg_cb->next_hop_ip;
+            stQosTunKey.ftn.mask        = 32;
+            stQosTunKey.ftn.vrfid       = 0;
+
+        	stUpVpnData.node_index		= pstVcTblBack->up_vpn_cfg_cb->node_index;
+        	stUpVpnData.qos_policy_index = 0;
+        	stUpVpnData.flow_queue_qos_policy_index = 0;
+
+            spm_hqos_add_vc_node(pstVcTblBack->vc_info_cb.slot_id, 
+                                 pstVcTblBack->vc_info_cb.port_id, 
+                                 pstVcTblBack->vc_info_cb.vp_idx, 
+                                 pstVcTblBack->vc_info_cb.if_main,
+                                 &stQosTunKey,
+                                 &stVcKeyBack,
+                                 &stUpVpnData
+                                 NBB_CCXT);
+		}
+    }
+        
+#ifdef SPU
+    ret = SUCCESS;
+
+	//如果NNI存在才删除，不存在报错:重复删除
+    if (((pstVcTbl != NULL) && (pstVcTbl->vc_info_cb.vp_idx != 0)) 
+      || ((pstVcTblBack != NULL) && (pstVcTblBack->vc_info_cb.vp_idx != 0)))
+    {
+	    for (ucC3Unit = 0; ucC3Unit < SHARED.c3_num; ucC3Unit++)
+	    {
+	        ret += ApiC3DelMplsPortFromVpn(ucC3Unit, ucVpnType, usVpnId, iVpId);
+	    }
+    }
+    else
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT
+            "  ***ERROR***:试图从 VPNID=%d VPNTYPE=%d 的VPN中重复删除 VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的NNI, 失败!", 
+        		usVpnId, ucVpnType, stVcKey.vc_id, stVcKey.vc_type, spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT)));
+
+        OS_PRINTF("***ERROR***:试图从 VPNID=%d VPNTYPE=%d 的VPN中重复删除 VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的NNI, 失败!\n", 
+        		usVpnId, ucVpnType, stVcKey.vc_id, stVcKey.vc_type, spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+
+        OS_SPRINTF(ucMessage,
+            "***ERROR***:试图从 VPNID=%d VPNTYPE=%d 的VPN中重复删除 VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的NNI, 失败!\n", 
+        		usVpnId, ucVpnType, stVcKey.vc_id, stVcKey.vc_type, spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             BASIC_CONFIG_NOT_EXIST, 
+                                                             "BASIC_CONFIG_NOT_EXIST", 
+                                                             ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+#endif
+
+    //如果成功，删除从驱动获取的各种业务信息
+    if (ret == SUCCESS)
+    {
+        //如果主用VC存在，要删除主用VC中驱动返回的信息
+        if ((pstVcTbl != NULL) && (pstVcTbl->basic_cfg_cb != NULL))
+        {
+        	st_lspprot_key.ingress  = pstVcTbl->basic_cfg_cb->ingress;
+        	st_lspprot_key.egress   = pstVcTbl->basic_cfg_cb->egress;
+        	st_lspprot_key.tunnelid = pstVcTbl->basic_cfg_cb->tunnel_id;                   
+        	
+        	//调用dk的接口获取ftnIndex
+        	if (ATG_DCI_FTN == pstVcTbl->basic_cfg_cb->lsp_option)
+        	{
+        		spm_l3_delvpldp(stVcKey.peer_ip, 
+        						pstVcTbl->vc_info_cb.vp_idx, 
+        						pstVcTbl->vc_info_cb.next_hop_id
+        						NBB_CCXT);		            
+        	}
+        	else if (ATG_DCI_CR_LSP == pstVcTbl->basic_cfg_cb->lsp_option)
+        	{
+        		spm_l3_delvprsvp(&st_lspprot_key, 
+        						pstVcTbl->vc_info_cb.vp_idx, 
+        						pstVcTbl->vc_info_cb.next_hop_id
+        						NBB_CCXT);	
+        	}
+                
+			//回收next_hop_id资源
+			//if (pstVcTbl->vc_info_cb.next_hop_id != 0)
+			//{
+		    	//spm_free_vc_nhi_id(pstVcTbl->vc_info_cb.next_hop_id NBB_CCXT);
+		    //}
+		    
+	        OS_MEMSET(&pstVcTbl->vc_info_cb, 0, sizeof(SPM_VC_INFO_CB));
+        }
+
+        //如果备用VC存在，要删除备用VC中驱动返回的信息
+        if ((pstVcTblBack != NULL) && (pstVcTblBack->basic_cfg_cb != NULL))
+        {
+        	st_lspprot_key_back.ingress  = pstVcTblBack->basic_cfg_cb->ingress;
+        	st_lspprot_key_back.egress   = pstVcTblBack->basic_cfg_cb->egress;
+        	st_lspprot_key_back.tunnelid = pstVcTblBack->basic_cfg_cb->tunnel_id;                   
+        	
+        	//调用dk的接口获取ftnIndex
+        	if (ATG_DCI_FTN == pstVcTblBack->basic_cfg_cb->lsp_option)
+        	{
+        		spm_l3_delvpldp(stVcKeyBack.peer_ip, 
+        						pstVcTblBack->vc_info_cb.vp_idx, 
+        						pstVcTblBack->vc_info_cb.next_hop_id
+        						NBB_CCXT);		            
+        	}
+        	else if (ATG_DCI_CR_LSP == pstVcTblBack->basic_cfg_cb->lsp_option)
+        	{
+        		spm_l3_delvprsvp(&st_lspprot_key_back, 
+        						pstVcTblBack->vc_info_cb.vp_idx, 
+        						pstVcTblBack->vc_info_cb.next_hop_id
+        						NBB_CCXT);	
+        	}
+
+			//回收next_hop_id资源
+			//if (pstVcTblBack->vc_info_cb.next_hop_id != 0)
+			//{
+				//spm_free_vc_nhi_id(pstVcTblBack->vc_info_cb.next_hop_id NBB_CCXT);
+			//}
+		
+            OS_MEMSET(&pstVcTblBack->vc_info_cb, 0, sizeof(SPM_VC_INFO_CB));
+        }
+        
+		if ((ucVpnType == L2VPN_VPLS) && (pstVcTbl != NULL) && (pstVcTbl->basic_cfg_cb != NULL))
+		{
+		    stFtnKey.fec = pstVcTbl->basic_cfg_cb->next_hop_ip;
+            stFtnKey.mask = 32;
+            stFtnKey.vrfid = 0;
+            
+        	spm_l3_del_mcid_ldp(usVpnId, usVsiMcId, ATG_DCI_FTN, stFtnKey, stCrLspKey NBB_CCXT);
+        }
+
+		if (usFrrGroupId != 0)
+		{
+			spm_lps_del_entity(FRR_TYPE, usFrrGroupId);
+		}
+
+    }
+    else
+    {
+    	//coverity[dead_error_begin]
+        NBB_TRC_DETAIL((NBB_FORMAT"  ***ERROR***:ApiC3DelMplsPortFromVpn() NNI ret=%d", ret));
+
+        OS_PRINTF("***ERROR***:ApiC3DelMplsPortFromVpn() NNI ret=%d\n", ret);
+
+        OS_SPRINTF(ucMessage, "***ERROR***:ApiC3DelMplsPortFromVpn() NNI ret=%d\n", ret);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             ret, 
+                                                             "CALL_C3_FUNC_ERROR", 
+                                                             ucMessage));
+        goto EXIT_LABEL;
+    }
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+
+    return ret;
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_vpn_del_vp_uni
+ 功能描述  : 从VPLS中删除一个VP(UNI)
+ 输入参数  : NBB_BYTE ucNniId    
+             NBB_ULONG ulVplsId  
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年11月1日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_vpn_del_vp_uni( NBB_BYTE ucVpnType,
+                                                      NBB_USHORT usVpnId,
+                                                      NBB_USHORT usVsiMcId, 
+                                                      NBB_VOID* pstUniData
+                                                      NBB_CCXT_T NBB_CXT)
+{
+	NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+	
+    NBB_ULONG ulPortIndex = 0;
+    NBB_ULONG ulPortIndexBack = 0;
+    NBB_INT   ret = SUCCESS;
+    NBB_BYTE ucC3Unit = 0;
+    NBB_UINT iVpId = 0;
+    SPM_LOGICAL_PORT_CB *pstLogcialPort = NULL;
+    SPM_LOGICAL_PORT_CB *pstLogcialPortBack = NULL;
+
+    ATG_DCI_VPWS_UNI_DATA *pstVpwsUni;
+    ATG_DCI_VPLS_UNI_DATA *pstVplsUni;
+    ATG_DCI_LOG_PORT_DS_L2_DATA stDsL2;
+    SPM_QOS_LOGIC_UNIVP stUniVp;
+    
+    NBB_TRC_ENTRY("spm_vpn_del_vp_uni");
+
+    if (pstUniData == NULL)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_vpn_del_vp_uni(pstUniData=NULL)"));
+
+        OS_PRINTF("***ERROR***: spm_vpn_del_vp_uni(pstUniData=NULL)\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***: spm_vpn_del_vp_uni(pstUniData=NULL)\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             FUNC_IN_PARAM_IS_NULL, 
+                                                             "FUNC_IN_PARAM_IS_NULL", 
+                                                             ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+    OS_MEMSET(&stDsL2, 0, sizeof(ATG_DCI_LOG_PORT_DS_L2_DATA));
+    OS_MEMSET(&stUniVp, 0, sizeof(SPM_QOS_LOGIC_UNIVP));
+    
+    if (ucVpnType == L2VPN_VPWS)
+    {
+        pstVpwsUni = (ATG_DCI_VPWS_UNI_DATA*)pstUniData;
+        iVpId = pstVpwsUni->uni_no;
+        ulPortIndex = pstVpwsUni->port_index;
+        ulPortIndexBack = pstVpwsUni->slave_port_index;
+    }
+    else if (ucVpnType == L2VPN_VPLS)
+    {
+        pstVplsUni = (ATG_DCI_VPLS_UNI_DATA*)pstUniData;
+        iVpId = pstVplsUni->uni_no;
+        ulPortIndex = pstVplsUni->port_index;
+    }
+
+	//如果UNI_NO为0，直接报错返回
+    if (iVpId == 0)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: VPN_ID=%d ucVpnType=%d iVpId=%d DEL UNI", 
+            usVpnId, ucVpnType, iVpId));
+
+        OS_PRINTF("***ERROR***: VPN_ID=%d ucVpnType=%d iVpId=%d DEL UNI\n", usVpnId, ucVpnType, iVpId);
+
+        OS_SPRINTF(ucMessage, "***ERROR***: VPN_ID=%d ucVpnType=%d iVpId=%d DEL UNI\n", usVpnId, ucVpnType, iVpId);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPWS_PD, 0, "ld d s s", usVpnId,
+                BASIC_CONFIG_NOT_EXIST,
+                "BASIC_CONFIG_NOT_EXIST",
+                ucMessage));
+                
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+    pstLogcialPort = AVLL_FIND(SHARED.logical_port_tree, &ulPortIndex);
+
+    //如果逻辑端口不存在，说明VP不存在，无法删除
+    if (pstLogcialPort == NULL)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT"  ***ERROR***:删除VPLS UNI时，逻辑端口不存在!"));
+
+        OS_PRINTF("***ERROR***:删除VPLS UNI时，逻辑端口不存在!\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***:删除VPLS UNI时，逻辑端口不存在!\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             LOGICAL_PORT_NOT_EXIST, 
+                                                             "LOGICAL_PORT_NOT_EXIST", 
+                                                             ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+#ifdef SPU
+    ret = SUCCESS;
+
+	if (pstLogcialPort->logic_port_info_cb.vp_idx != 0)
+	{
+	    for (ucC3Unit = 0; ucC3Unit < SHARED.c3_num; ucC3Unit++)
+	    {
+	        ret += ApiC3DelMplsPortFromVpn(ucC3Unit, ucVpnType, usVpnId, pstLogcialPort->logic_port_info_cb.vp_idx);
+	    }
+	}
+    else
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT"  ***ERROR***:试图从 VPNID=%d VPNTYPE=%d 的VPN中重复删除 PORT_INDEX=%ld 的UNI, 失败!", 
+        		usVpnId, ucVpnType, ulPortIndex));
+
+        OS_PRINTF("***ERROR***:试图从 VPNID=%d VPNTYPE=%d 的VPN中重复删除 PORT_INDEX=%ld 的UNI, 失败!", 
+        		usVpnId, ucVpnType, ulPortIndex);
+
+        OS_SPRINTF(ucMessage, "***ERROR***:试图从 VPNID=%d VPNTYPE=%d 的VPN中重复删除 PORT_INDEX=%ld 的UNI, 失败!", 
+        		usVpnId, ucVpnType, ulPortIndex);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             BASIC_CONFIG_NOT_EXIST, 
+                                                             "BASIC_CONFIG_NOT_EXIST", 
+                                                             ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+    //如果删除VP，清除此逻辑端口上与业务有关的东西
+    if (ret == SUCCESS)
+    {
+    	//回收next_hop_id资源
+		if (pstLogcialPort->logic_port_info_cb.next_hop_id != 0)
+		{
+	    	spm_free_vc_nhi_id(pstLogcialPort->logic_port_info_cb.next_hop_id NBB_CCXT);
+	    }
+
+         //删除Diff-Serv配置L2（VP下话UNI侧）
+        if (pstLogcialPort->ds_l2_cfg_cb != NULL)
+        {
+    		stUniVp.vpn_id = pstLogcialPort->logic_port_info_cb.vpn_id;
+    		stUniVp.vp_type = pstLogcialPort->logic_port_info_cb.vpn_type;
+    		stUniVp.vp_posid = pstLogcialPort->logic_port_info_cb.vp_idx;
+
+    		stDsL2.ds_id = 0;
+            
+              //printf("    vpn_id= %ld vpn_id= %ld vpn_id= %ld \n", stUniVp.vpn_id,stUniVp.vp_type,stUniVp.vp_posid);
+    		spm_ds_add_logic_univp_node(ulPortIndex,&stUniVp, &stDsL2 NBB_CCXT);
+        }
+        
+        //清空逻辑接口配置中的驱动返回值
+        spm_logical_port_drvinfo_clear(ulPortIndex NBB_CCXT);
+
+        pstLogcialPortBack = AVLL_FIND(SHARED.logical_port_tree, &ulPortIndexBack);
+
+        if (pstLogcialPortBack != NULL)
+        {
+	    	//回收next_hop_id资源
+			if (pstLogcialPortBack->logic_port_info_cb.next_hop_id != 0)
+			{
+		    	spm_free_vc_nhi_id(pstLogcialPortBack->logic_port_info_cb.next_hop_id NBB_CCXT);
+		    }
+	        
+	        //清空逻辑接口配置中的驱动返回值
+	        spm_logical_port_drvinfo_clear(ulPortIndexBack NBB_CCXT);
+        }
+
+         //INTF上已有业务和QOS的情况下，发生删除并重建业务的操作时，驱动会在删除
+        //UNI侧vp的同时把INTF也对应删除(于是INTF上的QOS也自动失效)，当再建该业务时，
+        //虽然驱动会重新添加INTF，但主控上仍有对应的QOS并不会重新下QOS配置，故而
+        //重建业务上INTF上对应原有的QOS功能会失效
+        //解决方案,删除UNI侧业务时，调用接口删除对应的INTF上的QOS，重建业务时，对
+        //应刷新逻辑端口配置，把配置还存在但功能已失效的QOS配置重新添加一次
+        //add by fansongbo 2015.3.6
+        
+        //删除Diff-Serv配置L2（VP下话UNI侧）
+        /*
+        if (pstLogcialPort->ds_l2_cfg_cb != NULL)
+        {
+    		stUniVp.vpn_id = pstLogcialPort->logic_port_info_cb.vpn_id;
+    		stUniVp.vp_type = pstLogcialPort->logic_port_info_cb.vpn_type;
+    		stUniVp.vp_posid = pstLogcialPort->logic_port_info_cb.vp_idx;
+
+    		stDsL2.ds_id = 0;
+
+    		spm_ds_add_logic_univp_node(ulPortIndex,&stUniVp, &stDsL2 NBB_CCXT);
+        }*/
+
+    	//包过滤器traffic_filter
+    	spm_qos_clear_logic_acl(ulPortIndex NBB_CCXT);
+
+    	//上话复杂流分类QOS策略配置
+    	spm_qos_clear_logic_classify(ulPortIndex NBB_CCXT);
+
+    	//流相关Diff-Serv配置L2
+    	spm_qos_clear_logic_ds_flow(ulPortIndex NBB_CCXT);
+        
+    }
+    else
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT"  ***ERROR***:ApiC3DelMplsPortFromVpn() ret=%d Port_index=%u", ret,ulPortIndex));
+
+        OS_PRINTF("***ERROR***:ApiC3DelMplsPortFromVpn() ret=%d Port_index=%u\n", ret,ulPortIndex);
+
+        OS_SPRINTF(ucMessage, "***ERROR***:ApiC3DelMplsPortFromVpn() ret=%d Port_index=%u\n", ret,ulPortIndex);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+        
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             ret, 
+                                                             "CALL_C3_FUNC_ERROR", 
+                                                             ucMessage));
+        goto EXIT_LABEL;
+    }
+
+#endif
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+
+    return ret;
+}
+
+
+/*****************************************************************************
+ 函 数 名  : spm_vpls_add_mc_vp
+ 功能描述  : VPLS时建立大组播, 添加组播VP
+ 输入参数  : NBB_BYTE ucVpType                       
+             NBB_USHORT usVpnId                      
+             NBB_VOID* pstVpData                     
+             SPM_VPN_PORT_INFO_CB *pstVplsPortInfo  
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2013年4月15日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_vpls_add_mc_vp(NBB_BYTE ucVpType, 
+                                   NBB_USHORT usVpnId, 
+                                   NBB_USHORT usVsiMcId, 
+                                   NBB_VOID *pstVpData, 
+                                   SPM_VPN_PORT_INFO_CB *pstVplsPortInfo
+                                   NBB_CCXT_T NBB_CXT)
+{
+	NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+	
+    NBB_INT ret = SUCCESS;
+    NBB_INT i = 0;
+	NBB_INT iVpId = 0;
+    NBB_BYTE ucC3Unit = 0;
+    SPM_PORT_INFO_CB stPortInfo;
+    SPM_PORT_INFO_CB stLagPortInfo;
+    NBB_ULONG arPortIndex[ATG_DCI_LAG_MEMBER_PORT_NUM] = {0};
+    NBB_BYTE  ucPortNum = 0;
+    NBB_BYTE  ucLagSlotId = 0;
+    NBB_USHORT usLagPortId = 0;
+    NBB_ULONG ulPortIndex = 0;
+    
+    SPM_VC_CB *pstVcMain = NULL;
+    ATG_DCI_VC_KEY stVcKeyMain;
+    SPM_LOGICAL_PORT_CB *pstLogicalPort = NULL;
+
+    ATG_DCI_VPLS_NNI_DATA *pstNniData = NULL;
+    ATG_DCI_VPLS_UNI_DATA *pstUniData = NULL;
+    
+    //SPM_PORT_INFO_CB stPortInfoall[ATG_DCI_ECMP_PORT_NUM];
+    NBB_INT ecmpVpflag = 0;
+
+    NBB_TRC_ENTRY("spm_vpls_add_mc_vp_nni");
+
+    if (pstVpData == NULL)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_vpls_add_mc_vp(pstVpData=NULL)"));
+
+        OS_PRINTF("***ERROR***: spm_vpls_add_mc_vp(pstVpData=NULL)\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***: spm_vpls_add_mc_vp(pstVpData=NULL)\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+        
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                         FUNC_IN_PARAM_IS_NULL, 
+                                                         "FUNC_IN_PARAM_IS_NULL", 
+                                                         ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+    OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+    OS_MEMSET(&stLagPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+    OS_MEMSET(&stVcKeyMain, 0, sizeof(ATG_DCI_VC_KEY));
+    
+    //for(i=0;i<ATG_DCI_ECMP_PORT_NUM;i++)
+    //{
+        //OS_MEMSET(&stPortInfoall[i], 0, sizeof(SPM_PORT_INFO_CB));
+    //}
+    
+    //for(i=0;i<pstVplsPortInfo->port_num;i++)
+    //{
+    
+        //获取VP所对应所有端口
+        //spm_get_portid_from_logical_port_index(pstVplsPortInfo->port_index_mc[i], &stPortInfoall[i] NBB_CCXT);
+    //}
+    
+    if (ucVpType == SPM_VP_NNI)
+    {
+        pstNniData = (ATG_DCI_VPLS_NNI_DATA*)pstVpData;
+
+        //这里暂时选择主用
+        stVcKeyMain.vc_id = pstNniData->vc_id;
+        stVcKeyMain.vc_type = pstNniData->vc_type;
+        stVcKeyMain.peer_ip = pstNniData->peer_ip;
+
+        pstVcMain = AVLL_FIND(SHARED.vc_tree, &stVcKeyMain);
+
+        if (pstVcMain == NULL)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 主用VC不存在，主用VC基本配置不存在，或备用VC存在但基本配置不存在！"));
+
+            OS_PRINTF("***ERROR***: 主用VC不存在，主用VC基本配置不存在，或备用VC存在但基本配置不存在！\n");
+
+            OS_SPRINTF(ucMessage, "***ERROR***: 主用VC不存在，主用VC基本配置不存在，或备用VC存在但基本配置不存在！\n");
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             BASIC_CONFIG_NOT_EXIST, 
+                                                             "BASIC_CONFIG_NOT_EXIST", 
+                                                             ucMessage));
+            ret = ERROR;
+            goto EXIT_LABEL;
+        }
+
+        //根据VC表配置中的port_index获取端口的port_id和slot_id，配给Arad和FE1600
+        //这里先只考虑主用VC
+        spm_get_portid_from_logical_port_index(pstVcMain->vc_info_cb.port_index, &stPortInfo NBB_CCXT);
+
+		iVpId = pstVcMain->vc_info_cb.vp_idx;
+		pstVplsPortInfo->port_type = stPortInfo.port_type;
+		ulPortIndex = pstVcMain->vc_info_cb.port_index;
+    }
+    else if (ucVpType == SPM_VP_UNI)
+    {
+        pstUniData = (ATG_DCI_VPLS_UNI_DATA*)pstVpData;
+
+        pstLogicalPort = AVLL_FIND(SHARED.logical_port_tree, &pstUniData->port_index);
+
+        if (pstLogicalPort == NULL)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: PORT_INDEX=%ld 的逻辑端口不存在，组播UNI无法添加！", pstUniData->port_index));
+
+            OS_PRINTF("***ERROR***: PORT_INDEX=%ld 的逻辑端口不存在，组播UNI无法添加！", pstUniData->port_index);
+
+            OS_SPRINTF(ucMessage, "***ERROR***: PORT_INDEX=%ld 的逻辑端口不存在，组播UNI无法添加！", pstUniData->port_index);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             LOGICAL_PORT_NOT_EXIST, 
+                                                             "LOGICAL_PORT_NOT_EXIST", 
+                                                             ucMessage));
+            ret = ERROR;
+            goto EXIT_LABEL;
+        }
+        
+        //根据逻辑端口配置中的port_index获取端口的port_id和slot_id，配给Arad和FE1600
+        spm_get_portid_from_logical_port_index(pstUniData->port_index, &stPortInfo NBB_CCXT);
+
+		iVpId = pstLogicalPort->logic_port_info_cb.vp_idx;
+		pstVplsPortInfo->port_type = stPortInfo.port_type;
+		ulPortIndex = pstUniData->port_index;
+    }
+    else
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 要加入组播的既不是NNI也不是UNI！"));
+
+        OS_PRINTF("***ERROR***: 要加入组播的既不是NNI也不是UNI！\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***: 要加入组播的既不是NNI也不是UNI！\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             VP_NOT_NNI_NOR_UNI, 
+                                                             "VP_NOT_NNI_NOR_UNI", 
+                                                             ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+
+#ifdef SRC
+
+	//如果是LAG，需要找到LAG下第一个端口的槽位，下发给FE1600
+	if (stPortInfo.port_type == ATG_DCI_LAG)
+	{
+		ret = spm_get_lag_min_slot_port(stPortInfo.port_id - ATG_DCI_LAG_OFFSET, &ucLagSlotId, &usLagPortId NBB_CCXT);
+
+		if (ret == SUCCESS)
+		{
+			ret = ApiDfeMulticastAdd(UNIT_0, usVsiMcId, ucLagSlotId);
+		}
+		else
+		{
+	        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_get_lag_slot_port() ret=%d", ret));
+
+	        OS_PRINTF("***ERROR***: spm_get_lag_slot_port() ret=%d\n", ret);
+
+	        OS_SPRINTF(ucMessage, "***ERROR***: spm_get_lag_slot_port() ret=%d\n", ret);
+	        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+	        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+	                                                             CALL_FUNC_ERROR, 
+	                                                             "CALL_FUNC_ERROR", 
+	                                                             ucMessage));
+	        ret = ERROR;
+	        goto EXIT_LABEL;
+		}
+	}
+	else
+	{
+    	ret = ApiDfeMulticastAdd(UNIT_0, usVsiMcId, stPortInfo.slot_id);
+	}
+
+    NBB_TRC_DETAIL((NBB_FORMAT "  ApiDfeMulticastAdd() ret=%d", ret));
+    
+    if (ret != SUCCESS)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: ApiDfeMulticastAdd() error! ret=%d", ret));
+
+        OS_PRINTF("***ERROR***: ApiDfeMulticastAdd() ret=%d\n", ret);
+
+        OS_SPRINTF(ucMessage, "***ERROR***: ApiDfeMulticastAdd() ret=%d\n", ret);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             ret, 
+                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+        ret = ERROR;
+        
+        goto EXIT_LABEL;
+    }
+
+    for(i = 0;i < pstVplsPortInfo->port_num;i++)
+    {
+        //添加VP所对应所有端口的所有槽位
+        ret = SUCCESS;
+        ret = ApiDfeMulticastAdd(UNIT_0, usVsiMcId, pstVplsPortInfo->slot_id_mc[i]);
+        
+        //OS_SPRINTF(ucMessage, "***pstVplsPortInfo->slot_id_mc[i]***: =%d\n", pstVplsPortInfo->slot_id_mc[i]);
+            //BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+        NBB_TRC_DETAIL((NBB_FORMAT "  ECMP ApiDfeMulticastAdd() ret=%d", ret));
+    
+        if (ret != SUCCESS)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:ECMP ApiDfeMulticastAdd() error! ret=%d", ret));
+
+            OS_PRINTF("***ERROR***: ECMP ApiDfeMulticastAdd() ret=%d\n", ret);
+
+            OS_SPRINTF(ucMessage, "***ERROR***: ECMP ApiDfeMulticastAdd() ret=%d\n", ret);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             ret, 
+                                                             "ECMP CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+            ret = ERROR;
+        
+            goto EXIT_LABEL;
+        }
+    }
+    
+#endif
+
+#ifdef SNU
+
+	//如果是LAG，需要找到LAG下第一个端口的槽位，下发给FE1600
+	if (stPortInfo.port_type == ATG_DCI_LAG)
+	{
+		ret = spm_get_lag_min_slot_port(stPortInfo.port_id - ATG_DCI_LAG_OFFSET, &ucLagSlotId, &usLagPortId NBB_CCXT);
+
+		if (ret == SUCCESS)
+		{
+			ret = ApiDfeMulticastAdd(UNIT_0, usVsiMcId, ucLagSlotId);
+		}
+		else
+		{
+	        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_get_lag_slot_port() ret=%d", ret));
+
+	        OS_PRINTF("***ERROR***: spm_get_lag_slot_port() ret=%d\n", ret);
+
+	        OS_SPRINTF(ucMessage, "***ERROR***: spm_get_lag_slot_port() ret=%d\n", ret);
+	        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+	        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+	                                                             CALL_FUNC_ERROR, 
+	                                                             "CALL_FUNC_ERROR", 
+	                                                             ucMessage));
+	        ret = ERROR;
+	        goto EXIT_LABEL;
+		}
+	}
+	else
+	{
+    	ret = ApiDfeMulticastAdd(UNIT_0, usVsiMcId, stPortInfo.slot_id);
+	}
+
+    NBB_TRC_DETAIL((NBB_FORMAT "  ApiDfeMulticastAdd() ret=%d", ret));
+    
+    if (ret != SUCCESS)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: ApiDfeMulticastAdd() error! ret=%d", ret));
+
+        OS_PRINTF("***ERROR***: ApiDfeMulticastAdd() ret=%d\n", ret);
+
+        OS_SPRINTF(ucMessage, "***ERROR***: ApiDfeMulticastAdd() ret=%d\n", ret);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             ret, 
+                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+        ret = ERROR;
+        
+        goto EXIT_LABEL;
+    }
+
+    for(i = 0;i < pstVplsPortInfo->port_num;i++)
+    {
+    
+        //添加VP所对应所有端口的所有槽位
+        ret = SUCCESS;
+        ret = ApiDfeMulticastAdd(UNIT_0, usVsiMcId, pstVplsPortInfo->slot_id_mc[i]);
+        NBB_TRC_DETAIL((NBB_FORMAT "  ECMP ApiDfeMulticastAdd() ret=%d", ret));
+    
+        if (ret != SUCCESS)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: ECMP ApiDfeMulticastAdd() error! ret=%d", ret));
+
+            OS_PRINTF("***ERROR***: ECMP ApiDfeMulticastAdd() ret=%d\n", ret);
+
+            OS_SPRINTF(ucMessage, "***ERROR***: ECMP ApiDfeMulticastAdd() ret=%d\n", ret);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             ret, 
+                                                             "ECMP CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+            ret = ERROR;
+        
+            goto EXIT_LABEL;
+        }
+    }
+    
+#endif
+
+#ifdef SPU 
+
+   //增加当本槽位有ECMP端口时的处理
+    for(i = 0;i < pstVplsPortInfo->port_num;i++)
+    {
+        if (((SHARED.local_slot_id == pstVplsPortInfo->slot_id_mc[i]) && 
+            (ATG_DCI_INTFACE == pstVplsPortInfo->port_type_mc[i]))
+         || ((SHARED.local_slot_id == pstVplsPortInfo->slot_id_mc[i]) && 
+            (ATG_DCI_SUB_INTFACE == pstVplsPortInfo->port_type_mc[i]))
+         || ((SHARED.local_slot_id == pstVplsPortInfo->slot_id_mc[i]) && 
+            (ATG_DCI_VE_PORT == pstVplsPortInfo->port_type_mc[i])))
+        {           
+            ret = SUCCESS;
+            ret = ApiAradAddEngressMcPort(UNIT_0, usVsiMcId, SPM_MULTICAST_PORT_0, iVpId);
+            if (ret == SUCCESS)
+	     {
+	         pstVplsPortInfo->vp_idx = iVpId;	  
+
+                //添加ECMP端口标志，下面代码判断到ecmpvp = 0时才
+                ecmpVpflag = 1;
+	     }
+            else
+            {
+    	     //coverity[dead_error_begin]
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: ECMP ApiAradAddEngressMcPort() error! ret=%d", ret));
+
+            OS_PRINTF("***ERROR***: ECMP ApiAradAddEngressMcPort() ret=%d VPLS_ID=%ld VpId=%d\n", ret, usVpnId, iVpId);
+
+            OS_SPRINTF(ucMessage, 
+                "***ERROR***: ECMP ApiAradAddEngressMcPort() ret=%d VPLS_ID=%ld VpId=%d\n", ret, usVpnId, iVpId);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             ret, 
+                                                             "ECMP CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+            ret = ERROR;
+            goto EXIT_LABEL;
+            }
+            break;
+        }
+    }
+     
+    //1、如果组播端口接口或子接口，不在本槽位，或
+    //2、如果组播端口为LAG，LAG成员端口的第一个端口所在的槽不在本槽位；或
+    //3、如果组播端口为VE，不在本槽位
+    //则不调用驱动，直接返回成功。
+    if (((SHARED.local_slot_id != stPortInfo.slot_id) && (ATG_DCI_INTFACE == stPortInfo.port_type))
+     || ((SHARED.local_slot_id != stPortInfo.slot_id) && (ATG_DCI_SUB_INTFACE == stPortInfo.port_type))
+     || ((SHARED.local_slot_id != stPortInfo.slot_id) && (ATG_DCI_VE_PORT == stPortInfo.port_type))
+     || ((SHARED.local_slot_id != stPortInfo.lag_slot_id) && (ATG_DCI_LAG == stPortInfo.port_type)))
+    {
+        OS_SPRINTF(ucMessage, 
+            "ADD:不调用Arad建组播成员，直接返回成功(port_index=%ld local_slot=%d slot=%d lag_slot=%d port_type=%d)\n", 
+	        ulPortIndex, SHARED.local_slot_id, stPortInfo.slot_id, stPortInfo.lag_slot_id, stPortInfo.port_type);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+        
+        ret = SUCCESS;
+        
+        goto EXIT_LABEL;
+    }
+
+   
+
+#endif 
+
+    NBB_TRC_DETAIL((NBB_FORMAT "  usMcId=%d iVpId=%d usPortId=%d ucSlot=%d", usVpnId,
+                                                                            iVpId, 
+                                                                            stPortInfo.port_id, 
+                                                                            stPortInfo.slot_id));
+
+#ifdef SPU 
+
+	//如果是LAG，需要找到LAG下第一个端口，下发给Arad
+	if (stPortInfo.port_type == ATG_DCI_LAG)
+	{
+		ret = spm_get_lag_min_slot_port(stPortInfo.port_id - ATG_DCI_LAG_OFFSET, &ucLagSlotId, &usLagPortId NBB_CCXT);
+
+		if (ret == SUCCESS)
+		{
+			//ret = ApiAradAddEngressMcPort(UNIT_0, usVpnId, usLagPortId, iVpId);
+			ret = ApiAradAddEngressMcPort(UNIT_0, usVsiMcId, SPM_MULTICAST_PORT_0, iVpId);
+		}
+		else
+		{
+	        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_get_lag_slot_port() ret=%d", ret));
+
+	        OS_PRINTF("***ERROR***: spm_get_lag_slot_port() ret=%d\n", ret);
+
+	        OS_SPRINTF(ucMessage, "***ERROR***: spm_get_lag_slot_port() ret=%d\n", ret);
+	        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+	        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+	                                                             CALL_FUNC_ERROR, 
+	                                                             "CALL_FUNC_ERROR", 
+	                                                             ucMessage));
+	        ret = ERROR;
+	        goto EXIT_LABEL;
+		}
+	}
+	else
+	{
+		//防止同一个VP在前面ECMP VP模式调用过驱动之后再次调用驱动
+		if (0 == ecmpVpflag)
+		{
+			ret = ApiAradAddEngressMcPort(UNIT_0, usVsiMcId, SPM_MULTICAST_PORT_0, iVpId);
+		}
+        
+    	//else	//如果是第2片c3，发送到110
+    	//{
+    	//	ret = ApiAradAddEngressMcPort(UNIT_0, usVpnId, SPM_MULTICAST_PORT_1, iVpId);
+    	//}
+    	
+	}
+	
+    NBB_TRC_DETAIL((NBB_FORMAT "  ApiAradAddEngressMcPort() ret=%d", ret));
+#endif
+
+	if (ret == SUCCESS)
+	{
+	    pstVplsPortInfo->vp_idx = iVpId;
+
+		//如果端口为LAG，则记录LAG第一个成员端口所在的槽位
+	    if (stPortInfo.port_type == ATG_DCI_LAG)
+	    {
+	    	pstVplsPortInfo->slot_id = stPortInfo.lag_slot_id;
+	    }
+	    else
+	    {
+	        pstVplsPortInfo->slot_id = stPortInfo.slot_id;
+	    }
+	}
+    else
+    {
+    	//coverity[dead_error_begin]
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: ApiAradAddEngressMcPort() error! ret=%d", ret));
+
+        OS_PRINTF("***ERROR***: ApiAradAddEngressMcPort() ret=%d VPLS_ID=%ld VpId=%d\n", ret, usVpnId, iVpId);
+
+        OS_SPRINTF(ucMessage, 
+            "***ERROR***: ApiAradAddEngressMcPort() ret=%d VPLS_ID=%ld VpId=%d\n", ret, usVpnId, iVpId);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             ret, 
+                                                             "CALL_ARAD_FUNC_ERROR", 
+                                                             ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+
+#if 0	//由于组播方案修改，现在可以不建组播出口intf
+
+#ifdef SPU 
+
+    //只在对应的那片C3上建出口，不能两版C3都建
+    ret = SUCCESS;
+    ret = ApiC3SetL2MCOutIntf(stPortInfo.unit_id, &stL2mcIntf);
+
+    NBB_TRC_DETAIL((NBB_FORMAT "  ApiC3SetL2MCOutIntf() ret=%d", ret));
+
+#endif 
+
+    if (ret == SUCCESS)
+    {
+        pstVplsPortInfo->vp_mc_pos_id = stL2mcIntf.posId;
+        pstVplsPortInfo->cud = iMcCud;
+        pstVplsPortInfo->slot_id = stPortInfo.slot_id;
+    }
+    else
+    {
+#ifdef SPU 
+        //如果端口没有添加成功，必须删除已分配的CUD
+        spm_free_vpls_mc_cud(iMcCud);
+#endif
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: ApiC3SetL2MCOutIntf() error! ret=%d", ret));
+
+        OS_PRINTF("***ERROR***: ApiC3SetL2MCOutIntf() ret=%d\n", ret);
+
+        OS_SPRINTF(ucMessage, "***ERROR***: ApiC3SetL2MCOutIntf() ret=%d\n", ret);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             ret, 
+                                                             "CALL_C3_FUNC_ERROR", 
+                                                             ucMessage));
+        ret = ERROR;        
+        goto EXIT_LABEL;
+    }
+#endif
+    EXIT_LABEL : NBB_TRC_EXIT();
+    
+    return ret;
+
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_vpls_del_mc_vp
+ 功能描述  : 删除MC_VP
+ 输入参数  : NBB_BYTE ucVpType    
+             NBB_USHORT usVpnId   
+             NBB_VOID* pstVpData  
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2013年5月29日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_vpls_del_mc_vp(NBB_BYTE ucVpType, 
+                                   NBB_USHORT usVpnId, 
+                                   NBB_USHORT usVsiMcId,
+                                   NBB_VOID* pstVpData
+                                   NBB_CCXT_T NBB_CXT)
+{
+	NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+	
+    NBB_INT ret = SUCCESS;
+    NBB_INT iVpId = 0;
+    NBB_INT i = 0;
+    
+    //NBB_ULONG ulVpPosId = 0;
+    NBB_BYTE ucC3Unit = 0;
+    NBB_BYTE ucSlot = 0;
+    SPM_PORT_INFO_CB stPortInfo;
+    
+    SPM_VC_CB *pstVcMain = NULL;
+    ATG_DCI_VC_KEY stVcKeyMain;
+    SPM_LOGICAL_PORT_CB *pstLogicalPort = NULL;
+    SPM_VPLS_CB *pstVpls = NULL;
+
+    ATG_DCI_VPLS_NNI_DATA *pstNniData = NULL;
+    ATG_DCI_VPLS_UNI_DATA *pstUniData = NULL;
+    
+    //SPM_PORT_INFO_CB stPortInfoall[ATG_DCI_ECMP_PORT_NUM];
+    NBB_INT j = 0;
+    NBB_INT ecmpVpflag = 0;
+
+    NBB_TRC_ENTRY("spm_vpls_del_mc_vp");
+
+    if (pstVpData == NULL)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_vpls_del_mc_vp(pstVpData=NULL)"));
+
+        OS_PRINTF("***ERROR***: spm_vpls_del_mc_vp(pstVpData=NULL)\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***: spm_vpls_del_mc_vp(pstVpData=NULL)\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                         FUNC_IN_PARAM_IS_NULL, 
+                                                         "FUNC_IN_PARAM_IS_NULL", 
+                                                         ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+    pstVpls = AVLL_FIND(SHARED.vpls_tree, &usVpnId);
+
+    if (pstVpls == NULL)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: VPLS不存在，无法删除VPLS MC_VP"));
+
+        OS_PRINTF("***ERROR***: VPLS不存在，无法删除VPLS MC_VP\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***: VPLS不存在，无法删除VPLS MC_VP\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                         BASIC_CONFIG_NOT_EXIST, 
+                                                         "BASIC_CONFIG_NOT_EXIST", 
+                                                         ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+    OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+    OS_MEMSET(&stVcKeyMain, 0, sizeof(ATG_DCI_VC_KEY));
+
+
+    if (ucVpType == SPM_VP_NNI)
+    {
+        pstNniData = (ATG_DCI_VPLS_NNI_DATA*)pstVpData;
+
+        //这里暂时选择主用
+        stVcKeyMain.vc_id = pstNniData->vc_id;
+        stVcKeyMain.vc_type = pstNniData->vc_type;
+        stVcKeyMain.peer_ip = pstNniData->peer_ip;
+
+        pstVcMain = AVLL_FIND(SHARED.vc_tree, &stVcKeyMain);
+
+        if (pstVcMain == NULL)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 主用VC不存在，主用VC基本配置不存在，或备用VC存在但基本配置不存在！"));
+
+            OS_PRINTF("***ERROR***: 主用VC不存在，主用VC基本配置不存在，或备用VC存在但基本配置不存在！\n");
+
+            OS_SPRINTF(ucMessage, 
+                "***ERROR***: 主用VC不存在，主用VC基本配置不存在，或备用VC存在但基本配置不存在！\n");
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             BASIC_CONFIG_NOT_EXIST, 
+                                                             "BASIC_CONFIG_NOT_EXIST", 
+                                                             ucMessage));
+            ret = ERROR;
+            goto EXIT_LABEL;
+        }
+
+        
+        //根据VC表配置中的port_index获取端口的port_id和slot_id，配给Arad和FE1600
+        //这里先只考虑主用VC
+        spm_get_portid_from_logical_port_index(pstVcMain->vc_info_cb.port_index, &stPortInfo NBB_CCXT);
+
+		//1、如果组播端口接口或子接口，不在本槽位，或
+		//2、如果组播端口为LAG，LAG成员端口的第一个端口所在的槽不在本槽位；或
+		//3、如果组播端口为VE，不在本槽位
+		//则不调用驱动，直接返回成功。
+		if (((SHARED.local_slot_id != stPortInfo.slot_id) && (ATG_DCI_INTFACE == stPortInfo.port_type))
+		 || ((SHARED.local_slot_id != stPortInfo.slot_id) && (ATG_DCI_SUB_INTFACE == stPortInfo.port_type))
+		 || ((SHARED.local_slot_id != stPortInfo.slot_id) && (ATG_DCI_VE_PORT == stPortInfo.port_type))
+		 || ((SHARED.local_slot_id != stPortInfo.lag_slot_id) && (ATG_DCI_LAG == stPortInfo.port_type)))
+		{
+	        OS_SPRINTF(ucMessage, 
+                    "DEL:不调用Arad删组播成员，直接返回成功 NNI (port_index=%ld local_slot=%d slot=%d lag_slot=%d port_type=%d)\n", 
+	        		pstVcMain->vc_info_cb.port_index, SHARED.local_slot_id, stPortInfo.slot_id, 
+	        		stPortInfo.lag_slot_id, stPortInfo.port_type);
+	        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+	        
+            ret = SUCCESS;
+            goto EXIT_LABEL;
+        }
+
+        for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+        {
+            //找到要删除的MC_VP
+            if ((pstVpls->nni_cfg_cb[i] != NULL)
+             && (pstVpls->nni_cfg_cb[i]->vc_id == pstNniData->vc_id)
+             && (pstVpls->nni_cfg_cb[i]->vc_type == pstNniData->vc_type)
+             && (pstVpls->nni_cfg_cb[i]->peer_ip == pstNniData->peer_ip))
+            {
+                break;
+            }
+        }
+
+        //未找到要删除的VP
+        if (i == ATG_DCI_VPLS_NNI_NUM)
+        {
+	        OS_SPRINTF(ucMessage, "DEL:未找到要删除的NNI_VP\n");
+	        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+	        
+            ret = SUCCESS;
+            goto EXIT_LABEL;
+        }
+
+        iVpId = pstVpls->nni_info_cb[i].vp_idx;
+        ucSlot = pstVpls->nni_info_cb[i].slot_id;
+        
+        //for(j=0;j<ATG_DCI_ECMP_PORT_NUM;j++)
+        //{
+            //OS_MEMSET(&stPortInfoall[j], 0, sizeof(SPM_PORT_INFO_CB));
+        //}
+        //for(j=0;j<pstVpls->nni_info_cb[i].port_num;j++)
+        //{
+        
+            //获取VP所对应所有端口
+            //spm_get_portid_from_logical_port_index(pstVpls->nni_info_cb[i].port_index_mc[j], 
+            // &stPortInfoall[j] NBB_CCXT);
+        //}
+
+    }
+    else if (ucVpType == SPM_VP_UNI)
+    {
+        pstUniData = (ATG_DCI_VPLS_UNI_DATA*)pstVpData;
+
+        pstLogicalPort = AVLL_FIND(SHARED.logical_port_tree, &pstUniData->port_index);
+
+        if (pstLogicalPort == NULL)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: PORT_INDEX=%ld 的逻辑端口不存在，组播UNI无法添加！", 
+                pstUniData->port_index));
+
+            OS_PRINTF("***ERROR***: PORT_INDEX=%ld 的逻辑端口不存在，组播UNI无法添加！", 
+                pstUniData->port_index);
+
+            OS_SPRINTF(ucMessage, "***ERROR***: PORT_INDEX=%ld 的逻辑端口不存在，组播UNI无法添加！", 
+                pstUniData->port_index);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             LOGICAL_PORT_NOT_EXIST, 
+                                                             "LOGICAL_PORT_NOT_EXIST", 
+                                                             ucMessage));
+            ret = ERROR;
+            goto EXIT_LABEL;
+        }
+        
+        //根据逻辑端口配置中的port_index获取端口的port_id和slot_id，配给Arad和FE1600
+        spm_get_portid_from_logical_port_index(pstUniData->port_index, &stPortInfo NBB_CCXT);
+
+	    //1、如果组播端口接口或子接口，不在本槽位，或
+	    //2、如果组播端口为LAG，LAG成员端口的第一个端口所在的槽不在本槽位；或
+	    //3、如果组播端口为VE，不在本槽位
+	    //则不调用驱动，直接返回成功。
+	    if (((SHARED.local_slot_id != stPortInfo.slot_id) && (ATG_DCI_INTFACE == stPortInfo.port_type))
+	     || ((SHARED.local_slot_id != stPortInfo.slot_id) && (ATG_DCI_SUB_INTFACE == stPortInfo.port_type))
+	     || ((SHARED.local_slot_id != stPortInfo.slot_id) && (ATG_DCI_VE_PORT == stPortInfo.port_type))
+	     || ((SHARED.local_slot_id != stPortInfo.lag_slot_id) && (ATG_DCI_LAG == stPortInfo.port_type)))
+	    {
+	        OS_SPRINTF(ucMessage, 
+                    "DEL:不调用Arad删组播成员，直接返回成功 UNI(port_index=%ld local_slot=%d slot=%d lag_slot=%d port_type=%d)\n", 
+	        		pstUniData->port_index, SHARED.local_slot_id, stPortInfo.slot_id, stPortInfo.lag_slot_id, stPortInfo.port_type);
+	        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+	        
+            ret = SUCCESS;
+            goto EXIT_LABEL;
+        }
+
+        for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+        {
+            //找到要删除的VP
+            if ((pstVpls->uni_cfg_cb[i] != NULL)
+             && (pstVpls->uni_cfg_cb[i]->port_index == pstUniData->port_index))
+            {
+                break;
+            }
+        }
+
+        //未找到要删除的VP
+        if (i == ATG_DCI_VPLS_UNI_NUM)
+        {
+            ret = SUCCESS;
+            goto EXIT_LABEL;
+        }
+
+        iVpId = pstVpls->uni_info_cb[i].vp_idx;
+        ucSlot = pstVpls->uni_info_cb[i].slot_id;
+
+    }
+    else
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 要删除组播的既不是NNI也不是UNI！"));
+
+        OS_PRINTF("***ERROR***: 要删除组播的既不是NNI也不是UNI！\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***: 要删除组播的既不是NNI也不是UNI！\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             VP_NOT_NNI_NOR_UNI, 
+                                                             "VP_NOT_NNI_NOR_UNI", 
+                                                             ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+    NBB_TRC_DETAIL((NBB_FORMAT "  usMcId=%d iVpId=%d usPortId=%d ucSlot=%d", usVpnId,
+                                                                            iVpId, 
+                                                                            stPortInfo.port_id, 
+                                                                            stPortInfo.slot_id));
+    
+#ifdef SPU 
+    
+	//如果是lag，删除109
+    if (ATG_DCI_LAG == stPortInfo.port_type)
+    {
+	    ret = ApiAradDeleteEngressMcPort(UNIT_0, 
+	                                     usVsiMcId, 
+	                                     SPM_MULTICAST_PORT_0, 
+	                                     iVpId);
+    }
+    else
+    {
+	    //如果VP属于第1片c3，Arad配置到109
+		//if (stPortInfo.unit_id == UNIT_0)
+		{
+		    ret = ApiAradDeleteEngressMcPort(UNIT_0, 
+		                                     usVsiMcId, 
+		                                     SPM_MULTICAST_PORT_0, 
+		                                     iVpId);
+                 ecmpVpflag = 1;
+		}
+        
+		//else	//如果VP属于第2片c3，Arad配置到110
+		//{
+		//    ret = ApiAradDeleteEngressMcPort(UNIT_0, 
+		//                                     usVpnId, 
+		//                                     SPM_MULTICAST_PORT_1, 
+		//                                     iVpId);
+		//}
+    }
+
+    if (ret != SUCCESS)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: ApiAradDeleteEngressMcPort() ret=%d VPLS_ID=%ld VpId=%d", 
+            ret, usVpnId, iVpId));
+        
+        OS_PRINTF("***ERROR***: ApiAradDeleteEngressMcPort() ret=%d VPLS_ID=%ld VpId=%d\n", ret, usVpnId, iVpId);
+
+        OS_SPRINTF(ucMessage, "***ERROR***: ApiAradDeleteEngressMcPort() ret=%d VPLS_ID=%ld VpId=%d\n", 
+            ret, usVpnId, iVpId);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                         ret, 
+                                                         "CALL_ARAD_FUNC_ERROR", 
+                                                         ucMessage));
+    }
+
+  //增加当本槽位有ECMP端口时的处理
+    for(j = 0;j < pstVpls->nni_info_cb[i].port_num;j++)
+    {
+        if (((SHARED.local_slot_id == pstVpls->nni_info_cb[i].slot_id_mc[j]) && 
+            (ATG_DCI_INTFACE == pstVpls->nni_info_cb[i].port_type_mc[j]))
+         || ((SHARED.local_slot_id == pstVpls->nni_info_cb[i].slot_id_mc[j]) && 
+            (ATG_DCI_SUB_INTFACE == pstVpls->nni_info_cb[i].port_type_mc[j]))
+         || ((SHARED.local_slot_id == pstVpls->nni_info_cb[i].slot_id_mc[j]) && 
+            (ATG_DCI_VE_PORT == pstVpls->nni_info_cb[i].port_type_mc[j])))
+        {           
+            ret = SUCCESS;
+
+            //避免重复删除
+            if(0 == ecmpVpflag) 
+            {
+                ret = ApiAradDeleteEngressMcPort(UNIT_0, usVsiMcId,SPM_MULTICAST_PORT_0, iVpId); 
+            }
+            
+            if (ret != SUCCESS)
+	     {
+	         NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: ECMP ApiAradDeleteEngressMcPort() ret=%d VPLS_ID=%ld VpId=%d", 
+                    ret, usVpnId, iVpId));
+        
+                OS_PRINTF("***ERROR***: ECMP ApiAradDeleteEngressMcPort() ret=%d VPLS_ID=%ld VpId=%d\n", 
+                    ret, usVpnId, iVpId);
+
+                OS_SPRINTF(ucMessage, "***ERROR***: ECMP ApiAradDeleteEngressMcPort() ret=%d VPLS_ID=%ld VpId=%d\n", 
+                    ret, usVpnId, iVpId);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                         ret, 
+                                                         "ECMP CALL_ARAD_FUNC_ERROR", 
+                                                         ucMessage));
+            }
+            break;
+        }
+    }
+
+#if 0
+    ret = SUCCESS;
+    
+    for (ucC3Unit=0; ucC3Unit<SHARED.c3_num; ucC3Unit++)
+    {
+        ret += ApiC3DelL2MCOutIntf(ucC3Unit, ulVpPosId);
+
+        NBB_TRC_DETAIL((NBB_FORMAT "  ApiC3DelL2MCOutIntf() ret=%d", ret));
+    }
+
+
+    if (ret == SUCCESS)
+    {
+        //释放VP所占据的CUD资源
+        //spm_free_vpls_mc_cud(iMcCud);
+        //OS_MEMSET(&pstVplsMc->uni_info_cb[i], 0, sizeof(SPM_VPLS_MC_PORT_INFO_CB));
+    }
+    else
+    {        
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: ApiC3DelL2MCOutIntf() error! ret=%d", ret));
+
+        OS_PRINTF("***ERROR***: ApiC3DelL2MCOutIntf() ret=%d\n", ret);
+
+        OS_SPRINTF(ucMessage, "***ERROR***: ApiC3DelL2MCOutIntf() ret=%d\n", ret);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             ret, 
+                                                             "ApiC3DelL2MCOutIntf()", 
+                                                             ucMessage));
+        goto EXIT_LABEL;
+    }
+#endif
+
+#endif
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+    
+    return ret;
+
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_vpls_get_nni_num
+ 功能描述  : 获取VPWS中NNI的个数
+ 输入参数  : NBB_USHORT usVpnId  
+             NBB_INT *piVpNum    
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2013年5月16日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_vpls_get_nni_num(NBB_USHORT usVpnId,
+                                                          NBB_INT *piVpNum
+                                                          NBB_CCXT_T NBB_CXT)
+{
+	NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+    NBB_INT ret = SUCCESS;
+    SPM_VPLS_CB *pstVpls = NULL;
+
+    NBB_TRC_ENTRY("spm_vpls_get_nni_num");
+
+    pstVpls = AVLL_FIND(v_spm_shared->vpls_tree, &usVpnId);
+
+    if (pstVpls != NULL)
+    {
+        *piVpNum = pstVpls->nni_num;
+        NBB_TRC_DETAIL((NBB_FORMAT "  VPLS_ID=%d<NNI=%d>", usVpnId, pstVpls->nni_num));
+    }
+    else
+    {
+        *piVpNum = 0;
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_vpls_get_nni_num() VPLS_ID=%d 的 VPLS 不存在", usVpnId));
+
+		OS_SPRINTF(ucMessage, "***ERROR***: spm_vpls_get_nni_num() VPLS_ID=%d 的 VPLS 不存在\n", usVpnId);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             FUNC_IN_PARAM_IS_NULL, 
+                                                             "FUNC_IN_PARAM_IS_NULL", 
+                                                             ucMessage));
+    }
+    
+    EXIT_LABEL : NBB_TRC_EXIT();
+
+    return ret;
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_vpls_get_uni_num
+ 功能描述  : 获取VPWS中UNI的个数
+ 输入参数  : NBB_USHORT usVpnId  
+             NBB_INT *piVpNum    
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2013年5月16日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_vpls_get_uni_num(NBB_USHORT usVpnId, NBB_INT *piVpNum NBB_CCXT_T NBB_CXT)
+{
+	NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+    NBB_INT ret = SUCCESS;
+    SPM_VPLS_CB *pstVpls = NULL;
+
+    NBB_TRC_ENTRY("spm_vpls_get_uni_num");
+
+    pstVpls = AVLL_FIND(v_spm_shared->vpls_tree, &usVpnId);
+
+    if (pstVpls != NULL)
+    {
+        *piVpNum = pstVpls->uni_num;
+        NBB_TRC_DETAIL((NBB_FORMAT "  VPLS_ID=%d<UNI=%d>", usVpnId, pstVpls->uni_num));
+    }
+    else
+    {
+        *piVpNum = 0;
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_vpls_get_uni_num() VPLS_ID=%d 的 VPLS 不存在", usVpnId));
+
+		OS_SPRINTF(ucMessage, "***ERROR***: spm_vpls_get_uni_num() VPLS_ID=%d 的 VPLS 不存在\n", usVpnId);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                             FUNC_IN_PARAM_IS_NULL, 
+                                                             "FUNC_IN_PARAM_IS_NULL", 
+                                                             ucMessage));    }
+    
+    EXIT_LABEL : NBB_TRC_EXIT();
+
+    return ret;
+}
+
+#if 1
+NBB_INT spm_get_vpls_slot_num(SPM_VPLS_CB *pstVpls, NBB_BYTE ucSlot NBB_CCXT_T NBB_CXT)
+{
+    NBB_INT i = 0;
+    NBB_INT iNum = 0;
+    NBB_ULONG ulPortIndex = 0;
+    NBB_INT ret = SUCCESS;
+    SPM_PORT_INFO_CB stPortInfo;
+    NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+    NBB_INT j = 0;
+    
+    //SPM_PORT_INFO_CB stPortInfoall[ATG_DCI_ECMP_PORT_NUM];
+    
+    OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+
+    //NNI中在此槽位的端口个数
+    for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+    {
+    	if ((pstVpls->nni_cfg_cb[i] != NULL) && (pstVpls->nni_info_cb[i].port_index != 0))
+		{
+			ulPortIndex = pstVpls->nni_info_cb[i].port_index;
+
+			//获取出接口
+			OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+		    ret = spm_get_portid_from_logical_port_index(ulPortIndex, &stPortInfo NBB_CCXT);
+
+		    if (ret != SUCCESS)
+		    {
+				NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld NNI slot_num  逻辑端口获取物理端口失败", ulPortIndex));
+
+				OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld NNI slot_num 逻辑端口获取物理端口失败", ulPortIndex);
+				BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+		        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", pstVpls->vpls_id_key, 
+		                                                         CALL_FUNC_ERROR, 
+		                                                         "CALL_FUNC_ERROR", 
+		                                                         ucMessage));
+				continue;
+			}
+
+			if (stPortInfo.port_type == ATG_DCI_LAG)
+			{
+				if (stPortInfo.lag_slot_id == ucSlot)
+					iNum++;
+			}
+			else
+			{
+				if (stPortInfo.slot_id == ucSlot)
+					iNum++;
+			}
+		}
+    	
+    }
+
+        //NNI中在此槽位的端口个数ecmp
+    for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+    {
+
+        if (pstVpls->nni_cfg_cb[i] != NULL) 
+		{
+			
+                     for(j = 0;j < pstVpls->nni_info_cb[i].port_num;j++)
+                     {
+
+        			if (pstVpls->nni_info_cb[i].slot_id_mc[j] == ucSlot)
+        			{        				            
+      					iNum++;                                   
+        			}
+        			
+                      }
+		}
+    	
+    }
+
+    //UNI中在此槽位的端口个数
+    for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+    {
+    	if ((pstVpls->uni_cfg_cb[i] != NULL) && (pstVpls->uni_cfg_cb[i]->port_index != 0))
+		{
+			ulPortIndex = pstVpls->uni_cfg_cb[i]->port_index;
+
+			//获取出接口
+			OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+		    ret = spm_get_portid_from_logical_port_index(ulPortIndex, &stPortInfo NBB_CCXT);
+
+		    if (ret != SUCCESS)
+		    {
+				NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld NNI slot_num 逻辑端口获取物理端口失败", ulPortIndex));
+
+				OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld NNI slot_num 逻辑端口获取物理端口失败", ulPortIndex);
+				BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+		        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", pstVpls->vpls_id_key, 
+		                                                         CALL_FUNC_ERROR, 
+		                                                         "CALL_FUNC_ERROR", 
+		                                                         ucMessage));
+				continue;
+			}
+
+			if (stPortInfo.port_type == ATG_DCI_LAG)
+			{
+				if (stPortInfo.lag_slot_id == ucSlot)
+					iNum++;
+			}
+			else
+			{
+				if (stPortInfo.slot_id == ucSlot)
+					iNum++;
+			}
+		}
+
+    }
+
+    return iNum;
+}
+
+NBB_INT spm_vpls_refresh_arad_vp(NBB_USHORT usVplsId, 
+										  NBB_USHORT usMcId, 
+										  NBB_ULONG ulPortIndexOld, 
+										  NBB_ULONG ulPortIndexNew
+										  NBB_CCXT_T NBB_CXT)
+{
+	NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+	NBB_INT ret = SUCCESS;
+	NBB_INT i = 0;
+	NBB_INT iMcMemberNum = 0;
+	NBB_ULONG ulPortIndex = 0;
+	NBB_INT iDevSlotNum = 0;
+	NBB_INT iSlotNum = 0;
+	NBB_INT iSlotGroup[SPM_SLOT_MAX_NUM] = {0};
+	SPM_VPLS_CB *pstVpls = NULL;
+	SPM_PORT_INFO_CB stPortInfo;
+	ARAD_MC_INFO stMcInfo;
+       NBB_INT j = 0;
+       
+       //SPM_PORT_INFO_CB stPortInfoall[ATG_DCI_ECMP_PORT_NUM];
+
+	OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+	OS_MEMSET(&stMcInfo, 0, sizeof(ARAD_MC_INFO));
+
+	//usMcId为0，退出处理
+	if ((usMcId == 0) || (usVplsId == 0))
+	{
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_vpls_refresh_arad_vp(usMcId==0 || usVplsId==0)"));
+
+        //OS_PRINTF("***ERROR***: spm_vpls_refresh_arad_vp(usMcId==0)\n");
+
+		OS_SPRINTF(ucMessage, "***ERROR***: spm_vpls_refresh_arad_vp(usMcId==0)\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+        
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsId, 
+                                                         FUNC_IN_PARAM_IS_NULL, 
+                                                         "FUNC_IN_PARAM_IS_NULL", 
+                                                         ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+	}
+
+	//找VPLS配置
+	pstVpls = AVLL_FIND(SHARED.vpls_tree, &usVplsId);
+
+	if (pstVpls == NULL)
+	{
+        NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:要刷新 VPLS_ID=%d 的VPLS配置并不存在!\n", usVplsId));
+
+        //OS_PRINTF("***ERROR***:要刷新 VPLS_ID=%d 的VPLS配置并不存在!\n", usMcId);
+
+        OS_SPRINTF(ucMessage, "***ERROR***:要刷新 VPLS_ID=%d 的VPLS配置并不存在!\n", usVplsId);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsId, 
+                                                         DEL_UNEXIST_CONFIG_ERROR, 
+                                                         "DEL_UNEXIST_CONFIG_ERROR", 
+                                                         ucMessage));
+        ret = ERROR;            
+        goto EXIT_LABEL;
+    }
+
+	//找到NNI中属于本槽位的VP
+    for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+    {
+    	if ((pstVpls->nni_cfg_cb[i] != NULL) && (pstVpls->nni_info_cb[i].port_index != 0))
+    	{
+    		ulPortIndex = pstVpls->nni_info_cb[i].port_index;
+    		
+			//获取出接口
+			OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+		    ret = spm_get_portid_from_logical_port_index(ulPortIndex, &stPortInfo NBB_CCXT);
+
+		    if (ret != SUCCESS)
+		    {
+				NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld refresh 逻辑端口获取物理端口失败", ulPortIndex));
+
+				OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld refresh 逻辑端口获取物理端口失败", ulPortIndex);
+				BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+		        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsId, 
+		                                                         CALL_FUNC_ERROR, 
+		                                                         "CALL_FUNC_ERROR", 
+		                                                         ucMessage));
+				continue;
+			}
+
+			if (stPortInfo.port_type == ATG_DCI_LAG)
+			{
+				//if (v_spm_shared->local_slot_id == stPortInfo.lag_slot_id)
+				{
+					stMcInfo.mc_member_array[iMcMemberNum].slot = stPortInfo.lag_slot_id;
+					stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_0;
+					stMcInfo.mc_member_array[iMcMemberNum].cud = pstVpls->nni_info_cb[i].vp_idx;
+					iMcMemberNum++;
+				}
+			}
+			else
+			{
+				stMcInfo.mc_member_array[iMcMemberNum].slot = stPortInfo.slot_id;
+				stMcInfo.mc_member_array[iMcMemberNum].cud = pstVpls->nni_info_cb[i].vp_idx;
+
+				if (stPortInfo.unit_id == UNIT_0)
+				{
+					stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_0;
+				}
+				else
+				{
+					stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_1;
+				}
+				
+				iMcMemberNum++;
+			}
+    	}
+    }
+
+    	//找到NNI中属于本槽位的VP
+    for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+    {
+    	if (pstVpls->nni_cfg_cb[i] != NULL) 
+    	{
+
+                   for(j = 0;j < pstVpls->nni_info_cb[i].port_num;j++)
+                  {
+                  
+                     //OS_MEMSET(&stPortInfoall[j], 0, sizeof(SPM_PORT_INFO_CB));
+                     if (SHARED.local_slot_id == pstVpls->nni_info_cb[i].slot_id_mc[j])
+                     {
+                            if (pstVpls->nni_info_cb[i].port_type_mc[j] == ATG_DCI_LAG)
+          			{
+          				//if (v_spm_shared->local_slot_id == stPortInfo.lag_slot_id)
+          				{
+          					stMcInfo.mc_member_array[iMcMemberNum].slot = pstVpls->nni_info_cb[i].slot_id_mc[j];
+          					stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_0;
+          					stMcInfo.mc_member_array[iMcMemberNum].cud = pstVpls->nni_info_cb[i].vp_idx;
+          					iMcMemberNum++;
+          				}
+          			}
+        			else
+        			{
+        				stMcInfo.mc_member_array[iMcMemberNum].slot = pstVpls->nni_info_cb[i].slot_id_mc[j];
+        				stMcInfo.mc_member_array[iMcMemberNum].cud = pstVpls->nni_info_cb[i].vp_idx;
+
+        				if (stPortInfo.unit_id == UNIT_0)
+        				{
+        					stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_0;
+        				}
+        				else
+        				{
+        					stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_1;
+        				}
+        				
+        				iMcMemberNum++;
+        			}
+                     }
+                        
+			
+                  }
+			
+    	}
+    }
+
+
+	//找到UNI中属于本槽位的VP
+    for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+    {
+    	if ((pstVpls->uni_cfg_cb[i] != NULL) && (pstVpls->uni_cfg_cb[i]->port_index != 0))
+    	{
+    		ulPortIndex = pstVpls->uni_cfg_cb[i]->port_index;
+    		
+			//获取出接口
+			OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+		    ret = spm_get_portid_from_logical_port_index(ulPortIndex, &stPortInfo NBB_CCXT);
+
+		    if (ret != SUCCESS)
+		    {
+				NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld refresh 逻辑端口获取物理端口失败", 
+                                ulPortIndex));
+
+				OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld refresh 逻辑端口获取物理端口失败", ulPortIndex);
+				BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+		        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsId, 
+		                                                         CALL_FUNC_ERROR, 
+		                                                         "CALL_FUNC_ERROR", 
+		                                                         ucMessage));
+				continue;
+			}
+
+			if (stPortInfo.port_type == ATG_DCI_LAG)
+			{
+				//if (v_spm_shared->local_slot_id == stPortInfo.lag_slot_id)
+				{
+					stMcInfo.mc_member_array[iMcMemberNum].slot = stPortInfo.lag_slot_id;
+					stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_0;
+					stMcInfo.mc_member_array[iMcMemberNum].cud = pstVpls->uni_info_cb[i].vp_idx;
+					iMcMemberNum++;
+				}
+			}
+			else
+			{
+				stMcInfo.mc_member_array[iMcMemberNum].slot = stPortInfo.slot_id;					
+				stMcInfo.mc_member_array[iMcMemberNum].cud = pstVpls->uni_info_cb[i].vp_idx;
+
+				if (stPortInfo.unit_id == UNIT_0)
+				{
+					stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_0;
+				}
+				else
+				{
+					stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_1;
+				}
+				
+				iMcMemberNum++;
+			}
+    	}
+    }
+
+#ifdef SPU
+
+	stMcInfo.member_num = iMcMemberNum;
+	stMcInfo.multicast_id = usMcId;
+	ret = ApiAradUpdateEgressMc(UNIT_0, &stMcInfo);
+
+	if (ret != SUCCESS)
+	{
+        NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:ApiAradUpdateEgressMc() ret=%d VplsId=%d member_num=%d\n", 
+            ret, usVplsId, iMcMemberNum));
+
+        //OS_PRINTF("***ERROR***:要刷新 VPLS_ID=%d 的VPLS配置并不存在!\n", usMcId);
+
+        OS_SPRINTF(ucMessage, "***ERROR***:ApiAradUpdateEgressMc() ret=%d VplsId=%d member_num=%d\n", 
+        ret, usVplsId, iMcMemberNum);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsId, 
+                                                         CALL_ARAD_FUNC_ERROR, 
+                                                         "CALL_ARAD_FUNC_ERROR", 
+                                                         ucMessage));
+    }
+	
+#endif
+
+#ifdef SRC
+
+	//SRC盘上不区别槽位
+	for (i = 0; i < SPM_SLOT_MAX_NUM; i++)
+	{
+		iSlotNum = spm_get_vpls_slot_num(pstVpls, i + 1 NBB_CCXT);
+
+		if (iSlotNum != 0)
+		{
+			iSlotGroup[iDevSlotNum++] = i + 1;
+		}
+	}
+
+	ret = ApiDfeMulticastSet(UNIT_0, usMcId, iDevSlotNum, iSlotGroup);
+
+	if (ret != SUCCESS)
+	{
+        OS_SPRINTF(ucMessage, "***ERROR***:ApiDfeMulticastSet() ret=%d VplsId=%d iDevSlotNum=%d\n", 
+            ret, usVplsId, iDevSlotNum);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsId, 
+                                                         CALL_ARAD_FUNC_ERROR, 
+                                                         "CALL_ARAD_FUNC_ERROR", 
+                                                         ucMessage));
+    }
+#endif
+
+#ifdef SNU
+
+	//SRC盘上不区别槽位
+	for (i = 0; i < SPM_SLOT_MAX_NUM; i++)
+	{
+		iSlotNum = spm_get_vpls_slot_num(pstVpls, i + 1 NBB_CCXT);
+
+		if (iSlotNum != 0)
+		{
+			iSlotGroup[iDevSlotNum++] = i + 1;
+		}
+	}
+
+	ret = ApiDfeMulticastSet(UNIT_0, usMcId, iDevSlotNum, iSlotGroup);
+
+	if (ret != SUCCESS)
+	{
+        OS_SPRINTF(ucMessage, "***ERROR***:ApiDfeMulticastSet() ret=%d VplsId=%d iDevSlotNum=%d\n", 
+            ret, usVplsId, iDevSlotNum);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVplsId, 
+                                                         CALL_ARAD_FUNC_ERROR, 
+                                                         "CALL_ARAD_FUNC_ERROR", 
+                                                         ucMessage));
+    }
+#endif
+
+EXIT_LABEL :
+
+	return ret;
+}
+
+#endif
+
+/*****************************************************************************
+ 函 数 名  : spm_vpls_uni_mac_port
+ 功能描述  : 增加、删除mac学习的端口
+ 输入参数  : NBB_ULONG ulPortIndex : UNI逻辑接口index
+ 			 NBB_USHORT usVpnId : VPLS_ID
+ 			 NBB_BYTE ucOper : 操作类型: 1/2 = 增加/删除
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2014年3月14日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_vpls_uni_mac_port(NBB_ULONG ulPortIndex, NBB_USHORT usVpnId, NBB_BYTE ucOper NBB_CCXT_T NBB_CXT)
+{
+	NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+	NBB_INT ret = SUCCESS;
+	NBB_INT i = 0;
+	NBB_INT jlag = 0;
+	SPM_PORT_INFO_CB stPortInfo;
+	SPM_HARDW_VPLSMACINFO stHwVplsMacPortInfo;
+	NBB_ULONG arPortIndex[ATG_DCI_LAG_MEMBER_PORT_NUM] = {0};
+	NBB_ULONG ulLagId = 0;
+	NBB_USHORT ucPortNum = 0;
+	NBB_ULONG ulPortIndexLagMember = 0;
+	NBB_ULONG ulPhyPortIndex = 0;
+	SPM_LOGICAL_PORT_CB *pstLogicalPortLagMember = NULL;
+	SPM_PHYSICAL_PORT_CB *pstPhysicalPort = NULL;
+
+	OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+	OS_MEMSET(&stHwVplsMacPortInfo, 0, sizeof(SPM_HARDW_VPLSMACINFO));
+	
+	ret = spm_get_portid_from_logical_port_index(ulPortIndex, &stPortInfo NBB_CCXT);	
+
+	if(ret != SUCCESS)
+	{
+
+		NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 逻辑端口index=%ld获取物理口失败， ret=%d\n",ulPortIndex, ret));
+
+		OS_PRINTF("***ERROR***:逻辑端口index=%ld获取物理口失败， ret=%d\n",ulPortIndex, ret);
+
+		OS_SPRINTF(ucMessage, "***ERROR***:逻辑端口index=%ld获取物理口失败， ret=%d\n",ulPortIndex, ret);
+		BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usVpnId, 
+                                                         CALL_FUNC_ERROR, 
+                                                         "CALL_FUNC_ERROR", 
+                                                         ucMessage));
+        goto EXIT_LABEL;
+	}
+
+	//如果是 接口 或 子接口 直接传参数
+	if ((stPortInfo.port_type == ATG_DCI_INTFACE) || (stPortInfo.port_type == ATG_DCI_SUB_INTFACE))
+	{
+    	ulPortIndexLagMember = ulPortIndex;
+    	pstLogicalPortLagMember = AVLL_FIND(v_spm_shared->logical_port_tree, &ulPortIndexLagMember);
+
+	    //逻辑端口存在
+	    if ((pstLogicalPortLagMember != NULL) && (pstLogicalPortLagMember->phy_cfg_cb != NULL))
+	    {
+	    	ulPhyPortIndex = pstLogicalPortLagMember->phy_cfg_cb->phy_port_index;
+	    	
+			pstPhysicalPort = AVLL_FIND(v_spm_shared->physical_port_tree, &ulPhyPortIndex);
+	    
+			if ((pstPhysicalPort != NULL) && (pstPhysicalPort->basic_cfg_cb != NULL))
+			{
+				stHwVplsMacPortInfo.ucPortNum = 1;
+				stHwVplsMacPortInfo.ucPortType = 0;
+				stHwVplsMacPortInfo.stVpPortInfo[0].ucSlotId = pstPhysicalPort->basic_cfg_cb->slot;
+				stHwVplsMacPortInfo.stVpPortInfo[0].ucCardId = pstPhysicalPort->basic_cfg_cb->sub_board;
+				stHwVplsMacPortInfo.stVpPortInfo[0].ucPortId = pstPhysicalPort->basic_cfg_cb->port;
+#ifdef SRC
+				if (ucOper == ATG_DCI_OPER_ADD)
+				{
+					src_hardw_addVpMacPortInfo(&stHwVplsMacPortInfo);
+				}
+				else if (ucOper == ATG_DCI_OPER_DEL)
+				{
+					src_hardw_delVpMacPortInfo(&stHwVplsMacPortInfo);
+				}
+#endif
+			}
+			else
+			{
+		        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 获取UNI MAC端口时 PORT_INDEX=%ld 的物理接口配置不存在\n", ulPhyPortIndex));
+
+		        OS_PRINTF("***ERROR***: 获取UNI MAC端口时 PORT_INDEX=%ld 的物理接口配置不存在\n", ulPhyPortIndex);
+
+		        OS_SPRINTF(ucMessage, "***ERROR***: 获取UNI MAC端口时 PORT_INDEX=%ld 的物理接口配置不存在\n", ulPhyPortIndex);
+		        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+		        NBB_EXCEPTION((PCT_SPM | PUB_FUN_PD, 0, "ld d s s", 
+                          0, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+		        ret = ERROR;
+		    }
+	    }
+	    else
+	    {
+	        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 获取LAG槽位时 PORT_INDEX=%ld 的逻辑接口配置不存在", ulPortIndexLagMember));
+
+	        OS_PRINTF("***ERROR***: 获取LAG槽位时 PORT_INDEX=%ld 的逻辑接口配置不存在\n", ulPortIndexLagMember);
+
+	        OS_SPRINTF(ucMessage, "***ERROR***: 获取LAG槽位时 PORT_INDEX=%ld 的逻辑接口配置不存在\n", ulPortIndexLagMember);
+	        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+	        NBB_EXCEPTION((PCT_SPM | PUB_FUN_PD, 0, "ld d s s", 
+                   0, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+	        ret = ERROR;
+	    }
+	}
+    
+	//如果是 LAG，要找到LAG的成员口 再传参数
+	else if (stPortInfo.port_type == ATG_DCI_LAG)
+	{
+		ulLagId = stPortInfo.port_id - ATG_DCI_LAG_OFFSET;
+		
+		ret = spm_get_lag_all_ports(ulLagId, arPortIndex, &ucPortNum NBB_CCXT);
+
+	    if (ret == SUCCESS)
+	    {
+	        if (ucPortNum != 0)
+	        {
+	        	//循环遍历，找到slot最小的槽位号
+	        	for (i = 0; i < ucPortNum; i++)
+	        	{
+		        	ulPortIndexLagMember = arPortIndex[i];
+		        	pstLogicalPortLagMember = AVLL_FIND(v_spm_shared->logical_port_tree, &ulPortIndexLagMember);
+
+				    //逻辑端口存在
+				    if ((pstLogicalPortLagMember != NULL) && (pstLogicalPortLagMember->phy_cfg_cb != NULL))
+				    {
+				    	ulPhyPortIndex = pstLogicalPortLagMember->phy_cfg_cb->phy_port_index;
+				    	
+						pstPhysicalPort = AVLL_FIND(v_spm_shared->physical_port_tree, &ulPhyPortIndex);
+				    
+		    			if ((pstPhysicalPort != NULL) && (pstPhysicalPort->basic_cfg_cb != NULL))
+		    			{						
+							stHwVplsMacPortInfo.stVpPortInfo[jlag].ucSlotId = pstPhysicalPort->basic_cfg_cb->slot;
+							stHwVplsMacPortInfo.stVpPortInfo[jlag].ucCardId = pstPhysicalPort->basic_cfg_cb->sub_board;
+							stHwVplsMacPortInfo.stVpPortInfo[jlag].ucPortId = pstPhysicalPort->basic_cfg_cb->port;
+
+							jlag++;
+		    			}
+		    			else
+		    			{
+					        NBB_TRC_DETAIL((NBB_FORMAT 
+                                               "  ***ERROR***: 获取UNI MAC端口时 PORT_INDEX=%ld 的物理接口配置不存在\n", 
+                                               ulPhyPortIndex));
+
+					        OS_PRINTF("***ERROR***: 获取UNI MAC端口时 PORT_INDEX=%ld 的物理接口配置不存在\n", 
+                                               ulPhyPortIndex);
+
+					        OS_SPRINTF(ucMessage, 
+                                               "***ERROR***: 获取UNI MAC端口时 PORT_INDEX=%ld 的物理接口配置不存在\n", ulPhyPortIndex);
+					        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+					        NBB_EXCEPTION((PCT_SPM | PUB_FUN_PD, 0, "ld d s s", 0, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", 
+                                               ucMessage));
+					        ret = ERROR;
+					    }
+				    }
+				    else
+				    {
+				        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 获取LAG槽位时 PORT_INDEX=%ld 的逻辑接口配置不存在", ulPortIndexLagMember));
+
+				        OS_PRINTF("***ERROR***: 获取LAG槽位时 PORT_INDEX=%ld 的逻辑接口配置不存在\n", ulPortIndexLagMember);
+
+				        OS_SPRINTF(ucMessage, "***ERROR***: 获取LAG槽位时 PORT_INDEX=%ld 的逻辑接口配置不存在\n", ulPortIndexLagMember);
+				        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+				        NBB_EXCEPTION((PCT_SPM | PUB_FUN_PD, 0, "ld d s s", 
+                                        0, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+				        ret = ERROR;
+				    }
+	        	}
+
+				stHwVplsMacPortInfo.ucPortNum = jlag;
+				stHwVplsMacPortInfo.ucPortType = 1;
+#ifdef SRC
+				if (ucOper == ATG_DCI_OPER_ADD)
+				{
+					src_hardw_addVpMacPortInfo(&stHwVplsMacPortInfo);
+				}
+				else if (ucOper == ATG_DCI_OPER_DEL)
+				{
+					src_hardw_delVpMacPortInfo(&stHwVplsMacPortInfo);
+				}
+#endif
+	        }
+	        else
+	        {
+		        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: LAG_ID=%ld, spm_get_lag_all_ports() 下逻辑端口数为0", 
+                          ulLagId));
+
+		        OS_PRINTF("***ERROR***: LAG_ID=%ld, spm_get_lag_all_ports() 下逻辑端口数为0\n", 
+                          ulLagId);
+
+		        OS_SPRINTF(ucMessage, "***ERROR***: LAG_ID=%ld, spm_get_lag_all_ports() 下逻辑端口数为0\n", 
+                          ulLagId);
+		        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+		        NBB_EXCEPTION((PCT_SPM | PUB_FUN_PD, 0, "ld d s s", 0, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", 
+                          ucMessage));
+		        ret = ERROR;
+	        }
+	    }
+	    else
+	    {
+	        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: LAG_ID=%ld, spm_get_lag_all_ports() ret=%d", 
+                   ulLagId, ret));
+
+	        OS_PRINTF("***ERROR***: LAG_ID=%ld, spm_get_lag_all_ports() ret=%d\n", ulLagId, ret);
+
+	        OS_SPRINTF(ucMessage, "***ERROR***: LAG_ID=%ld, spm_get_lag_all_ports() ret=%d\n", 
+                   ulLagId, ret);
+	        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+	        NBB_EXCEPTION((PCT_SPM | PUB_FUN_PD, 0, "ld d s s", 
+                   0, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+	        ret = ERROR;
+	    }
+	}
+
+EXIT_LABEL :
+
+	return ret;
+}
+
+#if 0
+/*****************************************************************************
+ 函 数 名  : spm_vpls_refresh_arad_vp
+ 功能描述  : LDP震荡时，刷新Arad出接口
+ 输入参数  : NBB_USHORT usMcId :此处为VPLS_ID
+ 			 NBB_ULONG ulPortIndexOld : 老的arad出口index
+ 			 NBB_ULONG ulPortIndexNew : 新的arad出口index
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2013年11月21日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_vpls_refresh_arad_vp(NBB_USHORT usMcId, 
+										  NBB_ULONG ulPortIndexOld, 
+										  NBB_ULONG ulPortIndexNew
+										  NBB_CCXT_T NBB_CXT)
+{
+	NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+	NBB_INT ret = SUCCESS;
+	NBB_INT i = 0;
+	NBB_INT j = 0;
+	NBB_INT k = 0;
+	NBB_INT iMcMemberNum = 0;
+	NBB_ULONG ulPortIndex = 0;
+	NBB_ULONG ulLagId = 0;
+	NBB_ULONG ulPortIndexLagMember = 0;
+	NBB_INT iDevSlotNum = 0;
+	NBB_INT iSlotNum = 0;
+	NBB_INT iSlotGroup[SPM_SLOT_MAX_NUM] = {0};
+    NBB_ULONG arPortIndex[ATG_DCI_LAG_MEMBER_PORT_NUM] = {0};
+    NBB_BYTE ucPortNum = 0;
+	SPM_VPLS_CB *pstVpls = NULL;
+	SPM_LOGICAL_PORT_CB *pstLogicalPortLagMember = NULL;
+	SPM_PORT_INFO_CB stPortInfo;
+	ARAD_MC_INFO stMcInfo;
+
+	OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+	OS_MEMSET(&stMcInfo, 0, sizeof(ARAD_MC_INFO));
+
+	//usMcId为0，退出处理
+	if (usMcId == 0)
+	{
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_vpls_refresh_arad_vp(usMcId==0)"));
+
+        //OS_PRINTF("***ERROR***: spm_vpls_refresh_arad_vp(usMcId==0)\n");
+
+		OS_SPRINTF(ucMessage, "***ERROR***: spm_vpls_refresh_arad_vp(usMcId==0)\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+        
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+                                                         FUNC_IN_PARAM_IS_NULL, 
+                                                         "FUNC_IN_PARAM_IS_NULL", 
+                                                         ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+	}
+
+	//找VPLS配置
+	pstVpls = AVLL_FIND(SHARED.vpls_tree, &usMcId);
+
+	if (pstVpls == NULL)
+	{
+        NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:要刷新 VPLS_ID=%d 的VPLS配置并不存在!\n", usMcId));
+
+        //OS_PRINTF("***ERROR***:要刷新 VPLS_ID=%d 的VPLS配置并不存在!\n", usMcId);
+
+        OS_SPRINTF(ucMessage, "***ERROR***:要刷新 VPLS_ID=%d 的VPLS配置并不存在!\n", usMcId);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+                                                         DEL_UNEXIST_CONFIG_ERROR, 
+                                                         "DEL_UNEXIST_CONFIG_ERROR", 
+                                                         ucMessage));
+        ret = ERROR;            
+        goto EXIT_LABEL;
+    }
+
+	//找到NNI中所有VP出口
+    for (i=0; i<ATG_DCI_VPLS_NNI_NUM; i++)
+    {
+    	if (pstVpls->nni_cfg_cb[i] != NULL)
+    	{
+    		for (j=0; j<ATG_DCI_ECMP_PORT_NUM; j++)
+    		{
+    			//端口index不为0，才开始处理
+    			if (pstVpls->nni_info_cb[i].port_index_mc[j] != 0)
+    			{
+		    		ulPortIndex = pstVpls->nni_info_cb[i].port_index_mc[j];
+		    		
+					//获取出接口
+					OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+				    ret = spm_get_portid_from_logical_port_index(ulPortIndex, &stPortInfo NBB_CCXT);
+
+				    if (ret != SUCCESS)
+				    {
+						NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld refresh 逻辑端口获取物理端口失败", ulPortIndex));
+
+						OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld refresh 逻辑端口获取物理端口失败", ulPortIndex);
+						BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+				        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+				                                                         CALL_FUNC_ERROR, 
+				                                                         "CALL_FUNC_ERROR", 
+				                                                         ucMessage));
+						continue;
+					}
+
+					//如果为lag，必须找到lag每个成员口，这样才能将包复制到所有的成员口
+					if (stPortInfo.port_type == ATG_DCI_LAG)
+					{
+						ulLagId = stPortInfo.port_id - ATG_DCI_LAG_OFFSET;
+						
+						ret = spm_get_lag_ports(ulLagId, arPortIndex, &ucPortNum NBB_CCXT);
+
+					    if ((ret == SUCCESS) && (ucPortNum != 0))
+					    {
+					    	for (k=0; k<ucPortNum; k++)
+					    	{
+					    		if (arPortIndex[k] != 0)
+					    		{
+						    		ulPortIndexLagMember = arPortIndex[k];
+
+									//获取lag成员出接口
+									OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+								    ret = spm_get_portid_from_logical_port_index(ulPortIndexLagMember, &stPortInfo NBB_CCXT);
+
+								    if (ret != SUCCESS)
+								    {
+										NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld refresh lag 逻辑端口获取物理端口失败", ulPortIndexLagMember));
+
+										OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld refresh lag 逻辑端口获取物理端口失败", ulPortIndexLagMember);
+										BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+								        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+								                                                         CALL_FUNC_ERROR, 
+								                                                         "CALL_FUNC_ERROR", 
+								                                                         ucMessage));
+										continue;
+									}
+
+									stMcInfo.mc_member_array[iMcMemberNum].slot = stPortInfo.slot_id;
+									stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_0;
+									stMcInfo.mc_member_array[iMcMemberNum].cud = pstVpls->nni_info_cb[i].vp_idx;
+									iMcMemberNum++;
+					    		}
+					    	}
+				        }
+				        else
+				        {
+					        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d", ulLagId, ret));
+
+					        //OS_PRINTF("***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d\n", ulLagId, ret);
+
+					        OS_SPRINTF(ucMessage, "***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d\n", ulLagId, ret);
+					        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+					        //NBB_EXCEPTION((PCT_SPM | PUB_FUN_PD, 0, "ld d s s", 0, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+					        //ret = ERROR;
+				        }
+					}
+					else
+					{
+						stMcInfo.mc_member_array[iMcMemberNum].slot = stPortInfo.slot_id;
+						stMcInfo.mc_member_array[iMcMemberNum].cud = pstVpls->nni_info_cb[i].vp_idx;
+
+						//if (stPortInfo.unit_id == UNIT_0)
+						{
+							stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_0;
+						}
+						//else
+						//{
+						//	stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_1;
+						//}
+						
+						iMcMemberNum++;
+					}
+    			}
+    		}
+    	}
+    }
+
+	//重新初始化变量
+	for (i=0; i<ATG_DCI_LAG_MEMBER_PORT_NUM; i++)
+	{
+		arPortIndex[i] = 0;
+	}
+    ucPortNum = 0;
+    
+	//找到UNI中所有VP出口
+    for (i=0; i<ATG_DCI_VPLS_UNI_NUM; i++)
+    {
+    	if ((pstVpls->uni_cfg_cb[i] != NULL) && (pstVpls->uni_cfg_cb[i]->port_index != 0))
+    	{
+    		ulPortIndex = pstVpls->uni_cfg_cb[i]->port_index;
+    		
+			//获取出接口
+			OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+		    ret = spm_get_portid_from_logical_port_index(ulPortIndex, &stPortInfo NBB_CCXT);
+
+		    if (ret != SUCCESS)
+		    {
+				NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld refresh 逻辑端口获取物理端口失败", ulPortIndex));
+
+				OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld refresh 逻辑端口获取物理端口失败", ulPortIndex);
+				BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+		        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+		                                                         CALL_FUNC_ERROR, 
+		                                                         "CALL_FUNC_ERROR", 
+		                                                         ucMessage));
+				continue;
+			}
+
+			if (stPortInfo.port_type == ATG_DCI_LAG)
+			{
+				ulLagId = stPortInfo.port_id - ATG_DCI_LAG_OFFSET;
+				
+				ret = spm_get_lag_ports(ulLagId, arPortIndex, &ucPortNum NBB_CCXT);
+
+			    if ((ret == SUCCESS) && (ucPortNum != 0))
+			    {
+			    	for (k=0; k<ucPortNum; k++)
+			    	{
+			    		if (arPortIndex[k] != 0)
+			    		{
+				    		ulPortIndexLagMember = arPortIndex[k];
+
+							//获取lag成员出接口
+							OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+						    ret = spm_get_portid_from_logical_port_index(ulPortIndexLagMember, &stPortInfo NBB_CCXT);
+
+						    if (ret != SUCCESS)
+						    {
+								NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld refresh lag 逻辑端口获取物理端口失败", ulPortIndexLagMember));
+
+								OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld refresh lag 逻辑端口获取物理端口失败", ulPortIndexLagMember);
+								BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+						        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+						                                                         CALL_FUNC_ERROR, 
+						                                                         "CALL_FUNC_ERROR", 
+						                                                         ucMessage));
+								continue;
+							}
+
+							stMcInfo.mc_member_array[iMcMemberNum].slot = stPortInfo.slot_id;
+							stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_0;
+							stMcInfo.mc_member_array[iMcMemberNum].cud = pstVpls->uni_info_cb[i].vp_idx;
+							iMcMemberNum++;
+			    		}
+			    	}
+		        }
+		        else
+		        {
+			        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d", ulLagId, ret));
+
+			        //OS_PRINTF("***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d\n", ulLagId, ret);
+
+			        OS_SPRINTF(ucMessage, "***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d\n", ulLagId, ret);
+			        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+			        //NBB_EXCEPTION((PCT_SPM | PUB_FUN_PD, 0, "ld d s s", 0, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+			        //ret = ERROR;
+		        }
+			}
+			else
+			{
+				stMcInfo.mc_member_array[iMcMemberNum].slot = stPortInfo.slot_id;					
+				stMcInfo.mc_member_array[iMcMemberNum].cud = pstVpls->uni_info_cb[i].vp_idx;
+
+				//if (stPortInfo.unit_id == UNIT_0)
+				{
+					stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_0;
+				}
+				//else
+				//{
+				//	stMcInfo.mc_member_array[iMcMemberNum].port = SPM_MULTICAST_PORT_1;
+				//}
+				
+				iMcMemberNum++;
+			}
+    	}
+    }
+
+#ifdef SPU
+
+	stMcInfo.member_num = iMcMemberNum;
+	stMcInfo.multicast_id = usMcId;
+	ret = ApiAradUpdateEgressMc(UNIT_0, &stMcInfo);
+
+	if (ret != SUCCESS)
+	{
+        NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:ApiAradUpdateEgressMc() ret=%d VplsId=%d member_num=%d\n", ret, usMcId, iMcMemberNum));
+
+        //OS_PRINTF("***ERROR***:要刷新 VPLS_ID=%d 的VPLS配置并不存在!\n", usMcId);
+
+        OS_SPRINTF(ucMessage, "***ERROR***:ApiAradUpdateEgressMc() ret=%d VplsId=%d member_num=%d\n", ret, usMcId, iMcMemberNum);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+                                                         CALL_ARAD_FUNC_ERROR, 
+                                                         "CALL_ARAD_FUNC_ERROR", 
+                                                         ucMessage));
+    }
+	
+#endif
+
+#ifdef SRC
+	//SRC盘上不区别槽位
+	for (i=0; i<SPM_SLOT_MAX_NUM; i++)
+	{
+		iSlotNum = spm_get_vpls_slot_num(pstVpls, i+1 NBB_CCXT);
+
+		if (iSlotNum != 0)
+		{
+			iSlotGroup[iDevSlotNum++] = i+1;
+		}
+	}
+
+	ret = ApiDfeMulticastSet(UNIT_0, usMcId, iDevSlotNum, iSlotGroup);
+
+	if (ret != SUCCESS)
+	{
+        OS_SPRINTF(ucMessage, "***ERROR***:ApiDfeMulticastSet() ret=%d VplsId=%d iDevSlotNum=%d\n", ret, usMcId, iDevSlotNum);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+                                                         CALL_ARAD_FUNC_ERROR, 
+                                                         "CALL_ARAD_FUNC_ERROR", 
+                                                         ucMessage));
+    }
+#endif
+
+#ifdef SNU
+	//SRC盘上不区别槽位
+	for (i=0; i<SPM_SLOT_MAX_NUM; i++)
+	{
+		iSlotNum = spm_get_vpls_slot_num(pstVpls, i+1 NBB_CCXT);
+
+		if (iSlotNum != 0)
+		{
+			iSlotGroup[iDevSlotNum++] = i+1;
+		}
+	}
+
+	ret = ApiDfeMulticastSet(UNIT_0, usMcId, iDevSlotNum, iSlotGroup);
+
+	if (ret != SUCCESS)
+	{
+        OS_SPRINTF(ucMessage, "***ERROR***:ApiDfeMulticastSet() ret=%d VplsId=%d iDevSlotNum=%d\n", ret, usMcId, iDevSlotNum);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+                                                         CALL_ARAD_FUNC_ERROR, 
+                                                         "CALL_ARAD_FUNC_ERROR", 
+                                                         ucMessage));
+    }
+#endif
+
+EXIT_LABEL :
+
+	return ret;
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_get_vpls_slot_num
+ 功能描述  : 获取VPLS中UNI和NNI口在一个槽位上的个数
+ 输入参数  : SPM_VPLS_CB *pstVpls  
+             NBB_BYTE ucSlot       
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2013年5月29日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+  2.日    期   : 2014年5月6日
+    作    者   : xiaoxiang
+    修改内容   : VPLS改为向所有出口发包，所以要获取所有可能的槽位
+*****************************************************************************/
+NBB_INT spm_get_vpls_slot_num(SPM_VPLS_CB *pstVpls, NBB_BYTE ucSlot NBB_CCXT_T NBB_CXT)
+{
+    NBB_INT i = 0;
+    NBB_INT j = 0;
+    NBB_INT k = 0;
+    NBB_INT iNum = 0;
+    NBB_ULONG ulPortIndex = 0;
+	NBB_ULONG ulLagId = 0;
+	NBB_ULONG ulPortIndexLagMember = 0;
+    NBB_ULONG arPortIndex[ATG_DCI_LAG_MEMBER_PORT_NUM] = {0};
+    NBB_BYTE ucPortNum = 0;
+    NBB_INT ret = SUCCESS;
+    NBB_USHORT usMcId = 0;
+    SPM_PORT_INFO_CB stPortInfo;
+    NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+    
+    OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+
+    usMcId = pstVpls->vpls_id_key;
+
+    //NNI中在此槽位的端口个数
+    for (i=0; i<ATG_DCI_VPLS_NNI_NUM; i++)
+	{
+    	if (pstVpls->nni_cfg_cb[i] != NULL)
+    	{
+    		for (j=0; j<ATG_DCI_ECMP_PORT_NUM; j++)
+    		{
+    			//端口index不为0，才开始处理
+    			if (pstVpls->nni_info_cb[i].port_index_mc[j] != 0)
+    			{
+		    		ulPortIndex = pstVpls->nni_info_cb[i].port_index_mc[j];
+		    		
+					//获取出接口
+					OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+				    ret = spm_get_portid_from_logical_port_index(ulPortIndex, &stPortInfo NBB_CCXT);
+
+				    if (ret != SUCCESS)
+				    {
+						NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld refresh 逻辑端口获取物理端口失败", ulPortIndex));
+
+						OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld refresh 逻辑端口获取物理端口失败", ulPortIndex);
+						BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+				        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+				                                                         CALL_FUNC_ERROR, 
+				                                                         "CALL_FUNC_ERROR", 
+				                                                         ucMessage));
+						continue;
+					}
+
+					//如果为lag，必须找到lag每个成员口，这样才能将包复制到所有的成员口
+					if (stPortInfo.port_type == ATG_DCI_LAG)
+					{
+						ulLagId = stPortInfo.port_id - ATG_DCI_LAG_OFFSET;
+						
+						ret = spm_get_lag_ports(ulLagId, arPortIndex, &ucPortNum NBB_CCXT);
+
+					    if ((ret == SUCCESS) && (ucPortNum != 0))
+					    {
+					    	for (k=0; k<ucPortNum; k++)
+					    	{
+					    		if (arPortIndex[k] != 0)
+					    		{
+						    		ulPortIndexLagMember = arPortIndex[k];
+
+									//获取lag成员出接口
+									OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+								    ret = spm_get_portid_from_logical_port_index(ulPortIndexLagMember, &stPortInfo NBB_CCXT);
+
+								    if (ret != SUCCESS)
+								    {
+										NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld refresh lag 逻辑端口获取物理端口失败", ulPortIndexLagMember));
+
+										OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld refresh lag 逻辑端口获取物理端口失败", ulPortIndexLagMember);
+										BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+								        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+								                                                         CALL_FUNC_ERROR, 
+								                                                         "CALL_FUNC_ERROR", 
+								                                                         ucMessage));
+										continue;
+									}
+
+									if (stPortInfo.slot_id == ucSlot)
+									{
+										iNum++;
+									}										
+					    		}
+					    	}
+				        }
+				        else
+				        {
+					        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d", ulLagId, ret));
+
+					        //OS_PRINTF("***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d\n", ulLagId, ret);
+
+					        OS_SPRINTF(ucMessage, "***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d\n", ulLagId, ret);
+					        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+					        //NBB_EXCEPTION((PCT_SPM | PUB_FUN_PD, 0, "ld d s s", 0, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+					        //ret = ERROR;
+				        }
+					}
+					else
+					{
+						if (stPortInfo.slot_id == ucSlot)
+						{
+							iNum++;
+						}							
+					}
+    			}
+    		}
+    	}
+    }
+
+	//重新初始化变量
+	for (i=0; i<ATG_DCI_LAG_MEMBER_PORT_NUM; i++)
+	{
+		arPortIndex[i] = 0;
+	}
+    ucPortNum = 0;
+    
+    //UNI中在此槽位的端口个数
+    for (i=0; i<ATG_DCI_VPLS_UNI_NUM; i++)
+    {
+    	if ((pstVpls->uni_cfg_cb[i] != NULL) && (pstVpls->uni_cfg_cb[i]->port_index != 0))
+		{
+			ulPortIndex = pstVpls->uni_cfg_cb[i]->port_index;
+
+			//获取出接口
+			OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+		    ret = spm_get_portid_from_logical_port_index(ulPortIndex, &stPortInfo NBB_CCXT);
+
+		    if (ret != SUCCESS)
+		    {
+				NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld NNI slot_num 逻辑端口获取物理端口失败", ulPortIndex));
+
+				OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld NNI slot_num 逻辑端口获取物理端口失败", ulPortIndex);
+				BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+		        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", pstVpls->vpls_id_key, 
+		                                                         CALL_FUNC_ERROR, 
+		                                                         "CALL_FUNC_ERROR", 
+		                                                         ucMessage));
+				continue;
+			}
+
+			if (stPortInfo.port_type == ATG_DCI_LAG)
+			{
+				ulLagId = stPortInfo.port_id - ATG_DCI_LAG_OFFSET;
+				
+				ret = spm_get_lag_ports(ulLagId, arPortIndex, &ucPortNum NBB_CCXT);
+
+			    if ((ret == SUCCESS) && (ucPortNum != 0))
+			    {
+			    	for (k=0; k<ucPortNum; k++)
+			    	{
+			    		if (arPortIndex[k] != 0)
+			    		{
+				    		ulPortIndexLagMember = arPortIndex[k];
+
+							//获取lag成员出接口
+							OS_MEMSET(&stPortInfo, 0, sizeof(SPM_PORT_INFO_CB));
+						    ret = spm_get_portid_from_logical_port_index(ulPortIndexLagMember, &stPortInfo NBB_CCXT);
+
+						    if (ret != SUCCESS)
+						    {
+								NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***：PORT_INDEX=%ld refresh lag 逻辑端口获取物理端口失败", ulPortIndexLagMember));
+
+								OS_SPRINTF(ucMessage, "***ERROR***：PORT_INDEX=%ld refresh lag 逻辑端口获取物理端口失败", ulPortIndexLagMember);
+								BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+						        NBB_EXCEPTION((PCT_SPM | VPLS_PD, 0, "ld d s s", usMcId, 
+						                                                         CALL_FUNC_ERROR, 
+						                                                         "CALL_FUNC_ERROR", 
+						                                                         ucMessage));
+								continue;
+							}
+
+							if (stPortInfo.slot_id == ucSlot)
+							{
+								iNum++;
+							}										
+			    		}
+			    	}
+		        }
+		        else
+		        {
+			        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d", ulLagId, ret));
+
+			        //OS_PRINTF("***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d\n", ulLagId, ret);
+
+			        OS_SPRINTF(ucMessage, "***ERROR***: LAG_ID=%ld, spm_get_lag_ports() ret=%d\n", ulLagId, ret);
+			        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+			        //NBB_EXCEPTION((PCT_SPM | PUB_FUN_PD, 0, "ld d s s", 0, BASIC_CONFIG_NOT_EXIST, "BASIC_CONFIG_NOT_EXIST", ucMessage));
+			        //ret = ERROR;
+		        }
+			}
+			else
+			{
+				if (stPortInfo.slot_id == ucSlot)
+					iNum++;
+			}
+		}
+
+    }
+
+    return iNum;
+}
+#endif
+/*****************************************************************************
+ 函 数 名  : spm_l3_add_mcid_ldp
+ 功能描述  : vpls建立VP时告知MCid
+ 输入参数  : ucLspType : 0/1=FTN/CR-LSP
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年11月24日
+    作    者   : dk
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+//NBB_INT spm_l3_add_mcid_ldp(NBB_USHORT usMcId, NBB_BYTE ucLspType, FTN_KEY stFtnKey, CRTXLSP_KEY stCrLspKey)
+
+/*****************************************************************************
+ 函 数 名  : spm_init_vpls_tree
+ 功能描述  : 初始化存储VPLS配置的树
+ 输入参数  : 无
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年11月24日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_VOID spm_init_vpls_tree(NBB_CXT_T NBB_CXT)
+{
+    NBB_BUF_SIZE avll_key_offset;
+
+    NBB_TRC_ENTRY("spm_init_vpls_tree");
+    
+    avll_key_offset = NBB_OFFSETOF(SPM_VPLS_CB, vpls_id_key);/*lint !e413 */
+
+    //NBB_TRC_DETAIL((NBB_FORMAT "Key offset set to %ld", avll_key_offset));
+
+    AVLL_INIT_TREE(SHARED.vpls_tree, compare_ushort,
+                 (NBB_USHORT) avll_key_offset,
+                 (NBB_USHORT) NBB_OFFSETOF(SPM_VPLS_CB, spm_vpls_node));
+
+    NBB_TRC_EXIT();       
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_alloc_vpls_cb
+ 功能描述  : 申请VPLS条目的内存空间
+ 输入参数  : NBB_CCXT_T NBB_CXT  
+ 输出参数  : 无
+ 返 回 值  : SPM_VPLS_CB
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年10月30日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+SPM_VPLS_CB * spm_alloc_vpls_cb(NBB_CXT_T NBB_CXT)
+{
+    NBB_INT i = 0;
+    SPM_VPLS_CB *pstVpls = NULL;
+
+    NBB_TRC_ENTRY("spm_alloc_vpls_cb");
+
+    /* 分配一个新的VPWS配置条目。*/
+    pstVpls = (SPM_VPLS_CB *)NBB_MM_ALLOC(sizeof(SPM_VPLS_CB), NBB_NORETRY_ACT, MEM_SPM_VPLS_CB);
+    if (pstVpls == NULL)
+    {
+        goto EXIT_LABEL;
+    }
+
+    /* 初始化VPWS配置条目 */
+    OS_MEMSET(pstVpls, 0, sizeof(SPM_VPLS_CB));
+    pstVpls->basic_cfg_cb = NULL;
+
+    for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+    {
+        pstVpls->nni_cfg_cb[i] = NULL;
+    }
+    
+    for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+    {
+        pstVpls->uni_cfg_cb[i] = NULL;
+    }
+
+    /* 建立用于该VC表配置条目的句柄，作为异步消息交换的相关器。*/
+    pstVpls->spm_vpls_handle = NBB_CREATE_HANDLE(pstVpls, HDL_SPM_VPLS_CB);
+
+    /* 成功分配一个新的接口物理配置条目。*/
+    NBB_TRC_DETAIL((NBB_FORMAT "SPM_VPLS_CB allocated at %p with handle %#lx",
+                   pstVpls, pstVpls->spm_vpls_handle));   
+
+    /* Initialize the AVLL node. */
+    AVLL_INIT_NODE(pstVpls->spm_vpls_node);    
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+    
+    return(pstVpls);
+}
+
+
+NBB_VOID spm_free_vpls_cb(SPM_VPLS_CB *pstVpls NBB_CCXT_T NBB_CXT)
+{
+    /***************************************************************************/
+    /* Local Variables                                                         */
+    /***************************************************************************/  
+    NBB_INT i = 0;
+    
+    NBB_TRC_ENTRY("spm_free_vpls_cb");
+    
+    /***************************************************************************/
+    /* 检查控制块的正确性。                                                    */
+    /***************************************************************************/  
+    NBB_ASSERT_MEMORY(pstVpls, sizeof(SPM_VPLS_CB), MEM_SPM_VPLS_CB); 
+
+    if (pstVpls == NULL)
+    {
+    	goto EXIT_LABEL;
+    }
+    
+    /***************************************************************************/
+    /* 删除单盘信息控制块。                                                    */
+    /***************************************************************************/
+    //NBB_TRC_FLOW((NBB_FORMAT "Free SPM_VPLS_CB at %p", pstVpls));  
+    NBB_TRC_FLOW((NBB_FORMAT "Free VPLS_ID %d", pstVpls->vpls_id_key));
+
+    /***************************************************************************/
+    /* 释放基本配置数据块。                                                */
+    /***************************************************************************/
+    if (pstVpls->basic_cfg_cb != NULL)
+    {
+        NBB_MM_FREE(pstVpls->basic_cfg_cb, MEM_SPM_VPLS_BASIC_CB);  
+        pstVpls->basic_cfg_cb = NULL;
+    }
+    
+    /***************************************************************************/
+    /* 释放NNI和UNI数据块。                                                */
+    /***************************************************************************/
+    for (i = 0; i < ATG_DCI_VPLS_NNI_NUM; i++)
+    {
+        if (pstVpls->nni_cfg_cb[i] != NULL)
+        {
+            NBB_MM_FREE(pstVpls->nni_cfg_cb[i], MEM_SPM_VPLS_NNI_CB);  
+            pstVpls->nni_cfg_cb[i] = NULL;
+        }
+    }
+
+    for (i = 0; i < ATG_DCI_VPLS_UNI_NUM; i++)
+    {
+        if (pstVpls->uni_cfg_cb[i] != NULL)
+        {
+            NBB_MM_FREE(pstVpls->uni_cfg_cb[i], MEM_SPM_VPLS_UNI_CB);  
+            pstVpls->uni_cfg_cb[i] = NULL;
+        }
+    } 
+
+    /***************************************************************************/
+    /* 删除控制块的句柄。                                                      */
+    /***************************************************************************/
+    NBB_DESTROY_HANDLE(pstVpls->spm_vpls_handle, HDL_SPM_VPLS_CB);
+
+    /***************************************************************************/
+    /* 现在释放单盘信息控制块。                                                */
+    /***************************************************************************/
+    NBB_MM_FREE(pstVpls, MEM_SPM_VPLS_CB);  
+    pstVpls = NULL;
+
+    EXIT_LABEL: NBB_TRC_EXIT();
+
+    return;
+}
+
+/*****************************************************************************
+   函 数 名  : spm_free_all_vpls_cb
+   功能描述  : 释放vpls配置所有的内存空间
+   输入参数  : 无
+   输出参数  : 无
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年11月6日
+    作    者   : zhangzhm
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+
+NBB_VOID spm_free_all_vpls_cb(NBB_CXT_T NBB_CXT)
+{
+	SPM_VPLS_CB *pstVpls = NULL;
+	
+    for (pstVpls = (SPM_VPLS_CB*) AVLL_FIRST(SHARED.vpls_tree);
+         pstVpls != NULL;
+         pstVpls = (SPM_VPLS_CB*) AVLL_FIRST(SHARED.vpls_tree))
+    {
+    	
+		AVLL_DELETE(SHARED.vpls_tree, pstVpls->spm_vpls_node);     	
+    	spm_free_vpls_cb(pstVpls NBB_CCXT);
+    }
+}
+
+
+
+#endif
+

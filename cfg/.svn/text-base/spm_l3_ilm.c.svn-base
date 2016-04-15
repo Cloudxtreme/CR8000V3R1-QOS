@@ -1,0 +1,1633 @@
+
+/**MOD+***********************************************************************/
+/* Module:    spml3.c                                                      */
+/*                                                                           */
+/* Purpose:   R8000     L3    cfgprocess                        */
+/*                                                                           */
+/* FiberHome        2003-2012                                                */
+/*                                                                           */
+/* $Revision: 1.0       $ $Date: 2012/9/2 07:09:09 $             */
+/**MOD-***********************************************************************/
+
+
+
+#define SHARED_DATA_TYPE SPM_SHARED_LOCAL
+#include <nbase.h>
+#include <spmincl.h>
+
+/********************
+ILM配置块
+********************/
+#ifdef ILM_T
+
+/*ilm模块中的打印设置*/
+extern unsigned char l3_ilm_cfg_print_setting;
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_ilmhashkey
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_ULONG spm_l3_ilmhashkey(NBB_VOID *keyarg NBB_CCXT_T NBB_CXT)
+{
+    if( keyarg == NULL)
+    {
+        return 0;
+    }
+    else
+    {
+        return spm_hash_algorithm(keyarg, ILMKEYLGTH, 0 NBB_CCXT);
+    }
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_ilmhashcomp
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_ULONG spm_l3_ilmhashcomp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
+{
+    ILM_KEY *lsp_key1;
+    ILM_KEY *lsp_key2;
+
+    lsp_key1 = (ILM_KEY *)(keyarg1);
+    lsp_key2 = (ILM_KEY *)(keyarg2);
+
+    if( lsp_key1->inlabel == lsp_key2->inlabel)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_ilmhashtableinit
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_VOID spm_l3_ilmhashtableinit( NBB_ULONG num NBB_CCXT_T NBB_CXT)
+{
+
+    SHARED.ilmhash = (SHASH_TABLE *)
+                                spm_hashtab_create( num , spm_l3_ilmhashkey, spm_l3_ilmhashcomp NBB_CCXT);
+
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_ILMprocess
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY COMP
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_VOID spm_l3_ILMprocess( ATG_DCI_SET_ILM* ilmips  NBB_CCXT_T NBB_CXT)
+{
+
+    NBB_INT         rv = 100;
+    NBB_INT         rv2 = 100;
+
+    SHASH_NODE      *node = NULL, *dnode = NULL;
+
+    NBB_BYTE        *ucdata = NULL;
+
+    NBB_BYTE        i;
+
+    NBB_BYTE        flag = 0;
+
+    ILM_KEY         ilmkey;
+
+    ILM_NHOP        newhop[8];
+
+    ILM_TAB         *ilms = NULL;
+
+    ATG_DCI_ILM_NXHOP_DATA      *nexthp = NULL;
+    
+    ILM_BASE        base;
+
+    L3_RX_PW_T      rxpw;
+
+     NBB_ULONG      posid = 0;
+
+    RX_LSP_T        lspt;
+
+    SPM_PORT_INFO_CB    portfo;
+
+    ILM_DIFSER      difser;
+    SPM_QOS_ILM_KEY qosilmkey;
+
+    NBB_USHORT      frrid = 0;
+    NBB_USHORT      ecmpid = 0;
+
+    NBB_CHAR          *errorlog = NULL;
+    NBB_ULONG        str_len = 0;
+    
+    NBB_TRC_ENTRY("spm_l3_ILMprocess");
+
+    errorlog = NBB_MM_ALLOC(300, NBB_NORETRY_ACT, 0);
+    if(NULL == errorlog)
+    {
+        goto EXIT_LABEL;
+    }
+    
+        NBB_ASSERT(ilmips != NULL);
+
+    if(NULL == ilmips)
+    {
+        goto EXIT_LABEL;
+    }
+
+    ilmips->return_code = ATG_DCI_RC_OK;
+
+    OS_MEMSET( &ilmkey, 0, sizeof( ILM_KEY ) );
+    
+    //coverity[bad_sizeof]
+    NBB_MEMCPY( &ilmkey, &(ilmips->key), sizeof( ILM_KEY ) );
+
+    NBB_TRC_DETAIL((NBB_FORMAT "ILM  key inlabel =%x\n",ilmkey.inlabel));
+
+    NBB_SPRINTF(errorlog, "inlabel =%x\n ",ilmkey.inlabel);
+    str_len = OS_STRLEN(errorlog);
+
+    /*操作之前，查看本地数据是否存在*/
+    node =  (SHASH_NODE *)spm_hashtab_search( SHARED.ilmhash, &ilmkey NBB_CCXT);    
+    
+    if( ilmips->delete_struct == 1) /*  删除*/
+    {
+        if (l3_ilm_cfg_print_setting == SPM_PRINT_CFG)
+        {
+            /*  删除整个条目*/
+            BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "del ilm lable=%d \n", ilmkey.inlabel);
+        }
+        if( node == NULL )
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del ILM Error: node null"));
+            ilmips->return_code = ATG_DCI_RC_OK;
+            rv = 0;
+            goto  EXIT_LABEL;
+        }   
+        if( node->data == NULL )
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del ILM Error: data null"));
+            ilmips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+            NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+            str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Del Error: node->data = NULL\n");
+            str_len =  OS_STRLEN(errorlog);
+            goto  EXIT_LABEL;
+        } 
+        #ifdef SPU
+            ilms = (ILM_TAB *)(node->data);
+            if( ilms->frrid != 0 )
+            {
+                rv = ApiC3DeleteFrrGroup( BCMC31, ilms->frrid );
+                if ( SHARED.c3_num == 2 )
+                {
+                    rv2 = ApiC3DeleteFrrGroup( BCMC32, ilms->frrid);
+                    rv = (rv|rv2);
+                }
+                if( rv != 0)   
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Del ILM Error: free frr DEV rv=%d ", rv));
+                    ilmips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DeleteFrrGroup rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    
+                    //goto  EXIT_LABEL;
+                }
+                else
+                {
+                    ilms->frrid = 0;
+                }
+            }
+            if( ilms->ecmpid != 0 )
+            {
+                rv = ApiC3FreeEcmpGroupId( BCMC31,  ilms->ecmpid );
+                if ( SHARED.c3_num == 2 )
+                {
+                    rv2 = ApiC3FreeEcmpGroupId( BCMC32, ilms->ecmpid );
+                    rv = (rv|rv2);
+                }
+                if( rv != 0)   
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Del ILM Error: free ecmp DEV rv=%d ", rv));
+                    ilmips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ReleaseEcmp rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    
+                    //goto  EXIT_LABEL;
+                }
+                else
+                {
+                    ilms->ecmpid = 0;
+                }
+            }
+            if( ilms->base.labelaction == 3 )
+            {
+                if( ilms->posid != 0 )
+                {
+                    rv = ApiC3DelL3RxPw( BCMC31, ilms->posid);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3DelL3RxPw( BCMC32, ilms->posid);
+                        rv = (rv|rv2);
+                    }
+                    if( rv != 0) 
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Del ILM Error: RxPw DEV rv=%d ", rv));
+                        ilmips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelL3RxPw rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                                NBB_SPRINTF(errorlog + str_len, "Del Error: del rxpw\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                }
+            }
+            else
+            {
+                if( ilms->posid != 0 )
+                {
+                    rv = ApiC3DelRxLsp( BCMC31, ilms->posid);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3DelRxLsp( BCMC32, ilms->posid);
+                        rv = (rv|rv2);
+                    }
+                    if( rv != 0) 
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Del ILM Error: Lsp DEV rv=%d ", rv));
+                        ilmips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelRxLsp rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                                NBB_SPRINTF(errorlog + str_len, "Del Error: del rxlsp\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                }
+            }
+        #endif
+        rv = 0;
+        if( rv == 0)      /* 删除成功，删除hash表对应的配置*/
+        {
+            ilms = (ILM_TAB *)(node->data);
+            spm_hashtab_del( SHARED.ilmhash, &ilmkey NBB_CCXT);
+            NBB_MM_FREE( ilms, MEM_SPM_ILM_TAB_CB);
+        }
+    }
+    else if( ilmips->delete_struct == 0) /* 增加*/
+    {
+        if( ilmips->oper_basic == ATG_DCI_OPER_ADD) /* 增加*/
+        {
+             /*操作之前，查看本地数据是否存在*/
+            if( node == NULL )
+            {
+                if (l3_ilm_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "add ilm lable=%d \n", ilmkey.inlabel);
+                }
+                ilms = (ILM_TAB *)NBB_MM_ALLOC(sizeof(ILM_TAB), NBB_NORETRY_ACT, MEM_SPM_ILM_TAB_CB);
+
+                if ( ilms == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: malloc null"));
+                    ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d malloc mem rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: ilms = NULL\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                } 
+                NBB_MEMSET(ilms, 0, sizeof(ILM_TAB));
+                flag = 1;
+                NBB_TRC_FLOW((NBB_FORMAT "Add ILM new node"));
+            }
+            else
+            {
+                if (l3_ilm_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "upd ilm lable=%d \n", ilmkey.inlabel);
+                }
+                if( node->data == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: data null"));
+                    ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 104;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: node->data = NULL\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                flag = 2;
+                ilms = (ILM_TAB *)(node->data);
+            }
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(ilmips, &ilmips->basic_data); 
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: basic data null"));
+                ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                if( flag == 1 )
+                {
+                    NBB_MM_FREE(ilms, MEM_SPM_ILM_TAB_CB);
+                }
+                ilms = NULL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get basic data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &base, 0, sizeof( ILM_BASE ) );
+            NBB_MEMCPY( &base, ucdata, sizeof( ILM_BASE ) );
+            #ifdef SPU
+            if( flag == 2) 
+            {
+                if( ilms->base.labelaction == base.labelaction ) 
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add ILM update action =%d ", base.labelaction));
+                }
+                else
+                {
+                    if( ilms->base.labelaction == 3 )
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add ILM del RxPw posid =%x ", ilms->posid));
+                        if( ilms->posid != 0 )
+                        {
+                            rv = ApiC3DelL3RxPw( BCMC31, ilms->posid);
+                            if ( SHARED.c3_num == 2 )
+                            {
+                                rv2 = ApiC3DelL3RxPw( BCMC32, ilms->posid);
+                                rv = (rv|rv2);
+                            }
+                            if( rv != 0) 
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: del RxPw DEV rv=%d ", rv));
+                                ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelL3RxPw rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                        NBB_SPRINTF(errorlog + str_len, "Add Error: del old rxpw\n");
+                                str_len =  OS_STRLEN(errorlog);
+                                goto  EXIT_LABEL;
+                            }
+                            else
+                            {
+                                ilms->posid = 0;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add ILM del lsp posid =%x ", ilms->posid));
+                        if( ilms->frrid != 0 )
+                        {
+                            rv = ApiC3DeleteFrrGroup( BCMC31, ilms->frrid );
+                            if ( SHARED.c3_num == 2 )
+                            {
+                                rv2 = ApiC3DeleteFrrGroup( BCMC32, ilms->frrid);
+                                rv = (rv|rv2);
+                            }
+                            if( rv != 0)   
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: del Frr DEV rv=%d ", rv));
+                                ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DeleteFrrGroup rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                        NBB_SPRINTF(errorlog + str_len, "Add Error: del old frr\n");
+                                str_len =  OS_STRLEN(errorlog);
+                                goto  EXIT_LABEL;
+                            }
+                            else
+                            {
+                                ilms->frrid = 0;
+                            }
+                        }
+                        if( ilms->ecmpid != 0 )
+                        {
+                            rv = ApiC3FreeEcmpGroupId( BCMC31,  ilms->ecmpid );
+                            if ( SHARED.c3_num == 2 )
+                            {
+                                rv2 = ApiC3FreeEcmpGroupId( BCMC32, ilms->ecmpid );
+                                rv = (rv|rv2);
+                            }
+                            if( rv != 0)   
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: free ecmp DEV rv=%d ", rv));
+                                ilmips->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d FreeEcmp rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                
+                                //goto  EXIT_LABEL;
+                            }
+                            else
+                            {
+                                ilms->ecmpid = 0;
+                            }
+                        }
+                        if( ilms->posid != 0 )
+                        {
+                            rv = ApiC3DelRxLsp( BCMC31, ilms->posid);
+                            if ( SHARED.c3_num == 2 )
+                            {
+                                rv2 = ApiC3DelRxLsp( BCMC32, ilms->posid);
+                                rv = (rv|rv2);
+                            }
+                            if( rv != 0) 
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: del Lsp DEV rv=%d ", rv));
+                                ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelRxLsp rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                        NBB_SPRINTF(errorlog + str_len, "Add Error: del old rxlsp\n");
+                                str_len =  OS_STRLEN(errorlog);
+                                goto  EXIT_LABEL;
+                            }
+                            else
+                            {
+                                ilms->posid = 0;
+                            }
+                        }
+                    }
+                }
+            }
+            if( base.labelaction == 2)    
+            {
+                //ApiC3InitLspInstStruct( &lspt );
+                OS_MEMSET(&lspt, 0, sizeof(RX_LSP_T));
+                lspt.mLabel =  ilmkey.inlabel;                       
+                lspt.eRxLspAction = MPLS_ACTION_IPOP;
+                
+                //lspt.flags = RX_LSP_COUNTER_ON;
+                if( ilms->posid == 0 )
+                {
+                    rv = ApiC3AddRxLsp( BCMC31,  &lspt);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3AddRxLsp( BCMC32,  &lspt);
+                        rv = (rv|rv2);
+                    }
+                }
+                else
+                {
+                    lspt.posId = ilms->posid;
+                    rv = ApiC3ModRxLsp( BCMC31,  &lspt);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3ModRxLsp( BCMC32,  &lspt);
+                        rv = (rv|rv2);
+                    }
+                }
+                if( rv != 0) 
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: ipop DEV rv=%d ", rv));
+                    ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    if( flag == 1 )
+                    {
+                        NBB_MM_FREE(ilms, MEM_SPM_ILM_TAB_CB);
+                    }
+                    ilms = NULL;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddRxLsp rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: add ipop rxlsp\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                else
+                {
+                    posid = lspt.posId;
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add ILM IPOP posid =%x ", posid));
+                }
+            }
+            else  if( base.labelaction == 3)  
+            {
+                OS_MEMSET(&rxpw , 0, sizeof(L3_RX_PW_T));
+                rxpw.mLabel = ilmkey.inlabel;
+                rxpw.vrf = base.vrfid;
+                rxpw.flags = L3_RX_PW_COUNTER_ON;
+                rxpw.eLableAction = MPLS_ACTION_L3VPN_VRF_ROUTE;
+                if( ilms->posid == 0 )
+                {
+                    rv = ApiC3AddL3RxPw( BCMC31, &rxpw);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3AddL3RxPw( BCMC32, &rxpw);
+                        rv = (rv|rv2);
+                    }
+                }
+                else
+                {
+                    rxpw.posId = ilms->posid;
+                    rv = ApiC3ModL3RxPw( BCMC31, &rxpw);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3ModL3RxPw( BCMC32, &rxpw);
+                        rv = (rv|rv2);
+                    }
+                }
+                if( rv != 0) 
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: RxPw DEV rv=%d ", rv));
+                    ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    if( flag == 1 )
+                    {
+                        NBB_MM_FREE(ilms, MEM_SPM_ILM_TAB_CB);
+                    }
+                    ilms = NULL;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddL3RxPw rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: add poprf rxpw\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                else
+                {
+                    posid = rxpw.posId;
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add ILM POP_RF posid =%x ", posid));
+                }
+            }
+            else if( base.labelaction == 1)  
+            {
+                rv = 0;
+                if( base.nextype == 1)
+                {
+                    if( ilms->frrid == 0 )
+                    {
+                        rv = ApiC3CreateFrrGroup( BCMC31, &frrid, 0, 0);
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            rv2 = ApiC3CreateFrrGroup( BCMC32, &frrid, 0, 0);
+                            rv = (rv|rv2);
+                        }
+                        if( rv != 0)   
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: Frr DEV rv=%d ", rv));
+                            ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                            if( flag == 1 )
+                            {
+                                NBB_MM_FREE(ilms, MEM_SPM_ILM_TAB_CB);
+                            }
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3CreateFrrGroup rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                                    NBB_SPRINTF(errorlog + str_len, "Add Error: add rxpw\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                        else
+                        {
+                             ilms->frrid = frrid;
+                        }
+                    }
+                }
+                else if( base.nextype == 2)
+                {
+                    if( ilms->ecmpid == 0 )
+                    {
+                        rv = ApiC3ReqEcmpGroupId( BCMC31, &ecmpid);
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            rv2 = ApiC3ReqEcmpGroupId( BCMC32, &ecmpid);
+                            rv = (rv|rv2);
+                        }
+                        if( rv != 0)   
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: Ecmp DEV rv=%d ", rv));
+                            ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                            if( flag == 1 )
+                            {
+                                NBB_MM_FREE(ilms, MEM_SPM_ILM_TAB_CB);
+                            }
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d RequestEcmp rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                                    NBB_SPRINTF(errorlog + str_len, "Add Error: add rxpw\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                        else
+                        {
+                             ilms->ecmpid = ecmpid;
+                        }
+                    }
+                    if( ilms->frrid != 0 )
+                    {
+                        rv = ApiC3DeleteFrrGroup( BCMC31, ilms->frrid );
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            rv2 = ApiC3DeleteFrrGroup( BCMC32, ilms->frrid);
+                            rv = (rv|rv2);
+                        }
+                        if( rv != 0)   
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: del Frr DEV rv=%d ", rv));
+                            ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                            if( flag == 1 )
+                            {
+                                NBB_MM_FREE(ilms, MEM_SPM_ILM_TAB_CB);
+                            }
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3CreateFrrGroup rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                                    NBB_SPRINTF(errorlog + str_len, "Add Error: free frr\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                        else
+                        {
+                            ilms->frrid = 0;
+                        }
+                    }
+                }
+                else
+                {
+                    if( ilms->frrid != 0 )
+                    {
+                        rv = ApiC3DeleteFrrGroup( BCMC31, ilms->frrid );
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            rv2 = ApiC3DeleteFrrGroup( BCMC32, ilms->frrid);
+                            rv = (rv|rv2);
+                        }
+                        if( rv != 0)   
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: del Frr DEV rv=%d ", rv));
+                            ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                            if( flag == 1 )
+                            {
+                                NBB_MM_FREE(ilms, MEM_SPM_ILM_TAB_CB);
+                            }
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3CreateFrrGroup rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                                    NBB_SPRINTF(errorlog + str_len, "Add Error: free frr\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                        else
+                        {
+                            ilms->frrid = 0;
+                        }
+                    }                  
+                }
+                posid = ilms->posid;
+            }
+            #endif
+            #ifdef SRC
+            rv = 0;
+            posid = 0xffff;
+            #endif
+            #ifdef SNU
+                rv = 0;
+                posid = 0xffff;
+            #endif  
+            if( rv == 0) /* 成功*/   
+            {
+                ilms->posid = posid;
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(ilms->key), &(ilmips->key), sizeof( ILM_KEY ) );
+                ilms->ntype = ilms->base.nextype;
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(ilms->base), &base, sizeof( ILM_BASE ) );
+                if( flag == 1)
+                {
+                    spm_hashtab_insert ( SHARED.ilmhash, ilms->key, ilms NBB_CCXT);
+                }
+            }
+        }
+        else     if( ilmips->oper_basic == ATG_DCI_OPER_DEL) /*  删除子TLV*/
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del ILM Error: basic data "));
+            ilmips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }
+        if( ilmips->oper_nxhop == ATG_DCI_OPER_UPDATE) /* 增加*/   
+        {
+            if(( ilmips->oper_basic != ATG_DCI_OPER_ADD))
+            {
+                if ( node == NULL )                             
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: nexthop node null"));
+                    ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                              NBB_SPRINTF(errorlog + str_len, "Add Error: node = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto   EXIT_LABEL;
+                }
+                if( node->data == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: nexthop data null"));
+                    ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                              NBB_SPRINTF(errorlog + str_len, "Add Error: node->data = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                } 
+                ilms = (ILM_TAB *)(node->data);
+            }
+            if( ilms == NULL )  
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: ilms null"));
+                ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d ilms rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: ilms = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            if( ilms->base.labelaction != 1)  
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: labelaction error"));
+                        ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d labelaction error rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: data error\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            
+            }
+            ilms->nhopnum = ilmips->nxhop_num;
+            NBB_TRC_DETAIL((NBB_FORMAT "Add ILM nxhop_num =%d ", ilms->nhopnum));
+            if (ilms->nhopnum > 4)
+                    {
+                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: nxhop_num =%d ", ilms->nhopnum));
+                        ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d hop num rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: hop num > 4 \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+                    }
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(ilmips, &ilmips->nxhop_data); 
+            if (ucdata == NULL)
+            {
+                if ( ilms->nhopnum == 0)
+                {
+                    if (flag == 2)
+                    {
+                        BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e ilm nexthop null label=%x \n", 
+                                                    __LINE__,ilmkey.inlabel);
+                    }
+                    rv = 0;
+                    goto  EXIT_LABEL;
+                }
+                NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: nexthop data null"));
+                ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get nexthop data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &newhop[0], 0, 8 * sizeof( ILM_NHOP ) );
+            for ( i = 0; i < ilms->nhopnum; i++)
+            {
+                nexthp = (ATG_DCI_ILM_NXHOP_DATA *)(ucdata + (NBB_ALIGN_OFFSET(sizeof(ATG_DCI_ILM_NXHOP_DATA))) * i);
+                OS_MEMSET( &(newhop[i]), 0, sizeof(ATG_DCI_ILM_NXHOP_DATA) );
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(newhop[i]), nexthp, sizeof(ATG_DCI_ILM_NXHOP_DATA) );
+            }
+            if( ilms->base.nextype == 1 )
+            {
+                if ( ilms->nhopnum == 2)
+                {
+                    if ( newhop[0].nextypeb == 2)
+                    {
+                        //coverity[bad_sizeof]
+                        NBB_MEMCPY( &(newhop[5]), &(newhop[0]), sizeof(ATG_DCI_ILM_NXHOP_DATA) );
+                        
+                        //coverity[bad_sizeof]
+                        NBB_MEMCPY( &(newhop[0]), &(newhop[1]), sizeof(ATG_DCI_ILM_NXHOP_DATA) );
+                        
+                        //coverity[bad_sizeof]
+                        NBB_MEMCPY( &(newhop[1]), &(newhop[5]), sizeof(ATG_DCI_ILM_NXHOP_DATA) );
+                    }
+                }
+                else if ( ilms->nhopnum == 1)
+                {
+                    ilms->base.nextype = 0;             
+                }
+            }
+            #ifdef SPU
+            if(( ilms->ntype == ilms->base.nextype ) || ( ilms->posid == 0 ))
+            {
+                //ApiC3InitLspInstStruct( &lspt );
+                OS_MEMSET(&lspt, 0, sizeof(RX_LSP_T));
+                lspt.mLabel =  ilms->key.inlabel;                        
+                lspt.eRxLspAction = MPLS_ACTION_LSP_SWAP;
+                
+                //lspt.flags = RX_LSP_COUNTER_ON;
+
+                if( ilms->base.nextype == 2 )
+                {
+                    lspt.eNhiProtType = C3_PROT_ECMP;
+                    lspt.tEcmpNh.ecmpNum = ilms->nhopnum;
+                    
+                    //lspt.tEcmpNh.alg = ECMP_PORT_ROUND_ROBIN;
+                    if ( SHARED.global_cb.basic_cfg_cb.ecmp_algo == 0 )
+                    {
+                        lspt.tEcmpNh.alg = ECMP_HASH_BOTTOM_LABEL;
+                    }
+                    else if ( SHARED.global_cb.basic_cfg_cb.ecmp_algo == 1 )
+                    {
+                        lspt.tEcmpNh.alg = ECMP_PORT_ROUND_ROBIN;
+                    }
+                    for ( i = 0; i < ilms->nhopnum; i++)
+                    {
+                        OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                        rv = spm_get_portid_from_logical_port_index(newhop[i].nextport, &portfo NBB_CCXT);
+                        if( rv == 0)     
+                        {
+                            lspt.tEcmpNh.nhGroup[i].tTxPort.slot = portfo.slot_id;
+                            lspt.tEcmpNh.nhGroup[i].tTxPort.port = portfo.port_id;
+                            lspt.tEcmpNh.nhGroup[i].tTxPort.vid = portfo.svlan ;
+                        }
+                        else
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error:Get Port L2 rv=%d ", rv));
+                            ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                        lspt.tEcmpNh.nhGroup[i].tunNum = 1;
+                        lspt.tEcmpNh.nhGroup[i].cntEnable = 1;
+                        lspt.tEcmpNh.nhGroup[i].nhIp = newhop[i].nextip;
+
+                        if(( ilms->base.labelaction == 1 ) && ( newhop[i].outlabel == 3 ))  
+                        {
+                            lspt.tEcmpNh.nhGroup[i].tunNum = 0;
+                        }
+                        
+                        lspt.tEcmpNh.nhGroup[i].tSwapTunLabel.label_un.tlabel.label = newhop[i].outlabel;
+                        lspt.tEcmpNh.nhGroup[i].tSwapTunLabel.label_un.tlabel.ttl = 255;
+                        lspt.tEcmpNh.nhGroup[i].tSwapTunLabel.label_un.tlabel.exp = 7;
+
+                        //无压入标签
+                        lspt.tEcmpNh.nhGroup[i].tPushTunLabel.label_un.tlabel.label = 0;
+                        lspt.tEcmpNh.nhGroup[i].tPushTunLabel.label_un.tlabel.ttl = 0;
+                        lspt.tEcmpNh.nhGroup[i].tPushTunLabel.label_un.tlabel.exp = 0;
+                    }
+                    if( ilms->posid == 0 )
+                    {
+                        lspt.tEcmpNh.ecmpIdx = ilms->ecmpid;
+                        rv = ApiC3AddRxLsp( BCMC31,  &lspt);
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            lspt.tEcmpNh.ecmpIdx = ilms->ecmpid;
+                            rv2 = ApiC3AddRxLsp( BCMC32,  &lspt);
+                            rv = (rv|rv2);
+                        }
+                        if( rv == 0)
+                        {
+                            ilms->posid = lspt.posId;
+                        }
+                        else
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: ecmp DEV rv=%d ", rv));
+                            ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddRxLsp rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: add lsp ecmp\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                    }
+                    else
+                    {
+                        lspt.posId = ilms->posid ;
+                        lspt.tEcmpNh.ecmpIdx = ilms->ecmpid;
+                        rv = ApiC3ModRxLsp( BCMC31,  &lspt);
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            lspt.tEcmpNh.ecmpIdx = ilms->ecmpid;
+                            rv2 = ApiC3ModRxLsp( BCMC32,  &lspt);
+                            rv = (rv|rv2);
+                        }
+                        if( rv == 0)
+                        {
+                            ilms->posid = lspt.posId;
+                            
+                            //ilms->ecmpid = lspt.tEcmpNh.ecmpIdx;
+                        }
+                        else
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: mod ecmp DEV rv=%d ", rv));
+                            ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3ModRxLsp rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: mod lsp ecmp\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                    }
+
+                }
+                else
+                {
+                    OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                    rv = spm_get_portid_from_logical_port_index(newhop[0].nextport, &portfo NBB_CCXT);
+                    if( rv == 0)     
+                    {
+                        lspt.tRxLspNh.tTxPort.slot = portfo.slot_id;
+                        lspt.tRxLspNh.tTxPort.port = portfo.port_id;
+                        lspt.tRxLspNh.tTxPort.vid = portfo.svlan ;
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error:Get Port L2 rv=%d ", rv));
+                        ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                        NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                    lspt.eNhiProtType = C3_PROT_NONE;
+                    lspt.tRxLspNh.tunNum = 1;
+
+                    if(( ilms->base.labelaction == 1 ) && ( newhop[0].outlabel == 3 ))  
+                    {
+                        lspt.tRxLspNh.tunNum = 0;
+                    }
+                    
+                    lspt.tRxLspNh.cntEnable = 1;
+                    lspt.tRxLspNh.nhIp = newhop[0].nextip;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.label = newhop[0].outlabel;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.exp = 7;
+
+                    //无压入标签
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.label = 0;
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.ttl = 0;
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.exp = 0;
+
+                    if( ilms->base.nextype == 0 )
+                    {
+                        if( ilms->posid == 0 )
+                        {
+                            rv = ApiC3AddRxLsp( BCMC31,  &lspt);
+                            if ( SHARED.c3_num == 2 )
+                            {
+                                rv2 = ApiC3AddRxLsp( BCMC32,  &lspt);
+                                rv = (rv|rv2);
+                            }
+                            if( rv == 0)
+                            {
+                                ilms->posid = lspt.posId;
+                            }
+                            else
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: lsp DEV rv=%d ", rv));
+                                ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddRxLsp rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                          NBB_SPRINTF(errorlog + str_len, "Add Error: add lsp\n");
+                                str_len =  OS_STRLEN(errorlog);
+                                goto  EXIT_LABEL;
+                            }
+                        }
+                        else
+                        {
+                            lspt.posId = ilms->posid ;
+                            rv = ApiC3ModRxLsp( BCMC31,  &lspt);
+                            if ( SHARED.c3_num == 2 )
+                            {
+                                rv2 = ApiC3ModRxLsp( BCMC32,  &lspt);
+                                rv = (rv|rv2);
+                            }
+                            if( rv == 0)
+                            {
+                                ilms->posid = lspt.posId;
+                            }
+                            else
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: mod lsp DEV rv=%d ", rv));
+                                ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3ModRxLsp rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                NBB_SPRINTF(errorlog + str_len, "Add Error: mod lsp\n");
+                                str_len =  OS_STRLEN(errorlog);
+                                goto  EXIT_LABEL;
+                            }
+                        }
+                    }
+                    else if( ilms->base.nextype == 1 )
+                    {
+                        OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                        rv = spm_get_portid_from_logical_port_index(newhop[1].nextport, &portfo NBB_CCXT);
+                        if( rv == 0)     
+                        {
+                            lspt.tRxLspNh_p.tTxPort.slot = portfo.slot_id;
+                            lspt.tRxLspNh_p.tTxPort.port = portfo.port_id;
+                            lspt.tRxLspNh_p.tTxPort.vid = portfo.svlan ;
+                        }
+                        else
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error:Get Port L2 rv=%d ", rv));
+                            ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                                      NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                    
+                        lspt.eNhiProtType = C3_PROT_FRR;
+                        lspt.frrGroupId = ilms->frrid;
+                        lspt.tRxLspNh_p.tunNum = 1;
+                        lspt.tRxLspNh_p.cntEnable = 1;
+                        lspt.tRxLspNh_p.nhIp = newhop[1].nextip;
+                        if(( ilms->base.labelaction == 1 ) && ( newhop[1].outlabel == 3 ))  
+                        {
+                            lspt.tRxLspNh_p.tunNum = 0;
+                        }
+                        
+                        lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.label = newhop[1].outlabel;
+                        lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                        lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.exp = 7;
+
+                        //无压入标签关系
+                        lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.label = 0;
+                        lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.ttl = 0;
+                        lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.exp = 0;
+
+                        if( ilms->posid == 0 )
+                        {
+                            rv = ApiC3AddRxLsp( BCMC31,  &lspt);
+                            if ( SHARED.c3_num == 2 )
+                            {
+                                rv2 = ApiC3AddRxLsp( BCMC32,  &lspt);
+                                rv = (rv|rv2);
+                            }
+                            if( rv == 0)
+                            {
+                                ilms->posid = lspt.posId;
+                            }
+                            else
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: frr DEV rv=%d ", rv));
+                                ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddRxLsp rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                          NBB_SPRINTF(errorlog + str_len, "Add Error: add lsp frr\n");
+                                str_len =  OS_STRLEN(errorlog);
+                                goto  EXIT_LABEL;
+                            }
+                        }
+                        else
+                        {
+                            lspt.posId = ilms->posid ;
+                            rv = ApiC3ModRxLsp( BCMC31,  &lspt);
+                            if ( SHARED.c3_num == 2 )
+                            {
+                                rv2 = ApiC3ModRxLsp( BCMC32,  &lspt);
+                                rv = (rv|rv2);
+                            }
+                            if( rv == 0)
+                            {
+                                ilms->posid = lspt.posId;
+                            }
+                            else
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: mod frr DEV rv=%d ", rv));
+                                ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3ModRxLsp rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                          NBB_SPRINTF(errorlog + str_len, "Add Error: mod lsp frr\n");
+                                str_len =  OS_STRLEN(errorlog);
+                                goto  EXIT_LABEL;
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if( ilms->ntype == 1 )
+                {
+                    rv = ApiC3DelRxLspProt( BCMC31, ilms->posid);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3DelRxLspProt( BCMC32, ilms->posid);
+                        rv = (rv|rv2);
+                    }
+                    if( rv != 0)
+                    {
+                        BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e delrxlspprot label.p =%x.%d \n", 
+                                                    __LINE__, ilms->key.inlabel,ilms->posid);
+                    }
+                    else
+                    {
+                        BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d o delrxlspprot label.p =%x.%d \n", 
+                                                    __LINE__, ilms->key.inlabel,ilms->posid);
+                    }
+                }
+                else if( ilms->ntype == 2 )
+                {
+                    //ApiC3InitLspInstStruct( &lspt );
+                    OS_MEMSET(&lspt, 0, sizeof(RX_LSP_T));
+                    lspt.posId = ilms->posid ;
+                    OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                    rv = spm_get_portid_from_logical_port_index( newhop[0].nextport, &portfo NBB_CCXT);
+                    if( rv == 0)     
+                    {
+                        lspt.tRxLspNh.tTxPort.slot = portfo.slot_id;
+                        lspt.tRxLspNh.tTxPort.port = portfo.port_id;
+                        lspt.tRxLspNh.tTxPort.vid = portfo.svlan ;
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error:Get Port L2 rv=%d ", rv));
+                        ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                        NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                    lspt.eNhiProtType = C3_PROT_NONE;
+                    lspt.tRxLspNh.tunNum = 1;
+                    lspt.tRxLspNh.cntEnable = 1;
+                    lspt.tRxLspNh.nhIp = newhop[0].nextip;
+
+                    if(( ilms->base.labelaction == 1 ) && ( newhop[0].outlabel == 3 ))  
+                    {
+                        lspt.tRxLspNh.tunNum = 0;
+                    }
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.label = newhop[0].outlabel;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.exp = 7;
+
+                    //无压入标签
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.label = 0;
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.ttl = 0;
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.exp = 0;
+                    lspt.tEcmpNh.ecmpIdx = ilms->ecmpid;
+                    rv = ApiC3DelRxLspEcmp( BCMC31,  &lspt);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3DelRxLspEcmp( BCMC32,  &lspt);
+                        rv = (rv|rv2);
+                    }
+                    if( rv != 0)
+                    {
+                        BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e delrxlspecmp label.p.e =%x.%d.%d \n", 
+                                                    __LINE__, ilms->key.inlabel,ilms->posid,ilms->ecmpid);
+                    }
+                    else
+                    {
+                        rv = ApiC3FreeEcmpGroupId( BCMC31,  ilms->ecmpid );
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            rv2 = ApiC3FreeEcmpGroupId( BCMC32, ilms->ecmpid );
+                            rv = (rv|rv2);
+                        }
+                        if( rv != 0)   
+                        {
+                            BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e freerxlspecmp label.p.e =%x.%d.%d \n", 
+                                                        __LINE__, ilms->key.inlabel,ilms->posid,ilms->ecmpid);
+                        }
+                        else
+                        {
+                            //BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d o freerxlspecmp label.p.e =%x.%d.%d \n", 
+                            //                          __LINE__, ilms->key.inlabel,ilms->posid,ilms->ecmpid);
+                            
+                            ilms->ecmpid = 0;
+                        }
+                    }
+                }
+                if( ilms->base.nextype == 0 )
+                {
+                    OS_MEMSET(&lspt, 0, sizeof(RX_LSP_T));
+                    lspt.mLabel =  ilms->key.inlabel;
+                    OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                    rv = spm_get_portid_from_logical_port_index( newhop[0].nextport, &portfo NBB_CCXT);
+                    if( rv == 0)     
+                    {
+                        lspt.tRxLspNh.tTxPort.slot = portfo.slot_id;
+                        lspt.tRxLspNh.tTxPort.port = portfo.port_id;
+                        lspt.tRxLspNh.tTxPort.vid = portfo.svlan ;
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error:Get Port L2 rv=%d ", rv));
+                        ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                                  NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                    
+                    lspt.eRxLspAction = MPLS_ACTION_LSP_SWAP;
+                    lspt.eNhiProtType = C3_PROT_NONE;
+                    lspt.tRxLspNh.tunNum = 1;
+
+                    if(( ilms->base.labelaction == 1 ) && ( newhop[0].outlabel == 3 ))  
+                    {
+                        lspt.tRxLspNh.tunNum = 0;
+                    }
+                    
+                    lspt.tRxLspNh.cntEnable = 1;
+                    lspt.tRxLspNh.nhIp = newhop[0].nextip;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.label = newhop[0].outlabel;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.exp = 7;
+
+                    //无压入标签
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.label = 0;
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.ttl = 0;
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.exp = 0;
+
+                    lspt.posId = ilms->posid;
+                    rv = ApiC3ModRxLsp( BCMC31,  &lspt);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3ModRxLsp( BCMC32,  &lspt);
+                        rv = (rv|rv2);
+                    }
+                    if( rv == 0)
+                    {
+                        ilms->posid = lspt.posId;
+                        
+                        //BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d o ilmmodlsp label.p =%x.%d \n", 
+                        //                          __LINE__, ilms->key.inlabel,ilms->posid);
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: mod rxlsp DEV rv=%d ", rv));
+                        ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3ModRxLsp rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                        NBB_SPRINTF(errorlog + str_len, "Add Error: mod lsp\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                }
+                else if( ilms->base.nextype == 1 )
+                {
+                    OS_MEMSET(&lspt, 0, sizeof(RX_LSP_T));
+                    lspt.mLabel =  ilms->key.inlabel;
+                    OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                    rv = spm_get_portid_from_logical_port_index( newhop[0].nextport, &portfo NBB_CCXT);
+                    if( rv == 0)     
+                    {
+                        lspt.tRxLspNh.tTxPort.slot = portfo.slot_id;
+                        lspt.tRxLspNh.tTxPort.port = portfo.port_id;
+                        lspt.tRxLspNh.tTxPort.vid = portfo.svlan ;
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error:Get Port L2 rv=%d ", rv));
+                        ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                        NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+
+                    lspt.eRxLspAction = MPLS_ACTION_LSP_SWAP;
+                    lspt.eNhiProtType = C3_PROT_NONE;
+                    lspt.tRxLspNh.tunNum = 1;
+
+                    if(( ilms->base.labelaction == 1 ) && ( newhop[0].outlabel == 3 ))  
+                    {
+                        lspt.tRxLspNh.tunNum = 0;
+                    }
+                    
+                    lspt.tRxLspNh.cntEnable = 1;
+                    lspt.tRxLspNh.nhIp = newhop[0].nextip;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.label = newhop[0].outlabel;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                    lspt.tRxLspNh.tSwapTunLabel.label_un.tlabel.exp = 7;
+
+                    //无压入标签
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.label = 0;
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.ttl = 0;
+                    lspt.tRxLspNh.tPushTunLabel.label_un.tlabel.exp = 0;
+
+                    lspt.posId = ilms->posid;
+                    rv = ApiC3ModRxLsp( BCMC31,  &lspt);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3ModRxLsp( BCMC32,  &lspt);
+                        rv = (rv|rv2);
+                    }
+                    if( rv == 0)
+                    {
+                        ilms->posid = lspt.posId;
+                        
+                        //BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d o ilmmodlsp label.p =%x.%d \n", 
+                        //                          __LINE__, ilms->key.inlabel,ilms->posid);
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: mod rxlsp DEV rv=%d ", rv));
+                        ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3ModRxLsp rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                        NBB_SPRINTF(errorlog + str_len, "Add Error: mod lsp\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                
+                    OS_MEMSET(&lspt, 0, sizeof(RX_LSP_T));
+                    OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                    rv = spm_get_portid_from_logical_port_index( newhop[1].nextport, &portfo NBB_CCXT);
+                    if( rv == 0)     
+                    {
+                        lspt.tRxLspNh_p.tTxPort.slot = portfo.slot_id;
+                        lspt.tRxLspNh_p.tTxPort.port = portfo.port_id;
+                        lspt.tRxLspNh_p.tTxPort.vid = portfo.svlan ;
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error:Get Port L2 rv=%d ", rv));
+                        ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                                  NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                
+                    lspt.eNhiProtType = C3_PROT_FRR;
+                    
+                    //lspt.frrGroupId = ilms->frrid;
+                    lspt.tRxLspNh_p.tunNum = 1;
+                    lspt.tRxLspNh_p.cntEnable = 1;
+                    lspt.tRxLspNh_p.nhIp = newhop[1].nextip;
+                    if(( ilms->base.labelaction == 1 ) && ( newhop[1].outlabel == 3 ))  
+                    {
+                        lspt.tRxLspNh_p.tunNum = 0;
+                    }
+                    lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.label = newhop[1].outlabel;
+                    lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                    lspt.tRxLspNh_p.tSwapTunLabel.label_un.tlabel.exp = 7;
+
+                    //无压入标签关系
+                    lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.label = 0;
+                    lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.ttl = 0;
+                    lspt.tRxLspNh_p.tPushTunLabel.label_un.tlabel.exp = 0;
+
+                    lspt.posId = ilms->posid;
+                    lspt.frrGroupId = ilms->frrid;
+                    rv = ApiC3AddRxLspProt( BCMC31,  &lspt);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3AddRxLspProt( BCMC32,  &lspt);
+                        rv = (rv|rv2);
+                    }
+                    if( rv != 0)
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: add prot DEV rv=%d ", rv));
+                        ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddRxLspProt rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                        NBB_SPRINTF(errorlog + str_len, "Add Error: add lspprot\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                }
+                else if( ilms->base.nextype == 2 )
+                {
+                        OS_MEMSET(&lspt, 0, sizeof(RX_LSP_T));
+                    lspt.eNhiProtType = C3_PROT_ECMP;
+                    lspt.tEcmpNh.ecmpNum = ilms->nhopnum;
+                    
+                    //lspt.tEcmpNh.alg = ECMP_PORT_ROUND_ROBIN;
+                    if ( SHARED.global_cb.basic_cfg_cb.ecmp_algo == 0 )
+                    {
+                        lspt.tEcmpNh.alg = ECMP_HASH_BOTTOM_LABEL;
+                    }
+                    else if ( SHARED.global_cb.basic_cfg_cb.ecmp_algo == 1 )
+                    {
+                        lspt.tEcmpNh.alg = ECMP_PORT_ROUND_ROBIN;
+                    }
+                    for ( i = 0; i < ilms->nhopnum; i++)
+                    {
+                        OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                        rv = spm_get_portid_from_logical_port_index(newhop[i].nextport, &portfo NBB_CCXT);
+                        if( rv == 0)     
+                        {
+                            lspt.tEcmpNh.nhGroup[i].tTxPort.slot = portfo.slot_id;
+                            lspt.tEcmpNh.nhGroup[i].tTxPort.port = portfo.port_id;
+                            lspt.tEcmpNh.nhGroup[i].tTxPort.vid = portfo.svlan ;
+                        }
+                        else
+                        {
+                            NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error:Get Port L2 rv=%d ", rv));
+                            ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                            NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                            str_len =  OS_STRLEN(errorlog);
+                                      NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                            str_len =  OS_STRLEN(errorlog);
+                            goto  EXIT_LABEL;
+                        }
+                        lspt.tEcmpNh.nhGroup[i].tunNum = 1;
+                        lspt.tEcmpNh.nhGroup[i].cntEnable = 1;
+                        lspt.tEcmpNh.nhGroup[i].nhIp = newhop[i].nextip;
+
+                        if(( ilms->base.labelaction == 1 ) && ( newhop[i].outlabel == 3 ))  
+                        {
+                            lspt.tEcmpNh.nhGroup[i].tunNum = 0;
+                        }
+                        lspt.tEcmpNh.nhGroup[i].tSwapTunLabel.label_un.tlabel.label = newhop[i].outlabel;
+                        lspt.tEcmpNh.nhGroup[i].tSwapTunLabel.label_un.tlabel.ttl = 255;
+                        lspt.tEcmpNh.nhGroup[i].tSwapTunLabel.label_un.tlabel.exp = 7;
+
+                        //无压入标签
+                        lspt.tEcmpNh.nhGroup[i].tPushTunLabel.label_un.tlabel.label = 0;
+                        lspt.tEcmpNh.nhGroup[i].tPushTunLabel.label_un.tlabel.ttl = 0;
+                        lspt.tEcmpNh.nhGroup[i].tPushTunLabel.label_un.tlabel.exp = 0;
+                    }
+                    lspt.posId = ilms->posid ;
+                    lspt.tEcmpNh.ecmpIdx = ilms->ecmpid;
+                    rv = ApiC3AddRxLspEcmp( BCMC31,  &lspt);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        lspt.tEcmpNh.ecmpIdx = ilms->ecmpid;
+                        rv2 = ApiC3AddRxLspEcmp( BCMC32,  &lspt);
+                        rv = (rv|rv2);
+                    }
+                    if( rv != 0)
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: add ecmp DEV rv=%d ", rv));
+                        ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddRxLspEcmp rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                                  NBB_SPRINTF(errorlog + str_len, "Add Error: add lsp ecmp\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                    else
+                    {
+                        //ilms->ecmpid = lspt.tEcmpNh.ecmpIdx;
+                    }
+                }
+                ilms->ntype = ilms->base.nextype;
+            }
+            #endif
+            #ifdef SRC
+                lspt.posId = 0xffff;
+                rv = 0;
+            #endif
+            #ifdef SNU
+                lspt.posId = 0xffff;
+                rv = 0;
+            #endif  
+            if( rv == 0) /* 成功*/
+            {   
+                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM lsp posid =%d ", ilms->posid ));
+                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM lsp ecmpid =%d ", ilms->ecmpid ));
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(ilms->nexthop[0]),  &newhop[0],  8 * sizeof( ILM_NHOP ) );
+            }           
+        }
+        else  if( ilmips->oper_nxhop == ATG_DCI_OPER_DEL )   /*  删除子TLV*/
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del ILM Error:nexthop data "));
+            ilmips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }
+        if( ilmips->oper_diff_serv == ATG_DCI_OPER_ADD) 
+        {
+            if(( ilmips->oper_basic != ATG_DCI_OPER_ADD))
+            {
+                if ( node == NULL )                             
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: difs node null"));
+                    ilmips->diff_serv_return_code[0] = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto   EXIT_LABEL;
+                }
+                if( node->data == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: difs data null"));
+                    ilmips->diff_serv_return_code[0] = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d node->data rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: node->data = NULL \n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                } 
+                ilms = (ILM_TAB *)(node->data);
+            }
+            if( ilms == NULL )  
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: ilms null"));
+                ilmips->diff_serv_return_code[0] = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d ilms rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: ilms = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(ilmips, &ilmips->diff_serv_data);
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add ILM Error: qos data null"));
+                ilmips->diff_serv_return_code[0] = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get qos data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &difser, 0, sizeof(ILM_DIFSER));
+            
+            //coverity[bad_sizeof]
+            NBB_MEMCPY( &difser, ucdata, sizeof(ILM_DIFSER));
+            qosilmkey.inlabel =  ilms->key.inlabel;
+            qosilmkey.flag = ilms->base.labelaction;
+            rv = spm_ds_add_ilm_node(&difser, &qosilmkey, ilms->posid, ilms->nexthop[0].action, 0, NULL NBB_CCXT);
+            if ( rv == 0 )      
+            {
+                ilms->dserid = difser.dserid;
+            }
+            else
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Add ILM Error: qos rv=%d ", rv));
+                ilmips->diff_serv_return_code[0] = ATG_DCI_RC_UNSUCCESSFUL;  
+                NBB_SPRINTF(errorlog + str_len, "Line=%d spm_ds_add_ilm_node rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: add qos\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+        }
+        else if( ilmips->oper_diff_serv == ATG_DCI_OPER_DEL) 
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del ILM Error:difs data"));
+            ilmips->diff_serv_return_code[0] = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }
+    }
+    EXIT_LABEL:
+    
+    NBB_TRC_EXIT();
+    
+    NBB_TRC_DETAIL((NBB_FORMAT " ILM:  rv = %d ", rv));
+    if(NULL == errorlog)
+    {
+        OS_PRINTF("Line=%d ILM malloc mem NULL \n",__LINE__);
+    }
+    else
+    {
+        NBB_SPRINTF(errorlog + str_len, "\0");
+        if( rv != 0) 
+        {
+            NBB_EXCEPTION((PCT_SPM| 10, 1,  "s s", 
+                                                                " ILM ",
+                                                                errorlog));
+        }
+        NBB_MM_FREE(errorlog,0);
+    }
+}
+
+
+
+
+#endif

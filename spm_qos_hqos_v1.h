@@ -180,7 +180,7 @@ typedef struct spm_hqos_vc_cb
     /***************************************************************************/
     /* SDK resource    time sorted                                             */
     /***************************************************************************/
-    NBB_ULONG pw_id;//ARAD
+    NBB_LONG pw_id;//ARAD
     NBB_LONG voq_id;//ARAD
     NBB_LONG tm_vc;//ARAD
     NBB_LONG vc_id[MAX_HQOS_SLOT_NUM];//ARAD
@@ -199,14 +199,14 @@ typedef struct spm_hqos_vrf_cb
     AVLL_NODE spm_hqos_vrf_node;
 
     /* keyֵ: index */
-    SPM_QOS_VRF_INSTANSE_KEY vrf_key;
+    ATG_DCI_VRF_INSTANCE_KEY vrf_key;
 
     ATG_DCI_TX_LSP_QOS vrf_data;
 
     /***************************************************************************/
     /* SDK resource    time sorted                                             */
     /***************************************************************************/
-    NBB_ULONG pw_id;//ARAD
+    NBB_LONG pw_id;//ARAD
     NBB_LONG voq_id;//ARAD
     NBB_LONG tm_vc;//ARAD
     NBB_LONG vc_id[MAX_HQOS_SLOT_NUM];//ARAD
@@ -235,7 +235,7 @@ NBB_LONG spm_hqos_add_vrf_node(NBB_BYTE slot, NBB_USHORT port, NBB_ULONG posid,
     SPM_QOS_TUNNEL_KEY *lsp_key, ATG_DCI_VRF_INSTANCE_KEY *vrf_key,
     ATG_DCI_VRF_INSTANCE_UP_VPN_QOS *data);
 
-NBB_LONG spm_hqos_del_vrf_node(NBB_LONG slot, NBB_USHORT port,
+NBB_LONG spm_hqos_del_vrf_node(NBB_LONG slot, NBB_USHORT port, NBB_ULONG posid,
         SPM_QOS_TUNNEL_KEY *lsp_key, ATG_DCI_VRF_INSTANCE_KEY *vrf_key);
 
 NBB_LONG spm_hqos_add_usr_node(SUB_PORT *sub_port,NBB_ULONG logic_key,

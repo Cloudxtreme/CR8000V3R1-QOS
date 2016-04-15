@@ -1,0 +1,906 @@
+/******************************************************************************
+
+                  版权所有 (C), 1999-2013, 烽火通信科技股份有限公司
+
+ ******************************************************************************
+  文 件 名   : spm_status_rq_proc.c
+  版 本 号   : 初稿
+  作    者   : lh09
+  生成日期   : 2012年6月8日
+  最近修改   :
+  功能描述   : 处理查询单盘状态请求
+  函数列表   :
+  修改历史   :
+  1.日    期   : 2012年6月8日
+    作    者   : lh09
+    修改内容   : 创建文件
+
+******************************************************************************/
+
+#define SHARED_DATA_TYPE SPM_SHARED_LOCAL
+
+#include <nbase.h>
+#include <spmincl.h>
+#include "bmuInclude.h"
+
+static unsigned int g_dbg_rq_print_en = 0; //rq打印使能
+static unsigned short g_dbg_rq_focus_type = 0; //特定的类型
+
+
+NBB_VOID spm_rcv_dci_status_rq(const NBB_BYTE *rq_buffer, NBB_ULONG len);
+
+extern NBB_VOID spm_hardw_sendboardstate(NBB_VOID);
+extern NBB_VOID spm_ptp_report_port_status(NBB_ULONG ulIndex);
+extern NBB_VOID spm_ptp_report_global_status(NBB_BYTE ucCmd);
+/* 1.时钟工作状态  */
+extern NBB_VOID spm_clk_state_report(NBB_VOID);
+
+/*2.时钟源状态*/
+extern NBB_INT spm_clk_source_report(NBB_ULONG spec); 
+
+/* vpls mac表信息 */
+extern NBB_INT ApiMacGetMacInfo(const void *buff);
+/* vpls mac表汇总信息 */
+extern NBB_INT ApiMacGetMacExistStatOrNum(const void *buff);
+/* 上报单盘端口信息  */
+extern NBB_INT spm_state_port(NBB_VOID);
+/**PROC+**********************************************************************/
+/* Name:      spm_proc_unspport_inst_function                                */
+/*                                                                           */
+/* Purpose:   通用的不支持的协议解析处理函数 .                               */
+/*                                                                           */
+/* Returns:   状态查询结果长度.                                              */
+/*                                                                           */
+/* Params:    rq_buf - 状态查询buffer.                                       */
+/*            len - 状态查询buffer 长度.                                     */
+/*            buf -  状态查询结果.                                           */
+/*            ucCharacter -  盘特征字段.                                     */
+/*                                                                           */
+/* Operation: 通用状态解析函数.                                              */
+/*                                                                           */
+/**PROC-**********************************************************************/
+NBB_LONG spm_proc_unspport_inst_function(NBB_CONST NBB_BYTE *rq_buf, NBB_CONST NBB_ULONG len, NBB_BYTE *buf, NBB_BYTE *ucCharacter)
+{
+        NBB_NULL_THREAD_CONTEXT
+    NBB_GET_THREAD_CONTEXT();
+    NBB_TRC_ENTRY("spm_proc_unspport_inst_function");    
+
+    /* 输入参数指针必须有效 */
+    NBB_ASSERT(rq_buf != NULL);
+
+    /* 将不支持的配置数据原样返回. */
+    NBB_MEMCPY(buf, rq_buf, len);
+    /* 将特征字段置为 不支持的协议  */
+    *ucCharacter = *ucCharacter | SPM_PROT_RET_UNSUPPORT;
+
+    NBB_TRC_EXIT();
+
+    return len;
+}
+
+/**PROC+**********************************************************************/
+/* Name:      spm_proc_state_function                                        */
+/*                                                                           */
+/* Purpose:   通用状态解析函数 .                                             */
+/*                                                                           */
+/* Returns:   状态查询结果长度.                                              */
+/*                                                                           */
+/* Params:    rq_buf - 状态查询buffer.                                       */
+/*            len - 状态查询buffer 长度.                                     */
+/*            buf -  状态查询结果.                                           */
+/*            ucCharacter -  盘特征字段.                                     */
+/*                                                                           */
+/* Operation: 通用状态解析函数.                                              */
+/*                                                                           */
+/**PROC-**********************************************************************/
+
+NBB_LONG spm_proc_state_function(NBB_CONST NBB_BYTE *rq_buf, NBB_CONST NBB_ULONG len, NBB_BYTE *buf, NBB_BYTE *ucCharacter)
+{
+    NBB_USHORT rq_type, rq_len;
+    NBB_LONG ret;
+    NBB_NULL_THREAD_CONTEXT
+    NBB_GET_THREAD_CONTEXT();    
+    NBB_TRC_ENTRY("spm_proc_state_function");    
+
+    /* 输入参数指针必须有效 */
+    NBB_ASSERT(rq_buf != NULL);
+
+    NBB_GET_SHORT(rq_type, rq_buf);
+    NBB_GET_SHORT(rq_len, rq_buf + SPM_SUB_CONF_TYPE_SIZE);
+
+    /*
+    if(rq_type < SPM_STATE_TLV_MAXNUM)
+    {
+        ret = SHARED.state_func[rq_type](rq_buf, len, buf, ucCharacter);
+    }
+    */
+
+    /* 暂时用以前的 通过 linx api 发送状态请求 */
+    spm_rcv_dci_status_rq(rq_buf, len);
+
+    /* 通过 linx api 发送，不需要通用流程来发送状态应答了 */
+    ret = -1;
+
+    NBB_TRC_EXIT();
+
+    return ret;
+}
+
+/**PROC+**********************************************************************/
+/* Name:      spm_proc_state_function                                        */
+/*                                                                           */
+/* Purpose:   通用状态解析函数 .                                             */
+/*                                                                           */
+/* Returns:   状态查询结果长度.                                              */
+/*                                                                           */
+/* Params:    rq_buf - 状态查询buffer.                                       */
+/*            len - 状态查询buffer 长度.                                     */
+/*            buf -  状态查询结果.                                           */
+/*            ucCharacter -  盘特征字段.                                     */
+/*                                                                           */
+/* Operation: 通用状态解析函数.                                              */
+/*                                                                           */
+/**PROC-**********************************************************************/
+NBB_LONG spm_proc_ofl_function(NBB_CONST NBB_BYTE *rq_buf, 
+        NBB_CONST NBB_ULONG len, 
+        NBB_BYTE *buf, 
+        NBB_BYTE *ucCharacter)
+{
+    NBB_USHORT rq_type = 0;
+    NBB_USHORT rq_len = 0;
+    NBB_LONG ret = 0;
+    NBB_BYTE ucAgree = 0;
+    NBB_NULL_THREAD_CONTEXT
+    NBB_GET_THREAD_CONTEXT();    
+    NBB_TRC_ENTRY("spm_proc_ofl_function");    
+
+    /* 输入参数指针必须有效 */
+    NBB_ASSERT(rq_buf != NULL);
+
+    /*
+    if(rq_type < SPM_STATE_TLV_MAXNUM)
+    {
+        ret = SHARED.state_func[rq_type](rq_buf, len, buf, ucCharacter);
+    }
+    */
+    /* 字节1：去激活类型：0/1=请求拔盘/请求主备软切
+       字节2：应答消息：0/1=同意/拒绝
+       字节3-4：备用 */
+    printf("rq_buf: %d %d\n",*(rq_buf),*(rq_buf++));
+    ucAgree = *(rq_buf++);
+    spm_hardw_oflproc(ucAgree);
+
+    /* 通过 linx api 发送，不需要通用流程来发送状态应答了 */
+    ret = -1;
+
+    NBB_TRC_EXIT();
+
+    return ret;
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_get_proc_data_function
+ 功能描述  : 分发不同查询命令
+ 输入参数  : NBB_ULONG instruct  
+ 输出参数  : 无
+*****************************************************************************/
+SPM_PROC_DATA_FUNC spm_get_proc_data_function(NBB_ULONG instruct)
+{
+
+    SPM_PROC_DATA_FUNC proc_function = spm_proc_unspport_inst_function;
+    switch(instruct)
+    {
+        /* 状态查询处理函数 */
+        case 0X123457:
+            proc_function = spm_proc_state_function;
+            break;
+        case 0X001400:
+            proc_function = spm_proc_ofl_function;
+            break;
+        /* 告警查询 */
+        case 0X71000D:
+            proc_function = BmuGetCurAlm;
+            break;
+        /* 性能查询 */
+        case 0X71000E:
+            proc_function = BmuGetPm;
+            break;
+        /* 查询指定性能 */
+        case 0X71000F:
+            proc_function = BmuGetSpecPm;
+            break;
+        /* 性能屏蔽开关 */
+        case 0X710010:
+            proc_function = BmuProcPmMaskConf;
+            break;
+        /* 告警屏蔽 */
+        case 0X710110:
+            proc_function = BmuProcAlmMaskConf;
+            break;
+        /* 清除性能 */
+        case 0X00B200:
+            proc_function = BmuClearAllPm;
+            break;
+        /* 性能采集开关 */
+        case 0X71FF10:
+            proc_function = BmuProcPmSwConf;
+            break;        /* 默认置为不支持的协议 */
+        /* 清除指定线路的性能 */
+        case 0X840000:
+            proc_function = BmuClearSpecPm;
+            break;        
+        /* 告警抑制 */
+        case 0X710200:
+            proc_function = BmuProcAlmRestrainConf;
+            break;        
+        /* 告警抑制查询 */
+        case 0X710201:
+            proc_function = BmuGetAlmRestrainInfo;
+            break;        /* 默认置为不支持的协议 */
+            
+        /* NMU向BMU下发获取LOG的控制命令 */
+        case 0x002001:
+            proc_function = SysLogCmdUpload;
+            break; 
+            
+        /* NMU向BMU设置单盘日志级别 */
+        case 0x002003:
+            proc_function = SysLogSetLogLevel;
+            break; 
+            
+        /* NMU向BMU查询单盘日志级别 */
+        case 0x002004:
+            proc_function = SysLogGetLogLevel;
+            break; 
+            
+        /* NMU向BMU清除单盘日志 */
+        case 0x002005:
+            proc_function = SysLogCmdDel;
+            break;     
+        case 0x500e04:
+        case 0x500e05:
+        case 0x500e06:
+            printf("inst_code = %x\n",instruct);
+            break;            
+        default:
+            proc_function = spm_proc_unspport_inst_function;
+            break;
+    }
+
+    return proc_function;
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_send_sbi_status_rq
+ 功能描述  : 发给子卡的状态查询通过ips rq透传给子卡
+ 输入参数  : NBB_BYTE *rq_buffer   
+             NBB_ULONG length      
+             NBB_BYTE ucSubCardNo : 1/2 
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2014年1月7日
+    作    者   : 刘娟 陈鹏
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_send_sbi_status_rq(const NBB_BYTE *rq_buffer, NBB_ULONG length, NBB_BYTE ucSubCardNo)
+
+{
+    NBB_BYTE ucMessage[80];
+    NBB_INT iRv = 0;
+    ATG_SBI_STATUS_RQ *pstSbistatusRq = NULL;
+    NBB_NULL_THREAD_CONTEXT
+    NBB_GET_THREAD_CONTEXT();    
+    NBB_TRC_ENTRY("spm_send_sbi_status_rq");
+    
+    if (rq_buffer == NULL)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:spm_send_sbi_status_rq(rq_buffer==NULL)"));
+
+        OS_PRINTF("***ERROR***:spm_send_sbi_status_rq(rq_buffer==NULL)\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***:spm_send_sbi_status_rq(rq_buffer==NULL)\n");
+        
+        iRv = ERROR;
+        goto EXIT_LABEL;
+    }
+
+    if ((ucSubCardNo != 1) && (ucSubCardNo != 2))
+    {
+        OS_PRINTF("***ERROR***:spm_send_sbi_status_rq(ucSubCardNo==%d)\n",ucSubCardNo);
+
+        OS_SPRINTF(ucMessage, "***ERROR***:spm_send_sbi_status_rq(ucSubCardNo==%d)\n",ucSubCardNo);
+        
+        iRv = ERROR;
+        goto EXIT_LABEL;
+    }
+    
+    if (SHARED.sub_card_cb[ucSubCardNo-1] != NULL)
+    {
+        pstSbistatusRq = (ATG_SBI_STATUS_RQ*) NBB_GET_BUFFER(NBB_NULL_HANDLE,
+                                           NBB_ALIGN_OFFSET(sizeof(ATG_SBI_STATUS_RQ)),
+                                           length, NBB_RETRY_DATA | NBB_BUF_PKT); 
+
+        if (NULL == pstSbistatusRq)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:spm_send_board_status_ctl_cfg(pstSbistatusRq==NULL)"));
+
+            OS_PRINTF("***ERROR***:spm_send_board_status_ctl_cfg(pstSbistatusRq==NULL)\n");
+
+            OS_SPRINTF(ucMessage, "***ERROR***:spm_send_board_status_ctl_cfg(pstSbistatusRq==NULL)\n");
+            
+            iRv = ERROR;
+            
+            goto EXIT_LABEL;
+        }
+        /*************************************************************************/
+        /* 初始化消息。                                                          */
+        /*************************************************************************/
+        NBB_ZERO_IPS(pstSbistatusRq); 
+        
+        pstSbistatusRq->ips_hdr.ips_type = IPS_ATG_SBI_STATUS_RQ;
+
+        /*添加状态查询数据*/
+        NBB_PKT_COPY_IN(pstSbistatusRq, pstSbistatusRq->pkt_hdr.data_start, rq_buffer,
+                        pstSbistatusRq->ips_hdr.data_size);
+
+        spm_snd_sbi_ips(SHARED.sub_card_cb[ucSubCardNo-1], pstSbistatusRq, &(pstSbistatusRq->ips_hdr) NBB_CCXT);
+    } 
+        
+    EXIT_LABEL: NBB_TRC_EXIT();
+    
+    return iRv;
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_send_sbi_common_command
+ 功能描述  : 发给子卡的 通用消息函数.
+ 输入参数  : NBB_BYTE *rq_buffer   
+             NBB_ULONG length      
+             NBB_BYTE ucSubCardNo : 1/2 
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2014年1月7日
+    作    者   : 陈鹏
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_send_sbi_common_command(NBB_BYTE *rq_buffer, NBB_ULONG length, NBB_BYTE ucSubCardNo)
+
+{
+    NBB_BYTE ucMessage[80];
+    NBB_INT iRv = 0;
+    ATG_SBI_COMMON_COMMAND *pstSbiCommand = NULL;
+    NBB_NULL_THREAD_CONTEXT
+    NBB_GET_THREAD_CONTEXT();    
+    NBB_TRC_ENTRY("spm_send_sbi_common_command");
+    
+    if (rq_buffer == NULL)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:spm_send_sbi_common_command(rq_buffer==NULL)"));
+
+        OS_PRINTF("***ERROR***:spm_send_sbi_common_command(rq_buffer==NULL)\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***:spm_send_sbi_common_command(rq_buffer==NULL)\n");
+        
+        iRv = ERROR;
+        goto EXIT_LABEL;
+    }
+
+    if ((ucSubCardNo != 1) && (ucSubCardNo != 2))
+    {
+        OS_PRINTF("***ERROR***:spm_send_sbi_common_command(ucSubCardNo==%d)\n",ucSubCardNo);
+
+        OS_SPRINTF(ucMessage, "***ERROR***:spm_send_sbi_common_command(ucSubCardNo==%d)\n",ucSubCardNo);
+        
+        iRv = ERROR;
+        goto EXIT_LABEL;
+    }
+    
+    if (SHARED.sub_card_cb[ucSubCardNo-1] != NULL)
+    {
+        pstSbiCommand = (ATG_SBI_COMMON_COMMAND*) NBB_GET_BUFFER(NBB_NULL_HANDLE,
+                                           NBB_ALIGN_OFFSET(sizeof(ATG_SBI_COMMON_COMMAND)),
+                                           length, NBB_RETRY_DATA | NBB_BUF_PKT); 
+
+        if (NULL == pstSbiCommand)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:spm_send_sbi_common_command(pstSbistatusRq==NULL)"));
+
+            OS_PRINTF("***ERROR***:spm_send_sbi_common_command(pstSbistatusRq==NULL)\n");
+
+            OS_SPRINTF(ucMessage, "***ERROR***:spm_send_sbi_common_command(pstSbistatusRq==NULL)\n");
+            
+            iRv = ERROR;
+            
+            goto EXIT_LABEL;
+        }
+        /*************************************************************************/
+        /* 初始化消息。                                                          */
+        /*************************************************************************/
+        NBB_ZERO_IPS(pstSbiCommand); 
+        
+        pstSbiCommand->ips_hdr.ips_type = IPS_ATG_SBI_COMMON_COMMAND;
+
+        pstSbiCommand->pkt_hdr.data_start = 0;
+        pstSbiCommand->pkt_hdr.data_len = pstSbiCommand->ips_hdr.data_size;  
+
+        /*添加状态查询数据*/
+        NBB_PKT_COPY_IN(pstSbiCommand, pstSbiCommand->pkt_hdr.data_start, rq_buffer,
+                        pstSbiCommand->ips_hdr.data_size);
+
+        spm_snd_sbi_ips(SHARED.sub_card_cb[ucSubCardNo-1], pstSbiCommand, &(pstSbiCommand->ips_hdr) NBB_CCXT);
+    } 
+        
+    EXIT_LABEL: NBB_TRC_EXIT();
+    
+    return iRv;
+}
+NBB_VOID spm_rcv_dci_status_rq_new(ATG_DCI_STATUS_RQ *pstStatusRq)
+{
+    NBB_BYTE *rq_buffer;
+    NBB_BYTE ucCharacter = 0;
+    NBB_ULONG bak_ulong;
+    NBB_LONG ret_len = -1;
+    NBB_BYTE emustat = 0;
+    SPM_PROC_DATA_FUNC proc_data_func;
+    NBB_ULONG inst_type, inst_code, inst_extend;
+    NBB_ULONG instruct;
+    NBB_ULONG data_len;
+    NBB_USHORT us_cmd_seq = 0;
+    NBB_ULONG ui_cmd_code;
+    NBB_NULL_THREAD_CONTEXT
+
+    NBB_GET_THREAD_CONTEXT();
+    NBB_TRC_ENTRY("spm_rcv_dci_status_rq_new");    
+
+    /* 输入参数指针必须有效 */
+    NBB_ASSERT(pstStatusRq != NULL);
+
+    emustat = spm_hardw_getemustate();
+    /* 如果连主用槽位地址都无法确认，那么直接不处理，返回退出 */
+    if(emustat == 0XFF)
+    {
+        return;
+    }
+
+    data_len = pstStatusRq->pkt_hdr.data_len;
+
+    rq_buffer = ((NBB_BYTE *)((NBB_IPS *)pstStatusRq)->data_ptr 
+    + (pstStatusRq->pkt_hdr.data_start));
+
+    /* 指令类型 */
+    inst_type = rq_buffer[5];
+    /* 指令码 */
+    inst_code = rq_buffer[6];
+    /* 指令扩展码 */
+    inst_extend = rq_buffer[7];
+
+    /* 生成一个完整的单盘协议指令类型 */
+    instruct = (inst_type << 16) + (inst_code << 8) + inst_extend;
+
+    us_cmd_seq = *(volatile unsigned short *)(&rq_buffer[1]);
+    bak_ulong = *(volatile unsigned int *)(&rq_buffer[10]);
+    ui_cmd_code = *(volatile unsigned int *)(&rq_buffer[4]);
+    ui_cmd_code = ui_cmd_code & 0X00FFFFFF;
+
+    /* 如果此命令需要转发给子卡，那么转发给子卡. */
+    if(spm_need_send_command_sbi(instruct) > 0)
+    {
+        /* 如果子卡1 存在，则转发给子卡1. */
+        if(NULL != SHARED.sub_card_cb[0])
+        {
+            spm_send_sbi_common_command(rq_buffer, data_len, 1);
+        }
+        /* 如果子卡2 存在，则转发给子卡2. */
+        if(NULL != SHARED.sub_card_cb[1])
+        {
+            spm_send_sbi_common_command(rq_buffer, data_len, 2);
+        }
+    }
+
+    /* 获取数据长度 */
+    NBB_GET_LONG(data_len, rq_buffer + 14);
+
+    proc_data_func = spm_get_proc_data_function(instruct);
+
+    /* 下发查询时的备用字段，留作返回的时候，原样返回. */
+    NBB_GET_LONG(bak_ulong,rq_buffer + 10);
+
+    if(NULL != proc_data_func)
+    {
+        /* 调用相关处理函数执行配置 */
+        ret_len = proc_data_func(rq_buffer + SPM_TCP_RQ_HEAD_DATA_SIZE, data_len, 
+                SHARED.data_buffer + 28, &ucCharacter);
+    }
+    /*  */
+    else
+    {
+        NBB_EXCEPTION((PCT_SPM | 6, 123, "s", "spm error instruct handle function."));
+    }
+    
+    /* 只要有需要返回，则填写数据，进行返回 */
+    if(ret_len >= 0)
+    {
+        /* 构建 L3VN 协议头 */
+        SHARED.data_buffer[0] = 'L';
+        SHARED.data_buffer[1] = '3';
+        SHARED.data_buffer[2] = 'V';
+        SHARED.data_buffer[3] = 'N';
+
+        /* 上报的协议头和主控下发的请求保持一致 */
+        NBB_MEMCPY(SHARED.data_buffer + 4, rq_buffer, 8);
+
+        /*
+        “标识1”字段意义：
+        D0=1：表示是透明帧，
+        D0=0：表示非透明帧；
+        D1=1：表示下行数据，即NMU向BMU的数据，
+        D1=0：表示上行数据，即BMU向NMU的数据。
+        D7=1：表示单盘内部线程间通信协议，
+        D7=0：表示控制盘与单盘间通信协议，即BMU与NMU间数据。
+        */
+        SHARED.data_buffer[4] = 0;        
+
+        /* 盘类型1-4 */
+        NBB_PUT_LONG(SHARED.data_buffer + 12, GetBoardCode());
+        
+        /* 盘地址1-2 */
+        NBB_PUT_SHORT(SHARED.data_buffer + 16, BmuGetBoardAddr());
+        
+        /* 盘特征1-2 */
+        SHARED.data_buffer[18] = ucCharacter;
+        SHARED.data_buffer[19] = 0;
+        NBB_PUT_LONG(SHARED.data_buffer + 20, bak_ulong);
+
+        /* 备用字段 1-4 ，尽量和主控下发的备用保持一致 */
+        NBB_PUT_LONG(SHARED.data_buffer + 20, bak_ulong);
+
+        /* 数据长度 1-4 */
+        NBB_PUT_LONG(SHARED.data_buffer + 24, ret_len);
+
+        /* 数据内容在之前函数调用的时候，已经填充过，此处不需要填充，直接发送即可. */
+
+        /*
+        spm_send_mtl_data_msg(TYPE_MTL_TNE, SHARED.local_frame, emustat, 1, 
+        SHARED.data_buffer, (SPM_DATA_TO_NMU_HEAD_SIZE + ret_len));
+        */
+
+      //  SpmSendData(1,ret_len,SHARED.data_buffer + 4);
+        //SendDataDirect(0x1, 1, ret_len + SPM_DATA_TO_NMU_HEAD_SIZE, SHARED.data_buffer); 
+       bmu_send_data_ext(1, 1, instruct, ret_len, SHARED.data_buffer + SPM_DATA_TO_NMU_HEAD_SIZE,
+             ucCharacter, us_cmd_seq, bak_ulong);
+
+    }
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+
+    return;
+}
+
+/*****************************************************************************
+ 函 数 名  : dbg_show_rq_info
+ 功能描述  : 打印开关
+ 输入参数  : 
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2016年1月18日
+    作    者   : lx
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+void dbg_show_rq_info(unsigned char en,unsigned short type)
+{
+    g_dbg_rq_print_en = en;
+    g_dbg_rq_focus_type = type;
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_rcv_dci_status_rq
+ 功能描述  : 处理查询单盘状态请求
+ 输入参数  : ATG_DCI_STATUS_RQ *pstStatusRq   
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2013年6月8日
+    作    者   : lh09
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_VOID spm_rcv_dci_status_rq(const NBB_BYTE *rq_buffer, NBB_ULONG len)
+{
+    NBB_USHORT rq_type, rq_len;
+    NBB_ULONG  ulDiscrim, ret_len = 0; 
+    NBB_BYTE  ucDcrim;
+    NBB_BYTE pucCharacter;
+    NBB_BYTE ucSlot = 0;
+    NBB_NULL_THREAD_CONTEXT
+    NBB_GET_THREAD_CONTEXT();
+    NBB_TRC_ENTRY("spm_rcv_dci_status_rq");    
+    NBB_ULONG i = 0;
+    
+    /* 输入参数指针必须有效 */
+    NBB_ASSERT(rq_buffer != NULL);
+
+    NBB_GET_SHORT(rq_type, rq_buffer);
+    NBB_GET_SHORT(rq_len, rq_buffer + SPM_SUB_CONF_TYPE_SIZE);
+    NBB_GET_LONG(ulDiscrim,rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE);
+    ucDcrim = *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE);
+
+
+    if(1 == g_dbg_rq_print_en)
+    {
+        if((0 == g_dbg_rq_focus_type) || (rq_type == g_dbg_rq_focus_type))
+        {
+            for(i = 0;i < len;i++)
+            {
+                printf("%d  ",rq_buffer[i]);
+                if((0 == i % 16) && (i != 0))
+                {
+                    printf("\n");
+                }
+            }
+         }
+    }
+    
+    if (SPM_STATUS_RQ_TYPE_BFD == rq_type)
+    {
+        /* 处理查询BFD状态信息. */
+        spm_bfd_report_sessioninfo(ulDiscrim);
+    }
+    else if (SPM_STATUS_RQ_TYPE_BOARDSTATE == rq_type)
+    {
+        /* 上报单盘基本状态信息 add by ljuan 2013-07-03 */
+        spm_hardw_sendboardstate();
+    }
+    else if (SPM_STATUS_RQ_TYPE_PHY_PORT == rq_type)
+    {
+        /* 上报单盘端口信息 add by ljuan ,添加宏gaos*/
+        #ifdef SPU
+        spm_state_port();
+        #endif
+    }
+    else if (SPM_STATUS_RQ_TYPE_SYSSTATE == rq_type)
+    {
+        /* 　　　　102. 板卡系统基本状态信息  */
+        ret_len = BmuGetSysPhyStat(rq_buffer, len, SHARED.data_buffer, &pucCharacter);
+        if(ret_len > 0)
+        {
+            SendData(0x1, 1, 0x123457, ret_len, SHARED.data_buffer);
+        }
+        
+    }
+    else if ( SPM_STATUS_RQ_TYPE_CS1A8_GLOABALST == rq_type)
+    {
+        /* 子卡 */
+        if(0x1 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1)||
+            0x2 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1))
+        {
+            spm_send_sbi_status_rq(rq_buffer,len,*(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1));
+        }
+    }
+    else if ( SPM_STATUS_RQ_TYPE_CS1A8_OVERHEAD == rq_type)
+    {
+        /* 子卡 */
+        if(0x1 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1)||
+          0x2 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1))
+        {
+            spm_send_sbi_status_rq(rq_buffer,len,*(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1));
+        }
+    } 
+    else if ( SPM_STATUS_RQ_TYPE_CS1A8_LINE_SIMULATION == rq_type)
+    {
+        /* 子卡 */
+        if(0x1 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1)||
+          0x2 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1))
+        {
+            spm_send_sbi_status_rq(rq_buffer,len,*(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1));
+        }
+    } 
+    else if ( SPM_STATUS_RQ_TYPE_CS1A8_FIFOST == rq_type)
+    {
+        /* 子卡 */
+        if(0x1 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1)||
+          0x2 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1))
+        {
+            spm_send_sbi_status_rq(rq_buffer,len,*(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1));
+        }
+    }
+    else if ( SPM_STATUS_RQ_TYPE_CS1A8_CESCLOCK == rq_type)
+    {
+        /* 子卡 */
+        if(0x1 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1)||
+          0x2 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1))
+        {
+            spm_send_sbi_status_rq(rq_buffer,len,*(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1));
+        }
+    }
+    else if ( SPM_STATUS_RQ_TYPE_CS1A8_J2STATUS == rq_type)
+    {
+        /* 子卡 */
+        if(0x1 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1)||
+          0x2 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1))
+        {
+            spm_send_sbi_status_rq(rq_buffer,len,*(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1));
+        }
+    } 
+    else if (SPM_STATUS_RQ_TYPE_ETH_OPTICALMODULE == rq_type)
+    {
+     #ifdef SPU
+        /* 以太网光模块状态信息 */
+        spm_hardw_getslot(&ucSlot);
+        if(ucDcrim == ucSlot)//与本槽位号符合
+        {
+            /* 子卡 */
+            if(0x1 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1)||
+              0x2 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1))
+            {
+                spm_send_sbi_status_rq(rq_buffer,len,*(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1));        
+            }
+            /* 母卡*/
+            else if(0x0 == *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1))
+            {
+                almpm_send_opticalModuleSt( ucDcrim, *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+1),\
+                                                    *(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE+2) );                                
+            }
+        }
+    #endif
+    }    
+    else if (SPM_STATUS_RQ_TYPE_TIME_SYNCHRONOUS_PORTST == rq_type)
+    {
+        /* 时间同步端口状态信息 */
+        #ifdef SRC
+        spm_ptp_report_port_status(ulDiscrim);
+        #endif
+    }
+    else if (SPM_STATUS_RQ_TYPE_TIME_SYNCHRONOUS_GLOABALST == rq_type)
+    {
+        /* 时间同步全局状态信息 */
+        #ifdef SRC
+        spm_ptp_report_global_status(ucDcrim);
+        #endif
+    }
+    else if (SPM_STATUS_RQ_TYPE_CLOCK_STATE == rq_type)
+    {
+        /* 时钟状态信息 */
+        #ifdef SRC
+        spm_clk_state_report();
+        #endif
+    }
+    else if (SPM_STATUS_RQ_TYPE_CLOCKSOURCE_STATE == rq_type)
+    {
+        /* 时钟源状态信息 */
+        #ifdef SRC
+        spm_clk_source_report(ulDiscrim);
+        #endif
+    }
+    else if (SPM_STATUS_RQ_TYPE_VPLS_MAC_TABLE == rq_type)
+    {
+        /* vpls mac表信息 */
+        //#ifdef SRC
+        //ApiMacGetMacInfo(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE);
+        //#endif
+        
+        /* vpls mac表信息 */
+        #ifdef SPU
+        spm_vpls_all_mac_info_report(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE);
+        #endif
+    }
+    else if (SPM_STATUS_RQ_TYPE_VPLS_MAC_TABLEGATHER == rq_type)
+    {
+        /* vpls mac表汇总信息 */
+        //#ifdef SRC
+        //ApiMacGetMacExistStatOrNum(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE);
+        //#endif
+        
+        /* vpls mac表汇总信息 */
+        #ifdef SPU
+        spm_vpls_mac_info_report(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE);
+        #endif 
+    }
+
+    else if(SPM_STATUS_RQ_TYPE_PROTECT_STATE_INFO == rq_type)
+    {
+        spm_get_linear_protect_status(rq_buffer + SPM_SUB_CONF_TYPE_SIZE + SPM_SUB_CONF_LENGTH_SIZE);
+    }   
+    
+    else if (SPM_STATUS_RQ_TYPE_BOARD_SHOW_CMD == rq_type)
+    {
+        /* rq_board_show信息 */
+        BmuGetBoardStat(rq_buffer, len, SHARED.data_buffer, &pucCharacter);
+    }
+    else if(SPM_STATUS_RQ_TYPE_FANCONTROL == rq_type)
+    {
+       /* 板卡温度及风扇控制信息 */ 
+       almpm_send_boardtemp();
+    }
+    EXIT_LABEL : NBB_TRC_EXIT();
+
+    return;
+}
+
+/* 默认无返回的缺省状态处理函数  */
+NBB_LONG spm_proc_default_state(NBB_CONST NBB_BYTE *rq_buf, NBB_CONST NBB_ULONG len, NBB_BYTE *buf, NBB_BYTE *ucCharacter)
+{
+    return -1;
+}
+
+
+
+/*****************************************************************************
+ 函 数 名  : spm_need_send_command_sbi
+ 功能描述  : 根据指令码，判断是否需要将命令转发给子卡进程.
+ 输入参数  : NBB_ULONG instruct 指令码   
+ 输出参数  : 无
+ 返 回 值  : NBB_INT
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2014年1月16日
+    作    者   : chenpeng
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_need_send_command_sbi(NBB_ULONG instruct)
+{
+    NBB_INT ret = 0;
+
+    switch(instruct)
+    {
+        /* 告警查询 */
+        case 0X71000D:
+            ret = 1;
+            break;
+        /* 性能查询 */
+        case 0X71000E:
+            ret = 1;
+            break;
+        /* 查询指定性能 */
+        case 0X71000F:
+            ret = 1;
+            break;
+        /* 性能屏蔽开关 */
+        case 0X710010:
+            ret = 1;
+            break;
+        /* 告警屏蔽 */
+        case 0X710110:
+            ret = 1;
+            break;
+        /* 清除性能 */
+        case 0X00B200:
+            ret = 1;
+            break;
+        /* 性能采集开关 */
+        case 0X71FF10:
+            ret = 0;
+            break;        /* 默认置为不转发的协议 */
+        case 0XB100: 
+
+            /*broadcast timing cmd*/
+            ret = 1;
+            break;        
+        default:
+            ret = 0;
+            break;
+    }
+    return ret;
+}
+
+

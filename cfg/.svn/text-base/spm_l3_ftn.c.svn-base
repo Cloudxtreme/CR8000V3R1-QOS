@@ -1,0 +1,1467 @@
+/**MOD+***********************************************************************/
+/* Module:    spml3.c                                                      */
+/*                                                                           */
+/* Purpose:   R8000     L3    cfgprocess                        */
+/*                                                                           */
+/* FiberHome        2003-2012                                                */
+/*                                                                           */
+/* $Revision: 1.0       $ $Date: 2012/9/2 07:09:09 $             */
+/**MOD-***********************************************************************/
+
+
+
+#define SHARED_DATA_TYPE SPM_SHARED_LOCAL
+#include <nbase.h>
+#include <spmincl.h>
+
+/********************
+FTN配置块
+********************/
+#ifdef FTN_T
+
+/*ftn模块中的打印设置*/
+extern unsigned char l3_ftn_cfg_print_setting;
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_ftncomp
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY 
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_INT spm_l3_ftncomp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
+{
+
+    FTN_KEY *key1 = (FTN_KEY *)keyarg1;
+    FTN_KEY *key2 = (FTN_KEY *)keyarg2;
+    NBB_INT rv = 0;
+
+    //NBB_TRC_ENTRY("spm_l3_ftncomp");
+
+    rv = compare_ushort(&key1->vrfid, &key2->vrfid NBB_CCXT);
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+
+    rv = compare_ulong(&key1->fec, &key2->fec NBB_CCXT);
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+    
+    rv = compare_byte(&key1->mask, &key2->mask NBB_CCXT);
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+
+    EXIT_LABEL:
+    
+    //NBB_TRC_EXIT();
+
+    return(rv);
+
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_ftncomp
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY 
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_INT spm_l3_peipcomp(NBB_VOID *keyarg1, NBB_VOID *keyarg2 NBB_CCXT_T NBB_CXT)
+{
+
+    PEIP_KEY *key1 = (PEIP_KEY *)keyarg1;
+    PEIP_KEY *key2 = (PEIP_KEY *)keyarg2;
+    NBB_INT rv = 0;
+
+    //NBB_TRC_ENTRY("spm_l3_uniportcomp");
+
+    rv = compare_ulong(&key1->peer, &key2->peer NBB_CCXT);
+    if (rv != 0)
+    {
+        goto EXIT_LABEL;
+    }
+    
+    EXIT_LABEL:
+    
+    //NBB_TRC_EXIT();
+
+    return(rv);
+
+}
+
+
+NBB_VOID spm_l3_ftntreeinit( NBB_CXT_T NBB_CXT)
+{
+    AVLL_INIT_TREE(SHARED.ftn_tree,
+                    spm_l3_ftncomp,
+                    NBB_OFFSETOF(FTN_TAB, key),/*lint !e413 */
+                    NBB_OFFSETOF(FTN_TAB, ftn_node));/*lint !e413 */
+    
+    AVLL_INIT_TREE(SHARED.peftn_tree,
+                    spm_l3_peipcomp,
+                    NBB_OFFSETOF(PEERFTN, key),/*lint !e413 */
+                    NBB_OFFSETOF(PEERFTN, pe_node));/*lint !e413 */
+
+     BmuRmLog(SPM_L3_LOG_DIR);
+     BMU_SLOG(BMU_CRIT, SPM_L3_LOG_DIR, "****************L3******************\n");
+}
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_ftncomp
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY 
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_INT spm_l3_ftnupdatefib(NBB_BYTE flag,NBB_ULONG nhid, NBB_BYTE mask, NBB_ULONG dip NBB_CCXT_T NBB_CXT)
+{
+    NBB_INT             rv = 100;
+    NBB_INT             rv2 = 100;
+    NBB_ULONG           i ;
+        VRFUROUTE_KEY       vrfukey;
+    VRFUROUTE           *uroute = NULL;
+    L3_ROUTE_T          l3route;
+
+    NBB_TRC_ENTRY("spm_l3_ftnupdatefib");
+    
+    if (mask == 0)
+    {
+        BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e ftnupdatefib mask = 0 \n", __LINE__);
+        rv = 104;
+        goto  EXIT_LABEL;
+    }
+    
+    if (dip == 0)
+    {
+        BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e ftnupdatefib dip = 0 \n", __LINE__);
+        rv = 104;
+        goto  EXIT_LABEL;
+    }
+    
+    OS_MEMSET(&vrfukey, 0, sizeof(VRFUROUTE_KEY));
+    vrfukey.vrfid = 0;
+    vrfukey.addrtype = 0;
+    vrfukey.mask = mask;
+    
+    //coverity[bad_sizeof]
+    NBB_MEMCPY( &(vrfukey.dip[3]), &dip, 4 );
+
+    uroute = (VRFUROUTE *)AVLL_FIND(  SHARED.vrfuroute_tree ,&vrfukey ); 
+    if (uroute == NULL)
+    {
+        NBB_TRC_FLOW((NBB_FORMAT "ftnupdatefib Error: route null"));
+        rv = 0;
+        goto  EXIT_LABEL;
+    }
+    for ( i = 0; i < uroute->ipv4num; i++)
+    {
+        if ( uroute->nexthop[i].label != 0xffffffff )
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "ftnupdatefib Error: route nni"));
+            rv = 102;
+            goto  EXIT_LABEL;
+        }
+    }
+    #ifdef SPU
+    ApiC3InitL3RouteStruct( &l3route );
+    
+    l3route.vrfId = uroute->key.vrfid;
+    l3route.mIpPktType = IPV4_PKT_UNICAST;
+    NBB_MEMCPY( &(l3route.mDstIpv4), &(uroute->key.dip[3]), 4 );
+    l3route.mDstIpv4Mask = uroute->key.mask;
+    
+    if ( uroute->base.routetype == 1 )
+    {
+        l3route.eRouteType = ROUTE_TYPE_INDIRECT;
+    }
+    else    if ( uroute->base.routetype == 0 )
+    {
+        l3route.eRouteType = ROUTE_TYPE_DIRECT;
+    }
+    else    if ( uroute->base.routetype == 2 )
+    {
+        l3route.eRouteType = ROUTE_TYPE_LOCAL;
+    }
+    
+    if ( uroute->base.routetype != 2 )
+    {
+        if ( flag == 1 )
+        {
+            l3route.eVpnProt = VPN_PROTECT_NONE;
+            l3route.nhIdx = nhid;
+        }
+        else if ( flag == 2 )
+        {
+            if ( uroute->base.prmode == 0 )
+            {
+                l3route.eVpnProt = VPN_PROTECT_NONE;
+                l3route.nhIdx = uroute->nextindex[0];
+                NBB_TRC_DETAIL((NBB_FORMAT "ftnupdatefib uni nhi = %x ", l3route.nhIdx));
+            }
+            else if ( uroute->base.prmode == 3 )
+            {
+                l3route.eVpnProt = VPN_PROTECT_FRR;
+                l3route.frrGroupId = uroute->frrecmpid;
+
+                for ( i = 0; i <  uroute->ipv4num; i++)
+                {
+                    if( uroute->nexthop[i].nexttypeb == 1 )
+                    {
+                        l3route.nhIdx = uroute->nextindex[i];
+                    }
+                    else if( uroute->nexthop[i].nexttypeb == 2 )
+                    {
+                        l3route.nhIdx_p = uroute->nextindex[i];
+                    }
+                }
+                
+                //主用不存在
+                if( l3route.nhIdx == 0)
+                {
+                    l3route.nhIdx = l3route.nhIdx_p;
+                    l3route.nhIdx_p = 0;
+                }
+                NBB_TRC_DETAIL((NBB_FORMAT "ftnupdatefib uni m nhi = %x ", l3route.nhIdx));
+                NBB_TRC_DETAIL((NBB_FORMAT "ftnupdatefib uni b nhi = %x ", l3route.nhIdx_p));
+                
+            }
+            else if ( uroute->base.prmode == 2 )
+            {
+                l3route.eVpnProt = VPN_PROTECT_ECMP;
+                l3route.tL3Ecmp.ecmpNum =  uroute->base.ecmpnum;
+                if ( SHARED.global_cb.basic_cfg_cb.ecmp_algo == 0 )
+                {
+                    l3route.tL3Ecmp.alg = ECMP_HASH_DSIP;
+                }
+                else if ( SHARED.global_cb.basic_cfg_cb.ecmp_algo == 1 )
+                {
+                    l3route.tL3Ecmp.alg = ECMP_PORT_ROUND_ROBIN;
+                }
+                l3route.tL3Ecmp.ecmpIdx = uroute->frrecmpid;
+                for ( i = 0; i < uroute->base.ecmpnum; i++)
+                {
+                    l3route.tL3Ecmp.nhIdxGroup[i] = uroute->nextindex[i];
+                }
+            }
+        }
+        rv = ApiC3SetL3UCRoute(BCMC31, &l3route);
+        if ( SHARED.c3_num == 2 )
+        {
+            rv2 = ApiC3SetL3UCRoute(BCMC32, &l3route);
+            rv = (rv|rv2);
+        }
+        if( rv == 0)   
+        {
+            //BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d o ftn-fib fec.flag =%x.%d \n", __LINE__, dip,flag);
+        }
+        else
+        {
+            BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e ftn-fib fec.flag.rv =%x.%d.%d \n", __LINE__, dip,flag,rv);
+            rv = 103;
+            goto  EXIT_LABEL;
+        }
+    }
+    
+#endif
+
+    rv = 0;
+
+    EXIT_LABEL:
+        
+    NBB_TRC_EXIT();
+    return rv;
+}
+
+
+/******************************************************************************
+ * FunctionName 	: 	spm_l3_ftnprocess
+ * Author		: 	    dengkai
+ * CreateDate		:	2015-3-11
+ * Description		:   KEY 
+ * InputParam	:	    KEY
+ * OutputParam	:	    no
+ * ReturnValue	:	    rv
+ * Relation		:	    called by L3    
+ * OtherInfo		:	
+******************************************************************************/
+NBB_VOID spm_l3_ftnprocess( ATG_DCI_SET_FTN  *ftnips NBB_CCXT_T NBB_CXT)
+{
+
+    NBB_INT             rv = 100;
+
+    NBB_INT             rv2 = 100;
+
+    NBB_BYTE            *ucdata = NULL;
+
+    NBB_BYTE            routetype = 0;
+
+    NBB_BYTE            flag = 0;
+
+    NBB_ULONG           nxhopnum = 0,posid[8],index[8],port = 0,
+                        moutport = 0,boutport = 0,mnextip = 0,bnextip = 0;
+
+    FTN_KEY             ftnkey;
+
+    FTN_TAB             *uftn = NULL;
+
+    FTN_NHOP            newhop[8];
+    ATG_DCI_FTN_NXHOP_DATA      *nexthp = NULL;
+    
+    LSPPROT_KEY         tunnelkey;
+
+    DC_LSP              dclsp;
+
+    NBB_ULONG           i ;
+    
+    NBB_ULONG           j;
+
+    TX_LSP_T            lsptun;
+
+    TUNNEL_T            tunnel;
+
+    L3_TX_PW_T          txpw;
+    L3_TX_PW_T          temp_txpw;
+
+    //L3_ROUTE_T            l3route;
+
+    SPM_PORT_INFO_CB    portfo;
+
+    SPM_LINEAR_PROTECT_SWITCH       stLps;
+
+    ATG_DCI_BFD_LDP_LSP_DATA        bfdldp;
+
+    APS_TUNNEL_ECMP_ST              apsecmp;
+
+    NBB_ULONG           logport = 0;
+
+    NBB_CHAR            *errorlog = NULL;
+    NBB_ULONG           str_len = 0;
+
+    NBB_TRC_ENTRY("spm_l3_ftnprocess");
+
+    errorlog = NBB_MM_ALLOC(300, NBB_NORETRY_ACT, 0);
+    if(NULL == errorlog)
+    {
+        goto EXIT_LABEL;
+    }
+
+        NBB_ASSERT(ftnips != NULL);
+
+    ftnips->return_code = ATG_DCI_RC_OK;
+
+    OS_MEMSET( &ftnkey, 0, sizeof( FTN_KEY ) );
+    
+    //coverity[bad_sizeof]
+    NBB_MEMCPY( &ftnkey, &(ftnips->key), sizeof( FTN_KEY ) );
+
+    if( ftnkey.fec == 0 )
+    {
+        NBB_PRINTF("FTN data error  fec = 0 \n");
+        ftnips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+        goto  EXIT_LABEL;
+    }
+    NBB_TRC_DETAIL((NBB_FORMAT "FTN vrf =%d mask=%d fec =%x",ftnkey.vrfid,ftnkey.mask, ftnkey.fec));
+
+    NBB_SPRINTF(errorlog, "vrfid=%d mask=%d fec=%x\n", ftnkey.vrfid,ftnkey.mask, ftnkey.fec);
+    str_len = OS_STRLEN(errorlog);
+
+    /*操作之前，查看本地数据是否存在*/
+    uftn =  (FTN_TAB *)AVLL_FIND( SHARED.ftn_tree ,  &ftnkey ); 
+
+    if( ftnips->delete_struct == 1) /*  删除*/
+    {
+        if (l3_ftn_cfg_print_setting == SPM_PRINT_CFG)
+        {
+            BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "del ftn v.m.p =%d.%d.%x \n", ftnkey.vrfid,ftnkey.mask,ftnkey.fec);
+        }
+        if( uftn == NULL )
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del FTN Error: data null"));
+            ftnips->return_code = ATG_DCI_RC_OK;  
+            rv = 0;
+            goto  EXIT_LABEL;
+        }
+        if ( ftnkey.vrfid == 0 )
+        {
+            if( uftn->pwposid != 0)
+            {
+                #ifdef SPU              
+                rv = spm_l3_ftnupdatefib( 2, 0, uftn->key.mask, uftn->key.fec NBB_CCXT);
+                if( rv != 0)
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Del FTN Error: Route DEV rv=%d ", rv));
+                    ftnips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d spm_l3_ftnupdatefib rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                              NBB_SPRINTF(errorlog + str_len, "Del Error: update fib to uni\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                rv = ApiC3DelL3TxPw(BCMC31, uftn->pwposid);
+                if ( SHARED.c3_num == 2 )
+                {
+                    rv2 = ApiC3DelL3TxPw(BCMC32, uftn->pwposid);
+                    rv = (rv|rv2);
+                }
+                if( rv != 0)
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Del FTN Error: L3TxPw DEV rv=%d ", rv));
+                    ftnips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelL3TxPw rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Del Error: del txpw\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                else
+                {
+                    uftn->pwposid = 0;
+                }
+                #endif
+                
+                #ifdef SRC
+                rv = 0;
+                #endif
+                #ifdef SNU
+                rv = 0;
+                #endif
+            }
+            if( uftn->base.nexttype == 1)
+            {
+                spm_lps_del_entity( TUNNEL_TYPE, uftn->tunnelid);
+            }
+            if( uftn->base.nexttype == 2)
+            {
+                aps_del_tunnel_ecmp(uftn->ecmpid);
+            }
+            if( uftn->tunnelid != 0)
+            {
+                #ifdef SPU
+                rv = ApiC3DeleteTunnel( BCMC31, uftn->tunnelid );
+                if ( SHARED.c3_num == 2 )
+                {
+                    rv2 = ApiC3DeleteTunnel( BCMC32, uftn->tunnelid );
+                    rv = (rv|rv2);
+                }
+                if( rv != 0)
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Del FTN Error: Tunnel DEV rv=%d ", rv));
+                    ftnips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DeleteTunnel rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Del Error: del tunnel\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                else
+                {
+                    uftn->tunnelid = 0;
+                }
+                #endif
+                
+                #ifdef SRC
+                rv = 0;
+                #endif
+                #ifdef SNU
+                rv = 0;
+                #endif
+            }
+            if( uftn->posid[0] != 0)
+            {
+                #ifdef SPU
+                rv = ApiC3DelTxLsp( BCMC31, uftn->posid[0] );
+                if ( SHARED.c3_num == 2 )
+                {
+                    rv2 = ApiC3DelTxLsp( BCMC32, uftn->posid[0] );
+                    rv = (rv|rv2);
+                }
+                if( rv != 0)
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Del FTN Error: Lsp1 DEV rv=%d ", rv));
+                    ftnips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelTxLsp rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                              NBB_SPRINTF(errorlog + str_len, "Del Error: del txlsp\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                else
+                {
+                    uftn->posid[0] = 0;
+                }
+                #endif
+                
+                #ifdef SRC
+                rv = 0;
+                #endif
+                #ifdef SNU
+                rv = 0;
+                #endif
+            }
+            if( uftn->posid[1] != 0)
+            {
+                #ifdef SPU
+                rv = ApiC3DelTxLsp( BCMC31, uftn->posid[1] );
+                if ( SHARED.c3_num == 2 )
+                {
+                    rv2 = ApiC3DelTxLsp( BCMC32, uftn->posid[1] );
+                    rv = (rv|rv2);
+                }
+                if( rv != 0)
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Del FTN Error: lsp2 DEV rv=%d ", rv));
+                    ftnips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelTxLsp rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                              NBB_SPRINTF(errorlog + str_len, "Del Error: del txlsp\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                else
+                {
+                    uftn->posid[1] = 0;
+                }
+                #endif
+
+                #ifdef SRC
+                rv = 0;
+                #endif
+                #ifdef SNU
+                rv = 0;
+                #endif
+            }
+            if( uftn->posid[2] != 0)
+            {
+                #ifdef SPU
+                rv = ApiC3DelTxLsp( BCMC31, uftn->posid[2] );
+                if ( SHARED.c3_num == 2 )
+                {
+                    rv2 = ApiC3DelTxLsp( BCMC32, uftn->posid[2] );
+                    rv = (rv|rv2);
+                }
+                if( rv != 0)
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Del FTN Error: lsp2 DEV rv=%d ", rv));
+                    ftnips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelTxLsp rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                              NBB_SPRINTF(errorlog + str_len, "Del Error: del txlsp\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                else
+                {
+                    uftn->posid[2] = 0;
+                }
+                #endif
+
+                #ifdef SRC
+                rv = 0;
+                #endif
+                #ifdef SNU
+                rv = 0;
+                #endif
+            }
+            if( uftn->posid[3] != 0)
+            {
+                #ifdef SPU
+                rv = ApiC3DelTxLsp( BCMC31, uftn->posid[3] );
+                if ( SHARED.c3_num == 2 )
+                {
+                    rv2 = ApiC3DelTxLsp( BCMC32, uftn->posid[3] );
+                    rv = (rv|rv2);
+                }
+                if( rv != 0)
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Del FTN Error: lsp2 DEV rv=%d ", rv));
+                    ftnips->return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3DelTxLsp rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                              NBB_SPRINTF(errorlog + str_len, "Del Error: del txlsp\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                else
+                {
+                    uftn->posid[3] = 0;
+                }
+                #endif
+
+                #ifdef SRC
+                rv = 0;
+                #endif
+                #ifdef SNU
+                rv = 0;
+                #endif
+            }
+            rv = 0;
+        }
+        if( rv == 0)      /* 删除成功，删除对应的配置*/
+        {
+         //   spm_l3_updatevrf( uftn->key.fec, 0 NBB_CCXT);
+            
+            //spm_l3_updatevp( uftn->key.fec, 0 ,0 NBB_CCXT);
+            OS_MEMSET( &bfdldp, 0, sizeof( ATG_DCI_BFD_LDP_LSP_DATA ) );
+            bfdldp.vrf_id = ftnkey.vrfid ;
+            bfdldp.fec_prefix_len = ftnkey.mask;
+            bfdldp.fec_prefix = ftnkey.fec;
+            spm_set_ldp_lsp_state( &bfdldp, 1);
+            
+            //spm_l3_updatepeerecmp( uftn->key.fec, 0 NBB_CCXT);
+            //spm_l3_mpeerfrr( 1, uftn->key.fec NBB_CCXT);
+            AVLL_DELETE( SHARED.ftn_tree , uftn->ftn_node);
+            NBB_MM_FREE(uftn, MEM_SPM_FTN_TAB_NODE_CB);
+        }
+    }
+    else if( ftnips->delete_struct == 0) /* 增加*/
+    {
+        if( ftnips->oper_basic == ATG_DCI_OPER_ADD) /* 增加*/
+        {
+            if( uftn == NULL )
+            {
+                if (l3_ftn_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "add ftn v.m.p =%d.%d.%x \n", ftnkey.vrfid,ftnkey.mask,ftnkey.fec);
+                }
+                uftn = (FTN_TAB *)NBB_MM_ALLOC(sizeof(FTN_TAB), NBB_NORETRY_ACT, MEM_SPM_FTN_TAB_NODE_CB);
+                if ( uftn == NULL )
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add FTN Error: malloc null"));
+                    ftnips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d malloc mem rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                            NBB_SPRINTF(errorlog + str_len, "Add Error: uftn = NULL\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                } 
+                NBB_MEMSET(uftn, 0, sizeof(FTN_TAB));
+                AVLL_INIT_NODE(uftn->ftn_node);  
+                flag = 1;
+                NBB_TRC_FLOW((NBB_FORMAT "Add FTN new node  "));
+            }
+            else
+            {
+                if (l3_ftn_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "upd ftn v.m.p =%d.%d.%x \n", ftnkey.vrfid,ftnkey.mask,ftnkey.fec);
+                }
+                flag = 2;
+            }
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(ftnips, &ftnips->basic_data); 
+            if (ucdata == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add FTN Error: basic data null"));
+                ftnips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                NBB_MM_FREE(uftn, MEM_SPM_FTN_TAB_NODE_CB);
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get basic data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            else      /*成功*/
+            {
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(uftn->key), &ftnkey, sizeof( FTN_KEY) );
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(uftn->base), ucdata, sizeof( FTN_BASE ) );
+                if (flag == 1)
+                {
+                    //coverity[no_effect_test]
+                    AVLL_INSERT(SHARED.ftn_tree, uftn->ftn_node);
+                }
+                if (flag == 2)
+                {
+                    if (uftn->base.nexttype != uftn->bntype)
+                    {
+                        if( uftn->bntype == 1)
+                        {
+                            spm_lps_del_entity( TUNNEL_TYPE, uftn->tunnelid);
+                        }
+                        if( uftn->bntype == 2)
+                        {
+                            aps_del_tunnel_ecmp(uftn->ecmpid);
+                            uftn->ecmpid = 0;
+                        }
+                        uftn->bntype = uftn->base.nexttype;
+                    }
+                }
+            }
+            rv = 0;
+        }   
+        else if( ftnips->oper_basic == ATG_DCI_OPER_DEL) /*  删除子TLV*/
+        {
+                NBB_TRC_FLOW((NBB_FORMAT "Del FTN Error: basic data "));
+                ftnips->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+                goto  EXIT_LABEL;
+        }
+        if( ftnips->oper_nxhop == ATG_DCI_OPER_UPDATE) /* 增加*/
+        {
+            if ( uftn == NULL )                                 
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add FTN Error: nexthop null"));
+                ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d uroute rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: uroute = NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto   EXIT_LABEL;
+            }   
+            nxhopnum = ftnips->nxhop_num;
+            NBB_TRC_DETAIL((NBB_FORMAT "Add FTN nxhop_num =%d ", nxhopnum));
+            if (nxhopnum > 4)
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "Add FTN Error: nxhop_num =%d ", nxhopnum));
+                ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d hop num rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: hop num > 4 \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }   
+            ucdata = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(ftnips, &ftnips->nxhop_data);
+            if (ucdata == NULL)
+            {
+                if (nxhopnum == 0)
+                {
+                    if (flag == 2)
+                    {
+                        BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e ftn nexthop null fec=%x \n", 
+                                        __LINE__, ftnkey.fec);
+                    }
+                    rv = 0;
+                    goto  EXIT_LABEL;
+                }
+                NBB_TRC_FLOW((NBB_FORMAT "Add FTN Error: nexthop data null"));
+                ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d get nexthop data rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: ucdata == NULL \n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            OS_MEMSET( &newhop[0], 0, 8 * sizeof( FTN_NHOP ) );
+            OS_MEMSET( &(uftn->dclsp[0]), 0, 8 * sizeof( DC_LSP ) );
+            for ( i = 0; i < nxhopnum; i++)
+            {
+                nexthp = (ATG_DCI_FTN_NXHOP_DATA *)(ucdata + (NBB_ALIGN_OFFSET(sizeof(ATG_DCI_FTN_NXHOP_DATA))) * i);
+                OS_MEMSET( &(newhop[i]), 0, sizeof(ATG_DCI_FTN_NXHOP_DATA));
+                
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(newhop[i]), nexthp, sizeof(ATG_DCI_FTN_NXHOP_DATA) );
+                if ( uftn->key.vrfid == 0 )
+                {
+                    //rv = spm_l3_checkipdirectconnect( 0 , &(newhop[i].nextip));
+                    //rv = spm_l3_checkip( 0, 0, &(newhop[i].nextip) NBB_CCXT);
+
+                    rv = 0;
+
+                    if ( rv == 0 )
+                    {
+                        uftn->dclsp[i].label2 = 0xffffffff;
+                        uftn->dclsp[i].label1 = newhop[i].outlabel;
+                        uftn->dclsp[i].nextip =  newhop[i].nextip;
+                        uftn->dclsp[i].nextport =  newhop[i].nextport;
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add FTN dclabel1 =%d ", uftn->dclsp[i].label1));
+                    }
+                    else if ( rv == 1 )
+                    {
+                        rv =    spm_l3_checkporttunnl( newhop[i].nextport, &tunnelkey NBB_CCXT);
+                        if ( rv == 0 )
+                        {
+                            OS_MEMSET( &dclsp, 0, sizeof(DC_LSP));
+                            rv = spm_l3_iteration_tunnel( newhop[i].nextport ,&dclsp NBB_CCXT);
+                            if ( rv == 0 )
+                            {
+                                uftn->dclsp[i].label2 = dclsp.label1;
+                                uftn->dclsp[i].label1 = newhop[i].outlabel;
+                                uftn->dclsp[i].nextip =  dclsp.nextip;
+                                uftn->dclsp[i].nextport =  dclsp.nextport;
+                                NBB_TRC_FLOW((NBB_FORMAT "Add FTN iter tunnel  ok"));
+                            }
+                            else
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add FTN Error: iter tunnel rv=%d ", rv));
+                                ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d spm_l3_iteration_tunnel rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                          NBB_SPRINTF(errorlog + str_len, "Add Error: iter TUNNEL\n");
+                                str_len =  OS_STRLEN(errorlog);
+                                goto  EXIT_LABEL;
+                            }
+                        }
+                        else    /*迭代，FTN */
+                        {
+                            OS_MEMSET( &dclsp, 0, sizeof(DC_LSP));
+                            rv = spm_l3_iteration_ftnlsp( newhop[i].nextip ,&dclsp  NBB_CCXT);
+                            if ( rv == 0 )
+                            {
+                                uftn->dclsp[i].label2 = dclsp.label1;
+                                uftn->dclsp[i].label1 = newhop[i].outlabel;
+                                uftn->dclsp[i].nextip =  dclsp.nextip;
+                                uftn->dclsp[i].nextport =  dclsp.nextport;
+                                NBB_TRC_FLOW((NBB_FORMAT "Add FTN iter ftnlsp  ok"));
+                            }
+                            else
+                            {
+                                NBB_TRC_DETAIL((NBB_FORMAT "Add FTN Error: iter ftnlsp rv=%d ", rv));
+                                ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                                NBB_SPRINTF(errorlog + str_len, "Line=%d spm_l3_iteration_ftnlsp rv=%d\n", __LINE__,rv);
+                                str_len =  OS_STRLEN(errorlog);
+                                NBB_SPRINTF(errorlog + str_len, "Add Error: iter ftnlsp\n");
+                                str_len =  OS_STRLEN(errorlog);
+                                goto  EXIT_LABEL;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    NBB_TRC_FLOW((NBB_FORMAT "Add FTN Error: vrf !=0"));
+                    ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    rv = 1;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d vrf !=0 rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                              NBB_SPRINTF(errorlog + str_len, "Add Error: data error\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }   
+            }
+            #ifdef SPU
+            
+            //BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d upftn peer.ip.ip.ip.ip =%x.%x.%x.%x.%x \n", __LINE__, 
+            //                                                                      uftn->key.fec,
+            //                                                                      newhop[0].nextip,
+            //                                                                      newhop[1].nextip,
+            //                                                                      newhop[2].nextip,
+            //                                                                      newhop[3].nextip);
+            
+            if( uftn->hopnum != 0)  
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "UPdate FTN nxhop_num =%d ", uftn->hopnum));
+                OS_MEMCPY( &posid[0], &(uftn->posid[0]), 32 );
+                OS_MEMCPY( &index[0], &(uftn->index[0]), 32 );
+                NBB_MEMSET( &uftn->posid[0], 0, 32 );
+                NBB_MEMSET( &uftn->index[0], 0, 32 );
+                for ( i = 0; i < 4; i++)
+                {
+                    flag = 0;
+                    for ( j = 0; j < nxhopnum; j++)
+                    {
+                        if( newhop[j].nextip == uftn->nexthop[i].nextip )
+                        {
+                            flag = 5;
+                            break;
+                        }
+                    }
+                    if( flag == 5)  
+                    {
+                        uftn->posid[j] = posid[i];
+                        uftn->index[j] = index[i];
+                        
+                        //BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d o savlsp peer.nip.pid =%x.%x.%x \n", __LINE__, 
+                        //                                                                      uftn->key.fec,
+                        //                                                                      uftn->nexthop[i].nextip,
+                        //                                                                      posid[i]);
+                    }
+                    else
+                    {
+                        if( posid[i] != 0)
+                        {
+                            rv = ApiC3DelTxLsp( BCMC31, posid[i] );
+                            if ( SHARED.c3_num == 2 )
+                            {
+                                rv2 = ApiC3DelTxLsp( BCMC32, posid[i] );
+                                rv = (rv|rv2);
+                            }
+                            if( rv != 0)
+                            {
+                                BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d e delsp peer.nip.pid =%x.%x.%x \n", 
+                                                                                             __LINE__, 
+                                                                                             uftn->key.fec,
+                                                                                             uftn->nexthop[i].nextip,
+                                                                                             posid[i]);
+                                NBB_TRC_DETAIL((NBB_FORMAT "Line=%d  ftndeltxlsp err  nextip=%x rv=%d ",
+                                                                                __LINE__, 
+                                                                                uftn->nexthop[i].nextip ,
+                                                                                rv));
+                            }
+                            else
+                            {
+                                //BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d o delsp peer.nip.pid =%x.%x.%x \n",
+                                //                                                          __LINE__, 
+                                //                                                          uftn->key.fec,
+                                //                                                          uftn->nexthop[i].nextip,
+                                //                                                          posid[i]);
+                                NBB_TRC_DETAIL((NBB_FORMAT "Line=%d  ftndel  nextip=%x rv=%d ",
+                                                                                __LINE__, 
+                                                                                uftn->nexthop[i].nextip ,
+                                                                                rv));
+                                posid[i] = 0;
+                            }
+                        }
+                    }
+                }
+            }
+            #endif
+            uftn->hopnum = nxhopnum;
+            if( rv == 0)      /*成功*/
+            {
+                #ifdef SPU
+                for ( i = 0; i < nxhopnum; i++)
+                {
+                    OS_MEMSET(&lsptun , 0, sizeof(TX_LSP_T));
+                    OS_MEMSET(&portfo, 0, sizeof(SPM_PORT_INFO_CB));
+                    rv = spm_get_portid_from_logical_port_index(uftn->dclsp[i].nextport, &portfo NBB_CCXT);
+                    if( rv == 0)     
+                    {
+                        lsptun.tTxPort.slot = portfo.slot_id;
+                        lsptun.tTxPort.port = portfo.port_id;
+                        lsptun.tTxPort.vid = portfo.svlan ;
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add FTN Error:Get Port L2 rv=%d ", rv));
+                        ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d get_logical_port_index rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                                  NBB_SPRINTF(errorlog + str_len, "Add Error: get port index from L2\n");
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                    
+                    lsptun.mVrf = uftn->key.vrfid;
+                    lsptun.mFecv4 = uftn->key.fec;
+                    lsptun.mFecv4Mask = uftn->key.mask;
+                    lsptun.mNhipv4 = uftn->dclsp[i].nextip;
+
+                    lsptun.flags = 0;
+                    lsptun.tunNum = 1;
+                    if( uftn->dclsp[i].label2 != 0xffffffff)  
+                    {
+                        lsptun.tunNum = 2;
+                    }
+                    if( uftn->dclsp[i].label2 == 3)  
+                    {
+                        lsptun.tunNum = 1;
+                    }
+                    if( uftn->dclsp[i].label1 == 3)  
+                    {
+                        lsptun.tunNum = 0;
+                    }
+                    lsptun.tSwapTunLabel.label_un.tlabel.label = uftn->dclsp[i].label1;
+                    lsptun.tSwapTunLabel.label_un.tlabel.ttl = 255;
+                    lsptun.tSwapTunLabel.label_un.tlabel.exp = 0;
+
+                    lsptun.tPushTunLabel.label_un.tlabel.label = uftn->dclsp[i].label2;
+                    lsptun.tPushTunLabel.label_un.tlabel.ttl = 255;
+                    lsptun.tPushTunLabel.label_un.tlabel.exp = 0;
+
+                    lsptun.nhIp = uftn->dclsp[i].nextip;
+                    
+                    if( uftn->posid[i] == 0)    
+                    {
+                        rv = ApiC3AddTxLsp( BCMC31 ,&lsptun);
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            rv2 = ApiC3AddTxLsp( BCMC32 ,&lsptun);
+                            rv = (rv|rv2);
+                        }
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add FTN TXlsp id=%d  posid =%x ", i, lsptun.posId));
+                        
+                        //BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d o addlsp peer.nip.pid.rv =%x.%x.%x.%d \n", 
+                        //                                                          __LINE__, 
+                        //                                                          uftn->key.fec,
+                        //                                                          uftn->dclsp[i].nextip,
+                        //                                                          lsptun.posId,
+                        //                                                          rv);
+                    }
+                    else
+                    {
+                        lsptun.posId = uftn->posid[i];
+                        lsptun.lspIdx = uftn->index[i];
+                        rv = ApiC3ModTxLsp( BCMC31 ,&lsptun); 
+                        if ( SHARED.c3_num == 2 )
+                        {
+                            rv2 = ApiC3ModTxLsp( BCMC32 ,&lsptun); 
+                            rv = (rv|rv2);
+                        }
+                        NBB_TRC_DETAIL((NBB_FORMAT "Mod FTN TXlsp id=%d posid =%x ",  i, uftn->posid[i]));
+                        
+                        //BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d o modlsp peer.nip.pid.rv =%x.%x.%x.%d \n", 
+                        //                                                          __LINE__, 
+                        //                                                          uftn->key.fec,
+                        //                                                          uftn->dclsp[i].nextip,
+                        //                                                          uftn->posid[i],
+                        //                                                          rv);
+                    }
+                    if( rv != 0)
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "Add FTN Error: lsp DEV rv=%d ", rv));
+                        ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddTxLsp rv=%d\n", __LINE__,rv);
+                        str_len =  OS_STRLEN(errorlog);
+                                  NBB_SPRINTF(errorlog + str_len, "Add Error: nextip =%x ", uftn->dclsp[i].nextip);
+                        str_len =  OS_STRLEN(errorlog);
+                        goto  EXIT_LABEL;
+                    }
+                    else
+                    {
+                        uftn->posid[i] = lsptun.posId;
+                        uftn->index[i] = lsptun.lspIdx;
+                    }
+                }
+
+                OS_MEMSET(&tunnel , 0, sizeof(TUNNEL_T));
+                 if ( uftn->base.nexttype == 0)
+                 {
+                    tunnel.eProt = C3_PROT_NONE;
+                    tunnel.txLspPosId = uftn->posid[0];
+                 }
+                else if ( uftn->base.nexttype == 1)
+                {
+                    tunnel.eProt = C3_PROT_FRR;
+                    for ( i = 0; i < nxhopnum; i++)
+                    {
+                        if( newhop[i].nexttypeb < 2)
+                        {
+                            tunnel.txLspPosId = uftn->posid[i];
+                            moutport = uftn->dclsp[i].nextport;
+                            mnextip = uftn->dclsp[i].nextip;
+                        }
+                        else if( newhop[i].nexttypeb == 2)
+                        {
+                            tunnel.backupTxLspPosId = uftn->posid[i];
+                            boutport = uftn->dclsp[i].nextport;
+                            bnextip = uftn->dclsp[i].nextip;
+                        }
+                    }   
+                    if( tunnel.txLspPosId == 0)
+                    {
+                        tunnel.txLspPosId = tunnel.backupTxLspPosId;
+                        moutport = boutport;
+                        mnextip = bnextip;
+                    }
+                    if( tunnel.backupTxLspPosId == 0)
+                    {
+                        tunnel.backupTxLspPosId = tunnel.txLspPosId;
+                        boutport = moutport;
+                        bnextip = mnextip;
+                    }
+                }
+                else if ( uftn->base.nexttype == 2)
+                {
+                    tunnel.eProt = C3_PROT_ECMP;
+                    tunnel.tTunnelEcmp.ecmpNum = uftn->hopnum;
+                    
+                    //tunnel.tTunnelEcmp.alg = ECMP_HASH_SIP;
+                    if ( SHARED.global_cb.basic_cfg_cb.ecmp_algo == 0 )
+                    {
+                        tunnel.tTunnelEcmp.alg = ECMP_HASH_DSIP;
+                    }
+                    else if ( SHARED.global_cb.basic_cfg_cb.ecmp_algo == 1 )
+                    {
+                        tunnel.tTunnelEcmp.alg = ECMP_PORT_ROUND_ROBIN;
+                    }
+                    tunnel.tTunnelEcmp.txlspPosId[0] = uftn->posid[0];
+                    tunnel.tTunnelEcmp.txlspPosId[1] = uftn->posid[1];
+                    tunnel.tTunnelEcmp.txlspPosId[2] = uftn->posid[2];
+                    tunnel.tTunnelEcmp.txlspPosId[3] = uftn->posid[3];
+                }
+                if ( uftn->tunnelid == 0)
+                {
+                    rv = ApiC3CreateTunnel( BCMC31 ,&tunnel);
+                    
+                    //NBB_TRC_DETAIL((NBB_FORMAT "Add FTN:Tunnel DEV1 rv=%d ", rv));
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        tunnel.tTunnelEcmp.ecmpIdx = 0;
+                        rv2 = ApiC3CreateTunnel( BCMC32 ,&tunnel); 
+                        
+                        //NBB_TRC_DETAIL((NBB_FORMAT "Add FTN:Tunnel DEV2 rv=%d ", rv2));
+                        rv = (rv|rv2);
+                    }
+                }
+                else
+                {
+                    tunnel.tunnelId = uftn->tunnelid;
+                    if ( uftn->base.nexttype == 2)
+                    {
+                        tunnel.tTunnelEcmp.ecmpIdx = uftn->ecmpid;
+                    }
+                    rv = ApiC3ModTunnel( BCMC31 ,&tunnel); 
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        if ( uftn->base.nexttype == 2)
+                        {
+                            tunnel.tTunnelEcmp.ecmpIdx = uftn->ecmpid;
+                        }
+                        rv2 = ApiC3ModTunnel( BCMC32 ,&tunnel); 
+                        rv = (rv|rv2);
+                    }
+                    NBB_TRC_DETAIL((NBB_FORMAT "Mod FTN Tunnel tunnelid =%x ", uftn->tunnelid));
+                }
+                if( rv == 0)     
+                {
+                    uftn->tunnelid = tunnel.tunnelId;
+                    
+                    //BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, "Line=%d o ftn fec.tunid =%x.%d \n", 
+                    //                                                          __LINE__, uftn->key.fec,uftn->tunnelid);
+                    OS_MEMSET( &bfdldp, 0, sizeof( ATG_DCI_BFD_LDP_LSP_DATA ) );
+                    bfdldp.vrf_id = ftnkey.vrfid ;
+                    bfdldp.fec_prefix_len = ftnkey.mask;
+                    bfdldp.fec_prefix = ftnkey.fec;
+                    spm_set_ldp_lsp_state( &bfdldp, 0);
+                    
+                  //  spm_l3_updatevrf( uftn->key.fec, uftn->tunnelid NBB_CCXT);
+                    
+                    //spm_l3_mpeerfrr( 0, uftn->key.fec NBB_CCXT);
+                    //spm_l3_updatepeerecmp( uftn->key.fec, 1 NBB_CCXT);
+                    if ( uftn->base.nexttype == 1)
+                    {
+                        port = moutport;
+                    }
+                    else
+                    {
+                        port = uftn->dclsp[0].nextport;
+                    }
+                    spm_l3_updatevp( uftn->key.fec, uftn->tunnelid, port NBB_CCXT);
+                    spm_l3_updatemcid( uftn->key.fec, port NBB_CCXT);
+                    if ( uftn->base.nexttype == 2)
+                    {
+                        uftn->ecmpid = tunnel.tTunnelEcmp.ecmpIdx;
+                    }
+                }
+                else
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add FTN Error:Tunnel DEV rv=%d ", rv));
+                    ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3CreateTunnel rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                              NBB_SPRINTF(errorlog + str_len, "Add Error: add tunel\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                OS_MEMSET(&txpw , 0, sizeof(L3_TX_PW_T));
+                OS_MEMSET(&temp_txpw , 0, sizeof(L3_TX_PW_T));
+                
+                txpw.mVrf = uftn->key.vrfid;
+                txpw.mPeerIp = uftn->key.fec;
+                txpw.mLabel = 0;
+
+                txpw.pushPwNum = 0;
+                txpw.flags |= L3_TX_PW_COUNTER_ON;
+                txpw.tunnelIdx = uftn->tunnelid; 
+                txpw.eNniMode = PHB_TO_EXP;
+                if( uftn->pwposid == 0)
+                {
+                    rv = ApiC3AddL3TxPw(BCMC31, &txpw);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3AddL3TxPw(BCMC32, &txpw); 
+                        rv = (rv|rv2);
+                    }
+                }
+                else
+                {
+                    txpw.posId = uftn->pwposid ;
+                    txpw.nhIdx = uftn->pwnhi;
+
+                    rv = fhdrv_psn_l3_get_txpw(BCMC31, &txpw, &temp_txpw);
+                    if (rv == 0)
+                    {
+                        txpw.eNniMode = temp_txpw.eNniMode;
+                    }
+                    else
+                    {
+                        BMU_SLOG(BMU_INFO, SPM_L3_LOG_DIR, 
+                                "Line=%d e ftn fhdrv_psn_l3_get_txpw posid.eNniMode =%d.%d\n", 
+                                        __LINE__, txpw.posId, txpw.eNniMode);
+                    }
+                    
+                    rv = ApiC3ModL3TxPw(BCMC31, &txpw);
+                    if ( SHARED.c3_num == 2 )
+                    {
+                        rv2 = ApiC3ModL3TxPw(BCMC32, &txpw);
+                        rv = (rv|rv2);
+                    }
+                }
+                if( rv == 0)   
+                {
+                    uftn->pwposid = txpw.posId;
+                    uftn->pwnhi = txpw.nhIdx;
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add FTN L3TxPw nhi =%x ", txpw.nhIdx));
+                }
+                else
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add FTN Error:L3TxPw DEV rv=%d ", rv));
+                    ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                    NBB_SPRINTF(errorlog + str_len, "Line=%d ApiC3AddL3TxPw rv=%d\n", __LINE__,rv);
+                    str_len =  OS_STRLEN(errorlog);
+                    NBB_SPRINTF(errorlog + str_len, "Add Error: add txpw\n");
+                    str_len =  OS_STRLEN(errorlog);
+                    goto  EXIT_LABEL;
+                }
+                rv = spm_l3_ftnupdatefib( 1, txpw.nhIdx, uftn->key.mask, uftn->key.fec NBB_CCXT);
+                if( rv == 0)   
+                {
+                    NBB_TRC_DETAIL((NBB_FORMAT "Add FTN update fib nhi =%x ", txpw.nhIdx));
+                }
+                else
+                {
+                    //OS_PRINTF("Line=%d  ftnupdatefib err  fec=%x rv=%d\n ",__LINE__, uftn->key.fec ,rv);
+                    NBB_TRC_DETAIL((NBB_FORMAT "Line=%d ftnupdatefib rv=%d\n", __LINE__,rv));
+                }
+            #endif
+
+            #ifdef SRC
+                uftn->index[0] = 0xffffffff;
+                uftn->posid[0] = 0xffffffff;
+                uftn->index[1] = 0xffffffff;
+                uftn->posid[1] = 0xffffffff;
+                uftn->tunnelid = 0xffffffff;
+                if ( uftn->base.nexttype == 1)
+                {
+                    for ( i = 0; i < nxhopnum; i++)
+                    {
+                        if( newhop[i].nexttypeb < 2)
+                        {
+                            moutport = uftn->dclsp[i].nextport;
+                            mnextip = uftn->dclsp[i].nextip;
+                        }
+                        else if( newhop[i].nexttypeb == 2)
+                        {
+                            boutport = uftn->dclsp[i].nextport;
+                            bnextip = uftn->dclsp[i].nextip;
+                        }
+                    }
+                    if( moutport == 0)
+                    {
+                        moutport = boutport;
+                        mnextip = bnextip;
+                    }
+                    port = moutport;
+                }
+                else
+                {
+                    port = uftn->dclsp[0].nextport;
+                }
+                spm_l3_updatevp( uftn->key.fec, uftn->tunnelid, port NBB_CCXT);
+                spm_l3_updatemcid( uftn->key.fec, port NBB_CCXT);
+                rv = 0;
+            #endif
+            #ifdef SNU
+                uftn->index[0] = 0xffffffff;
+                uftn->posid[0] = 0xffffffff;
+                uftn->index[1] = 0xffffffff;
+                uftn->posid[1] = 0xffffffff;
+                uftn->tunnelid = 0xffffffff;
+                if ( uftn->base.nexttype == 1)
+                {
+                    for ( i = 0; i < nxhopnum; i++)
+                    {
+                        if( newhop[i].nexttypeb < 2)
+                        {
+                            moutport = uftn->dclsp[i].nextport;
+                            mnextip = uftn->dclsp[i].nextip;
+                        }
+                        else if( newhop[i].nexttypeb == 2)
+                        {
+                            boutport = uftn->dclsp[i].nextport;
+                            bnextip = uftn->dclsp[i].nextip;
+                        }
+                    }
+                    if( moutport == 0)
+                    {
+                        moutport = boutport;
+                        mnextip = bnextip;
+                    }
+                    port = moutport;
+                }
+                else
+                {
+                    port = uftn->dclsp[0].nextport;
+                }
+                spm_l3_updatevp( uftn->key.fec, uftn->tunnelid, port NBB_CCXT);
+                spm_l3_updatemcid( uftn->key.fec, port NBB_CCXT);
+                rv = 0;
+            #endif
+            }
+            else
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "Add FTN Error: vrf !=0"));
+                ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                rv = 1;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d vrf !=0 rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                NBB_SPRINTF(errorlog + str_len, "Add Error: data error\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }
+            
+            //coverity[dead_error_condition]
+            if( rv == 0)      /*成功*/
+            {
+                //coverity[bad_sizeof]
+                NBB_MEMCPY( &(uftn->nexthop[0]), &newhop[0], 8 * sizeof( FTN_NHOP));  
+                NBB_TRC_DETAIL((NBB_FORMAT "Add FTN  tunnelid =%x ", uftn->tunnelid ));
+                NBB_TRC_DETAIL((NBB_FORMAT "Add FTN  posid m=%x ",  uftn->posid[0] ));
+                NBB_TRC_DETAIL((NBB_FORMAT "Add FTN  posid b =%x ",  uftn->posid[1] ));
+
+                if( uftn->base.nexttype == 1 )
+                {
+                    OS_MEMSET(&stLps, 0, sizeof(SPM_LINEAR_PROTECT_SWITCH));
+                    stLps.revertiveType = LPS_REVERTIVE;
+                    stLps.holdOffTime = 0;
+                    stLps.wtrTime = 0;
+                    
+                    stLps.workEntity.portIndex = moutport;
+                    stLps.workEntity.port = 0;
+                    stLps.workEntity.slot = 0;
+                    stLps.workEntity.tpId = 0;
+                    stLps.workEntity.type = LPS_IP_ADDR;
+                    
+                    //OS_MEMCPY( &(stLps.workEntity.ldpKey), &(uftn->key), sizeof( FTN_KEY ) );
+                    stLps.workEntity.routeKey.vrfid = 0;
+                    stLps.workEntity.routeKey.addrtype = 0;
+                    stLps.workEntity.routeKey.mask = 32;
+                    stLps.workEntity.routeKey.dip[0] = 0;
+                    stLps.workEntity.routeKey.dip[1] = 0;
+                    stLps.workEntity.routeKey.dip[2] = 0;
+                    stLps.workEntity.routeKey.dip[3] = mnextip;
+
+                    stLps.protEntity.portIndex = boutport;
+                    stLps.protEntity.port = 0;
+                    stLps.protEntity.slot = 0;
+                    stLps.protEntity.tpId = 0;
+                    stLps.protEntity.type = LPS_IP_ADDR;
+                    
+                    //OS_MEMCPY( &(stLps.protEntity.ldpKey), &(uftn->key), sizeof( FTN_KEY ) );
+                    stLps.protEntity.routeKey.vrfid = 0;
+                    stLps.protEntity.routeKey.addrtype = 0;
+                    stLps.protEntity.routeKey.mask = 32;
+                    stLps.protEntity.routeKey.dip[0] = 0;
+                    stLps.protEntity.routeKey.dip[1] = 0;
+                    stLps.protEntity.routeKey.dip[2] = 0;
+                    stLps.protEntity.routeKey.dip[3] = bnextip;
+                    
+                    stLps.protType = TUNNEL_TYPE;
+                    stLps.protGroupId = uftn->tunnelid;
+                    stLps.lpsType = FRR_1B1;
+
+                    spm_lps_add_entity(&stLps);
+                }
+                if( uftn->base.nexttype == 2)
+                {
+                    OS_MEMSET(&apsecmp, 0, sizeof(APS_TUNNEL_ECMP_ST));
+                    apsecmp.ecmpNum = uftn->hopnum;
+                    apsecmp.eProt = C3_PROT_ECMP;
+                    apsecmp.tunnelId = uftn->tunnelid;
+
+                    if ( SHARED.global_cb.basic_cfg_cb.ecmp_algo == 0 )
+                    {
+                        apsecmp.alg = ECMP_HASH_DSIP;
+                    }
+                    else if ( SHARED.global_cb.basic_cfg_cb.ecmp_algo == 1 )
+                    {
+                        apsecmp.alg = ECMP_PORT_ROUND_ROBIN;
+                    }
+                    apsecmp.ecmpNextHop[0].txlspPosId = uftn->posid[0];
+                    apsecmp.ecmpNextHop[0].portIndex = uftn->dclsp[0].nextport;
+                    apsecmp.ecmpNextHop[0].vrfKey.vrfid = 0;
+                    apsecmp.ecmpNextHop[0].vrfKey.addrtype = 0;
+                    apsecmp.ecmpNextHop[0].vrfKey.mask = 32;
+                    apsecmp.ecmpNextHop[0].vrfKey.dip[3] = uftn->dclsp[0].nextip;
+    
+                    apsecmp.ecmpNextHop[1].txlspPosId = uftn->posid[1];
+                    apsecmp.ecmpNextHop[1].portIndex = uftn->dclsp[1].nextport;
+                    apsecmp.ecmpNextHop[1].vrfKey.vrfid = 0;
+                    apsecmp.ecmpNextHop[1].vrfKey.addrtype = 0;
+                    apsecmp.ecmpNextHop[1].vrfKey.mask = 32;
+                    apsecmp.ecmpNextHop[1].vrfKey.dip[3] = uftn->dclsp[1].nextip;
+
+                    apsecmp.ecmpNextHop[2].txlspPosId = uftn->posid[2];
+                    apsecmp.ecmpNextHop[2].portIndex = uftn->dclsp[2].nextport;
+                    apsecmp.ecmpNextHop[2].vrfKey.vrfid = 0;
+                    apsecmp.ecmpNextHop[2].vrfKey.addrtype = 0;
+                    apsecmp.ecmpNextHop[2].vrfKey.mask = 32;
+                    apsecmp.ecmpNextHop[2].vrfKey.dip[3] = uftn->dclsp[2].nextip;
+                    
+                    apsecmp.ecmpNextHop[3].txlspPosId = uftn->posid[3];
+                    apsecmp.ecmpNextHop[3].portIndex = uftn->dclsp[3].nextport;
+                    apsecmp.ecmpNextHop[3].vrfKey.vrfid = 0;
+                    apsecmp.ecmpNextHop[3].vrfKey.addrtype = 0;
+                    apsecmp.ecmpNextHop[3].vrfKey.mask = 32;
+                    apsecmp.ecmpNextHop[3].vrfKey.dip[3] = uftn->dclsp[3].nextip;
+
+                    apsecmp.ecmpIdx = uftn->ecmpid;
+                    aps_add_tunnel_ecmp(&apsecmp);
+
+                }
+            }
+            else    /*调用驱动失败*/
+            {
+                //coverity[dead_error_begin]
+                NBB_TRC_DETAIL((NBB_FORMAT "Add FTN Error: Route DEV rv=%d ", rv));
+                ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                NBB_SPRINTF(errorlog + str_len, "Line=%d FTN Route rv=%d\n", __LINE__,rv);
+                str_len =  OS_STRLEN(errorlog);
+                          NBB_SPRINTF(errorlog + str_len, "Add Error: data error\n");
+                str_len =  OS_STRLEN(errorlog);
+                goto  EXIT_LABEL;
+            }  
+        }
+        else if( ftnips->oper_nxhop == ATG_DCI_OPER_DEL) 
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "Del FTN Error: Nexthop "));
+            ftnips->nxhop_return_code = ATG_DCI_RC_UNSUCCESSFUL;  
+            goto  EXIT_LABEL;
+        }   
+    }
+    
+    EXIT_LABEL:
+
+    NBB_TRC_EXIT();
+
+    NBB_TRC_DETAIL((NBB_FORMAT " FTN :  rv = %d ", rv));
+    if(NULL == errorlog)
+    {
+        OS_PRINTF("Line=%d FTN malloc mem NULL \n",__LINE__);
+    }
+    else
+    {
+        NBB_SPRINTF(errorlog + str_len, "\0");
+        if( rv != 0) 
+        {
+            NBB_EXCEPTION((PCT_SPM| 10, 1,  "s s", 
+                                                            " FTN ",
+                                                            errorlog));
+        }
+        NBB_MM_FREE(errorlog,0);
+    }
+}
+
+#endif

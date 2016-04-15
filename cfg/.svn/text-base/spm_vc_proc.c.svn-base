@@ -1,0 +1,2382 @@
+/******************************************************************************
+
+                  版权所有 (C), 1999-2013, 烽火通信科技股份有限公司
+
+ ******************************************************************************
+  文 件 名   : spm_vc_proc.c
+  版 本 号   : 初稿
+  作    者   : xiaoxiang
+  生成日期   : 2012年9月18日
+  最近修改   :
+  功能描述   : VC表配置处理
+  函数列表   :
+  修改历史   :
+  1.日    期   : 2012年9月18日
+    作    者   : xiaoxiang
+    修改内容   : 创建文件
+
+******************************************************************************/
+
+#define SHARED_DATA_TYPE SPM_SHARED_LOCAL
+
+#include <nbase.h>
+#include <spmincl.h>
+
+#ifdef VC_CFG
+
+extern unsigned char vc_cfg_print_setting;
+
+/*****************************************************************************
+ 函 数 名  : spm_rcv_dci_set_vc
+ 功能描述  : VC表IPS消息处理函数
+ 输入参数  : ATG_DCI_SET_VC *pstSetVc
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年10月9日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_VOID spm_rcv_dci_set_vc(ATG_DCI_SET_VC *pstSetVc NBB_CCXT_T NBB_CXT)
+{
+
+#ifdef FOR_TIME_TEST
+    time_t  now;//实例化time_t结构
+    struct tm *timenow;//实例化tm结构指针
+    
+    struct timeval tvafter,tvpre;
+    unsigned long long ulStartT = 0;
+    unsigned long long ulEndT = 0;
+    //struct timezone tz;
+#endif
+    NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+    NBB_BYTE ucMessageLen = 0;
+    
+    NBB_INT ret = SUCCESS;
+    NBB_INT i = 0;
+    NBB_INT pos = 0;
+
+    SPM_VC_CB *pstVcTbl     = NULL;
+    SPM_VC_CB *pstVcTblMain = NULL;
+    SPM_VC_CB *pstVcTblBack = NULL;
+    SPM_VPWS_CB *pstVpws    = NULL;
+    SPM_VPLS_CB *pstVpls    = NULL;
+    SPM_VC_MOD_INFO_CB stVcModInfo;
+    SPM_QOS_TUNNEL_KEY stQosTunKey;
+    
+    ATG_DCI_VC_BASIC_DATA *pstBasicData        = NULL;
+    ATG_DCI_VC_DIFF_SERV_DATA *pstDiffServData = NULL;
+    ATG_DCI_VC_UP_VPN_QOS_POLICY *pstUpVpnData = NULL;
+    ATG_DCI_VPWS_NNI_DATA stVpwsNni;
+    ATG_DCI_VPLS_NNI_DATA stVplsNni;
+    ATG_DCI_VC_UP_VPN_QOS_POLICY stUpVpnData;
+    LSPPROT_KEY st_lspprot_key;  //LSPPROT  key值
+    NBB_BYTE *pucBasicDataStart = NULL;
+    NBB_BYTE *pucDiffServStart  = NULL;
+    NBB_BYTE *pucUpVpnStart  = NULL;
+
+    NBB_ULONG ulOperBasic    = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperDiffServ = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperUpVpn = ATG_DCI_OPER_NULL;
+    
+    ATG_DCI_VC_KEY stVcKey;
+    ATG_DCI_VC_KEY stVcKeyMain;
+    ATG_DCI_VC_KEY stVcKeyBack;
+
+    NBB_BYTE ucIfExist = ATG_DCI_EXIST;
+
+    NBB_TRC_ENTRY("spm_rcv_dci_set_vc");
+
+    /* 输入参数指针必须有效 */
+    NBB_ASSERT(pstSetVc != NULL);
+
+	if (pstSetVc == NULL)
+	{
+        NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:spm_rcv_dci_set_vc(pstSetVc==NULL)"));
+
+        OS_PRINTF("***ERROR***:spm_rcv_dci_set_vc(pstSetVc==NULL)\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***:spm_rcv_dci_set_vc(pstSetVc==NULL)\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", 0, 
+                                                         0, 
+                                                         "", 
+                                                         FUNC_IN_PARAM_IS_NULL, 
+                                                         "FUNC_IN_PARAM_IS_NULL", 
+                                                         ucMessage));
+        
+        goto EXIT_LABEL;
+    }
+	
+    //首先将IPS消息的返回值设置为OK，如果有一个子配置失败，则置为FAIL
+    pstSetVc->return_code = ATG_DCI_RC_OK;
+
+    OS_MEMSET(&stVcKey, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVcKeyMain, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVcKeyBack, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVpwsNni, 0, sizeof(ATG_DCI_VPWS_NNI_DATA));
+    OS_MEMSET(&stVplsNni, 0, sizeof(ATG_DCI_VPLS_NNI_DATA));
+    OS_MEMSET(&stVcModInfo, 0, sizeof(SPM_VC_MOD_INFO_CB));
+    OS_MEMSET(&st_lspprot_key, 0, sizeof(LSPPROT_KEY));
+    OS_MEMSET(&stQosTunKey, 0, sizeof(SPM_QOS_TUNNEL_KEY));
+    OS_MEMSET(&stUpVpnData, 0, sizeof(ATG_DCI_VC_UP_VPN_QOS_POLICY));
+
+    stVcKey.vc_id      = pstSetVc->key.vc_id;
+    stVcKey.vc_type    = pstSetVc->key.vc_type;
+    stVcKey.peer_ip    = pstSetVc->key.peer_ip;
+
+    pstVcTbl = AVLL_FIND(SHARED.vc_tree, &stVcKey);
+    
+    if (pstVcTbl == NULL)       /* 如果条目不存在*/
+    {
+        ucIfExist = ATG_DCI_UNEXIST;
+    }    
+    
+    /* 获取子配置操作 */
+    ulOperBasic    = pstSetVc->oper_basic;
+    ulOperDiffServ = pstSetVc->oper_diff_serv;
+    ulOperUpVpn	   = pstSetVc->oper_up_vpn_qos;
+    
+    /* 删除整个条目 */
+    if (pstSetVc->delete_struct == TRUE)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  删除VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置", stVcKey.vc_id, 
+                                                                                       stVcKey.vc_type, 
+                                                                                       spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT)));
+        
+        /* 如果条目不存在，不删除 */
+        if (ucIfExist == ATG_DCI_UNEXIST)
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:要删除的配置并不存在"));
+
+            OS_PRINTF("***ERROR***:要删除的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置并不存在!\n", stVcKey.vc_id, 
+                                                                                                    stVcKey.vc_type, 
+                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+
+            OS_SPRINTF(ucMessage, "***ERROR***:要删除的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置并不存在!\n", stVcKey.vc_id, 
+                                                                                                    stVcKey.vc_type, 
+                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                             stVcKey.vc_type, 
+                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT), 
+                                                             DEL_UNEXIST_CONFIG_ERROR, 
+                                                             "DEL_UNEXIST_CONFIG_ERROR", 
+                                                             ucMessage));
+                                                             
+            pstSetVc->return_code = ATG_DCI_RC_OK;
+            
+            goto EXIT_LABEL;
+        }
+        /* 存在，删除 */
+        else
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "  查询到此配置，从tree中删除"));
+            spm_dbg_print_vc_head(&stVcKey, SPM_OPER_DEL);
+            spm_dbg_record_vc_head(&stVcKey, SPM_OPER_DEL);
+
+            //如果posid不等于0，删除QOS
+            if ((pstVcTbl != NULL) && (pstVcTbl->basic_cfg_cb != NULL) 
+                && (pstVcTbl->vc_info_cb.vp_idx != 0))
+            {
+                //先删除QOS配置
+                ret = spm_ds_add_vc_node(0, 
+                    &stVcKey, 
+                    pstVcTbl->vc_info_cb.vp_idx, 
+                    pstVcTbl->vc_info_cb.if_main
+                    NBB_CCXT);
+
+                if (pstVcTbl->up_vpn_cfg_cb != NULL)
+                {
+                    stQosTunKey.flag   			= 1;
+                    stQosTunKey.type   			= pstVcTbl->basic_cfg_cb->lsp_option;                	
+                    stQosTunKey.tx_lsp.egress   = pstVcTbl->basic_cfg_cb->egress;
+                    stQosTunKey.tx_lsp.ingress  = pstVcTbl->basic_cfg_cb->ingress;
+                    stQosTunKey.tx_lsp.tunnelid = pstVcTbl->basic_cfg_cb->tunnel_id;
+                    stQosTunKey.ftn.fec			= pstVcTbl->basic_cfg_cb->next_hop_ip;
+                    stQosTunKey.ftn.mask        = 32;
+                    stQosTunKey.ftn.vrfid       = 0;
+
+                    stUpVpnData.node_index		= pstVcTbl->up_vpn_cfg_cb->node_index;
+                    stUpVpnData.qos_policy_index = 0;
+                    stUpVpnData.flow_queue_qos_policy_index = 0;
+
+                    ret = spm_hqos_add_vc_node(pstVcTbl->vc_info_cb.slot_id, 
+                        pstVcTbl->vc_info_cb.port_id, 
+                        pstVcTbl->vc_info_cb.vp_idx, 
+                        pstVcTbl->vc_info_cb.if_main,
+                        &stQosTunKey,
+                        &stVcKey,
+                        &stUpVpnData
+                        NBB_CCXT);
+                }
+
+                st_lspprot_key.ingress  = pstVcTbl->basic_cfg_cb->ingress;
+                st_lspprot_key.egress   = pstVcTbl->basic_cfg_cb->egress;
+                st_lspprot_key.tunnelid = pstVcTbl->basic_cfg_cb->tunnel_id;                   
+
+                //调用dk的接口获取ftnIndex
+                if (ATG_DCI_FTN == pstVcTbl->basic_cfg_cb->lsp_option)
+                {
+                    spm_l3_delvpldp(stVcKey.peer_ip, 
+                    pstVcTbl->vc_info_cb.vp_idx, 
+                    pstVcTbl->vc_info_cb.next_hop_id
+                    NBB_CCXT);		            
+                }
+                else if (ATG_DCI_CR_LSP == pstVcTbl->basic_cfg_cb->lsp_option)
+                {
+                    spm_l3_delvprsvp(&st_lspprot_key, 
+                    pstVcTbl->vc_info_cb.vp_idx, 
+                    pstVcTbl->vc_info_cb.next_hop_id
+                    NBB_CCXT);	
+                }
+            }
+                                   
+			if (pstVcTbl != NULL)
+			{
+				//if (pstVcTbl->vc_info_cb.next_hop_id != 0)
+				//{
+					//spm_free_vc_nhi_id(pstVcTbl->vc_info_cb.next_hop_id NBB_CCXT);
+				//}
+				
+				OS_MEMSET(&pstVcTbl->vc_info_cb, 0, sizeof(SPM_VC_INFO_CB));
+				
+	            AVLL_DELETE(SHARED.vc_tree, pstVcTbl->spm_vc_node);  
+
+	            //释放VC表分配的内存空间
+	            spm_free_vc_cb(pstVcTbl NBB_CCXT);
+			}
+        }
+    }
+    /* 增加或更新条目 */
+    else
+    {
+                
+        /* 如果条目不存在，新申请内存空间保存数据 */
+        if (ucIfExist == ATG_DCI_UNEXIST)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  增加VC_ID=%ld VC_TYPE=%d PEER_IP=%s的 VC表配置", stVcKey.vc_id, stVcKey.vc_type, spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT)));
+            spm_dbg_print_vc_head(&stVcKey, SPM_OPER_ADD);
+            spm_dbg_record_vc_head(&stVcKey, SPM_OPER_ADD);
+            
+            /* 申请一个新条目的内存空间 */
+            pstVcTbl = spm_alloc_vc_cb(NBB_CXT);
+
+			if (pstVcTbl != NULL)
+			{
+	            //把条目插入到tree中
+	            OS_MEMCPY(&pstVcTbl->vc_key, &stVcKey, sizeof(ATG_DCI_VC_KEY));
+
+	            //coverity[no_effect_test]
+	            AVLL_INSERT(SHARED.vc_tree, pstVcTbl->spm_vc_node);
+			}
+        }
+        else
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  更新VC_ID=%ld VC_TYPE=%d PEER_IP=%s的 VC表配置", stVcKey.vc_id, stVcKey.vc_type, spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT)));
+            spm_dbg_print_vc_head(&stVcKey, SPM_OPER_UPD);
+            spm_dbg_record_vc_head(&stVcKey, SPM_OPER_UPD);
+        }
+
+		//增加此判断，取消PC-Lint告警
+        if (pstVcTbl == NULL)
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置未能成功申请内存!", stVcKey.vc_id, 
+                                                                                                    stVcKey.vc_type, 
+                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT)));
+
+            OS_PRINTF("***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置未能成功申请内存!\n", stVcKey.vc_id, 
+                                                                                                    stVcKey.vc_type, 
+                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+
+            OS_SPRINTF(ucMessage, "***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置未能成功申请内存!\n", stVcKey.vc_id, 
+                                                                                                    stVcKey.vc_type, 
+                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                             stVcKey.vc_type, 
+                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT), 
+                                                             ALLOC_MEMORY_ERROR, 
+                                                             "ALLOC_MEMORY_ERROR", 
+                                                             ucMessage));
+                                                             
+            pstSetVc->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+            
+            goto EXIT_LABEL;
+        }
+
+        /***************************************************************************/
+        /*                        获取配置，逐条处理                               */
+        /***************************************************************************/
+        /* 基本配置 */
+        if (ulOperBasic == ATG_DCI_OPER_ADD)
+        {
+
+            /* 计算第一个entry的地址。*/
+            pucBasicDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetVc, &pstSetVc->basic_data);    
+
+            /* 如果指针为NULL，无数据 */
+            if (pucBasicDataStart == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  VC basic_data is NULL."));  
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstBasicData = (ATG_DCI_VC_BASIC_DATA *)pucBasicDataStart;
+
+                if (vc_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  1）基本配置\n");
+                    spm_dbg_print_vc_basic_cfg(pstBasicData);
+                }
+
+                OS_SPRINTF(ucMessage,"  1）基本配置 |出PW:%ld  入PW:%ld\n",
+                    pstBasicData->pw_out_label,pstBasicData->pw_in_label);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                
+                //spm_dbg_record_vc_basic_cfg(pstBasicData);
+                
+                //打印配置
+                NBB_TRC_DETAIL((NBB_FORMAT "  接收TAG行为 = %s", pstBasicData->recv_action ? "TAGGED_VLAN" : "RAW_ETH"));
+                NBB_TRC_DETAIL((NBB_FORMAT "  发送TAG行为 = %d", pstBasicData->send_tag_action));
+                NBB_TRC_DETAIL((NBB_FORMAT "  发送增加/替换VLAN ID = %d", pstBasicData->send_vlan_id));
+                NBB_TRC_DETAIL((NBB_FORMAT "  发送增加/替换VLAN PRI = %d", pstBasicData->send_vlan_pri));             
+                NBB_TRC_DETAIL((NBB_FORMAT "  LSP选择 = %s", pstBasicData->lsp_option ? "CR-LSP" : "FTN"));
+                NBB_TRC_DETAIL((NBB_FORMAT "  下一跳IP地址 = %s", spm_set_ulong_to_ipv4(pstBasicData->next_hop_ip NBB_CCXT)));
+                NBB_TRC_DETAIL((NBB_FORMAT "  下一跳出端口Index = %ld", pstBasicData->next_hop_port_index));
+                NBB_TRC_DETAIL((NBB_FORMAT "  CR-LSP INGRESS = %s", spm_set_ulong_to_ipv4(pstBasicData->ingress NBB_CCXT)));
+                NBB_TRC_DETAIL((NBB_FORMAT "  CR-LSP EGRESS = %s", spm_set_ulong_to_ipv4(pstBasicData->egress NBB_CCXT)));
+                NBB_TRC_DETAIL((NBB_FORMAT "  CR-LSP TUNNEL_ID = %ld", pstBasicData->tunnel_id));
+                NBB_TRC_DETAIL((NBB_FORMAT "  出PW标签 = %ld", pstBasicData->pw_out_label));
+                NBB_TRC_DETAIL((NBB_FORMAT "  入PW标签 = %ld", pstBasicData->pw_in_label));
+                NBB_TRC_DETAIL((NBB_FORMAT "  告警检测方式 = %d", pstBasicData->alarm_detect_type));
+                NBB_TRC_DETAIL((NBB_FORMAT "  TagType = %x", pstBasicData->tag_type));
+                NBB_TRC_DETAIL((NBB_FORMAT "  控制字使能 = %s", pstBasicData->control_word_enable ? "使能" : "不使能"));
+                NBB_TRC_DETAIL((NBB_FORMAT "  MAC学习开关 = %s", pstBasicData->mac_learning_enable? "开" : "关"));
+                NBB_TRC_DETAIL((NBB_FORMAT "  水平分割开关 = %s", pstBasicData->split_horizon_enable? "开" : "关"));
+                //NBB_TRC_DETAIL((NBB_FORMAT "  VC_NO = %d", pstBasicData->vc_no));
+
+	            /* 保存数据 */
+	            if (pstVcTbl->basic_cfg_cb == NULL)
+	            {
+	                pstVcTbl->basic_cfg_cb = (ATG_DCI_VC_BASIC_DATA *)NBB_MM_ALLOC(sizeof(ATG_DCI_VC_BASIC_DATA),
+	                                                        NBB_NORETRY_ACT,
+	                                                        MEM_SPM_VC_BASIC_CB);
+	            }
+
+	            OS_MEMCPY(pstVcTbl->basic_cfg_cb, pstBasicData, sizeof(ATG_DCI_VC_BASIC_DATA));
+            } 
+        }
+        else if (ulOperBasic == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperBasic == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }
+
+        /******************************** Diff-Serv配置 *********************************/
+        if (ulOperDiffServ == ATG_DCI_OPER_ADD)
+        {            
+
+            /* 计算第一个entry的地址。*/
+            pucDiffServStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetVc, &pstSetVc->diff_serv_data);    
+
+            /* 如果指针为NULL，无数据 */
+            if (pucDiffServStart == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  pucDiffServStart is NULL."));
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstDiffServData = (ATG_DCI_VC_DIFF_SERV_DATA *)pucDiffServStart;
+
+                if (vc_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  2）Diff-Serv配置\n");
+                    spm_dbg_print_vc_diff_serv_cfg(pstDiffServData);
+                }
+
+                OS_SPRINTF(ucMessage,"  2）Diff-Serv配置\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                
+                //spm_dbg_record_vc_diff_serv_cfg(pstDiffServData);
+                
+                /* 配置处理 */
+                NBB_TRC_DETAIL((NBB_FORMAT "  Diff-Serv模板索引 = %d", pstDiffServData->diff_serv_id));
+
+                //如果VC存在，且已经属于VP中，更新Diff-Serv
+                if ((ucIfExist == ATG_DCI_EXIST) && (pstVcTbl->vc_info_cb.vp_idx != 0))
+                {
+                    ret = spm_ds_add_vc_node(pstDiffServData->diff_serv_id, 
+                                             &stVcKey, 
+                                             pstVcTbl->vc_info_cb.vp_idx, 
+                                             pstVcTbl->vc_info_cb.if_main
+                                             NBB_CCXT);
+
+                    if (ret == SUCCESS)
+                    {
+                        pstVcTbl->vc_info_cb.if_qos = ATG_DCI_USED;
+
+                        /* 保存数据 */
+                        if (pstVcTbl->diff_serv_cfg_cb == NULL)
+                        {
+                            pstVcTbl->diff_serv_cfg_cb = (ATG_DCI_VC_DIFF_SERV_DATA *)NBB_MM_ALLOC(sizeof(ATG_DCI_VC_DIFF_SERV_DATA),
+                                                                    NBB_NORETRY_ACT,
+                                                                    MEM_SPM_VC_DIFF_SERV_CB);
+                        }
+                        
+                        OS_MEMCPY(pstVcTbl->diff_serv_cfg_cb, pstDiffServData, sizeof(ATG_DCI_VC_DIFF_SERV_DATA));
+                    }
+                    else
+                    {
+                    	pstSetVc->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+			            OS_PRINTF("***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表的DS配置失败!", stVcKey.vc_id, 
+			                                                                                                    stVcKey.vc_type, 
+			                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+
+			            OS_SPRINTF(ucMessage, "***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表的DS配置失败!\n", stVcKey.vc_id, 
+			                                                                                                    stVcKey.vc_type, 
+			                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+			            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+			            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+			                                                             stVcKey.vc_type, 
+			                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT), 
+			                                                             CALL_FUNC_ERROR, 
+			                                                             "CALL_FUNC_ERROR", 
+			                                                             ucMessage));
+                    }
+                } 
+                else if((ucIfExist == ATG_DCI_EXIST) && (pstVcTbl->vc_info_cb.vp_idx == 0) 
+					&& (pstVcTbl->diff_serv_cfg_cb != NULL) && (pstDiffServData->diff_serv_id == 0))
+                {
+                    OS_MEMCPY(pstVcTbl->diff_serv_cfg_cb, pstDiffServData, sizeof(ATG_DCI_VC_DIFF_SERV_DATA));
+			 		pstSetVc->diff_serv_return_code = ATG_DCI_RC_OK;	
+                }
+		   		else
+                {
+                	pstSetVc->diff_serv_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+		            OS_PRINTF("***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表的DS配置失败 VPN业务不存在!", stVcKey.vc_id, 
+		                                                                                                    stVcKey.vc_type, 
+		                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+
+		            OS_SPRINTF(ucMessage, 
+                          "***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表的DS配置失败 VPN业务不存在!\n", 
+                          stVcKey.vc_id, 
+		                                                                                                    stVcKey.vc_type, 
+		                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+		            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+		            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+		                                                             stVcKey.vc_type, 
+		                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT), 
+		                                                             CALL_FUNC_ERROR, 
+		                                                             "CALL_FUNC_ERROR", 
+		                                                             ucMessage));
+                }
+            }            
+        }
+        else if (ulOperDiffServ == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperDiffServ == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }  
+
+        /******************************** 上话VPN QOS策略配置 *********************************/
+        if (ulOperUpVpn == ATG_DCI_OPER_ADD)
+        {            
+
+            /* 计算第一个entry的地址。*/
+            pucUpVpnStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetVc, &pstSetVc->up_vpn_qos_data);    
+
+            /* 如果指针为NULL，无数据 */
+            if (pucUpVpnStart == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  pucUpVpnStart is NULL."));
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstUpVpnData = (ATG_DCI_VC_UP_VPN_QOS_POLICY *)pucUpVpnStart;
+
+                if (vc_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    printf("  3）上话VPN QOS策略配置\n");
+                    spm_dbg_print_vc_up_vpn_qos_cfg(pstUpVpnData);
+                }
+
+                OS_SPRINTF(ucMessage,"  3）上话VPN QOS策略配置\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                
+                //spm_dbg_record_vc_up_vpn_qos_cfg(pstUpVpnData);
+                
+                /* 配置处理 */
+                NBB_TRC_DETAIL((NBB_FORMAT "  NodeIndex = %ld", pstUpVpnData->node_index));
+                NBB_TRC_DETAIL((NBB_FORMAT "  QOS策略模板索引 = %ld", pstUpVpnData->qos_policy_index));
+                NBB_TRC_DETAIL((NBB_FORMAT "  流队列QOS策略模板索引 = %ld", pstUpVpnData->flow_queue_qos_policy_index));
+
+                //如果VC存在，且已经属于VP中，更新Diff-Serv
+                if ((ucIfExist == ATG_DCI_EXIST) && (pstVcTbl->vc_info_cb.vp_idx != 0))
+                {
+                	stQosTunKey.flag   			= 1;
+                	stQosTunKey.type   			= pstVcTbl->basic_cfg_cb->lsp_option;                	
+                    stQosTunKey.tx_lsp.egress   = pstVcTbl->basic_cfg_cb->egress;
+                    stQosTunKey.tx_lsp.ingress  = pstVcTbl->basic_cfg_cb->ingress;
+                    stQosTunKey.tx_lsp.tunnelid = pstVcTbl->basic_cfg_cb->tunnel_id;
+                    stQosTunKey.ftn.fec			= pstVcTbl->basic_cfg_cb->next_hop_ip;
+                    stQosTunKey.ftn.mask        = 32;
+                    stQosTunKey.ftn.vrfid       = 0;
+                    
+                    ret = spm_hqos_add_vc_node(pstVcTbl->vc_info_cb.slot_id, 
+                                               pstVcTbl->vc_info_cb.port_id, 
+                                               pstVcTbl->vc_info_cb.vp_idx, 
+                                               pstVcTbl->vc_info_cb.if_main,
+                                               &stQosTunKey,
+                                               &stVcKey,
+                                               pstUpVpnData
+                                               NBB_CCXT);
+
+                    if (ret == SUCCESS)
+                    {
+                        pstVcTbl->vc_info_cb.if_qos = ATG_DCI_USED;
+
+                        /* 保存数据 */
+                        if (pstVcTbl->up_vpn_cfg_cb == NULL)
+                        {
+                            pstVcTbl->up_vpn_cfg_cb = (ATG_DCI_VC_UP_VPN_QOS_POLICY *)NBB_MM_ALLOC(sizeof(ATG_DCI_VC_UP_VPN_QOS_POLICY),
+                                                                    NBB_NORETRY_ACT,
+                                                                    MEM_SPM_VC_UP_VPN_CB);
+                        }
+                        
+                        OS_MEMCPY(pstVcTbl->up_vpn_cfg_cb, pstUpVpnData, sizeof(ATG_DCI_VC_UP_VPN_QOS_POLICY));
+                    }
+                    else
+                    {
+                    	pstSetVc->up_vpn_qos_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+			            OS_PRINTF("***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表的HQOS配置失败!", stVcKey.vc_id, 
+			                                                                                                    stVcKey.vc_type, 
+			                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+
+			            OS_SPRINTF(ucMessage, "***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表的HQOS配置失败!\n", stVcKey.vc_id, 
+			                                                                                                    stVcKey.vc_type, 
+			                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+			            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+			            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+			                                                             stVcKey.vc_type, 
+			                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT), 
+			                                                             CALL_FUNC_ERROR, 
+			                                                             "CALL_FUNC_ERROR", 
+			                                                             ucMessage));
+                    }
+                }
+                else if((ucIfExist == ATG_DCI_EXIST) && (pstVcTbl->vc_info_cb.vp_idx == 0)
+					&& (pstVcTbl->up_vpn_cfg_cb != NULL) && (pstUpVpnData->qos_policy_index == 0))
+                {
+                    OS_MEMCPY(pstVcTbl->up_vpn_cfg_cb, pstUpVpnData, sizeof(ATG_DCI_VC_UP_VPN_QOS_POLICY));
+			 		pstSetVc->up_vpn_qos_return_code = ATG_DCI_RC_OK;
+                }
+                else
+                {
+                	pstSetVc->up_vpn_qos_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+
+		            OS_PRINTF("***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表的HQOS配置失败 VPN业务不存在!", stVcKey.vc_id, 
+		                                                                                                    stVcKey.vc_type, 
+		                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+
+		            OS_SPRINTF(ucMessage, 
+                          "***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表的HQOS配置失败 VPN业务不存在!\n", 
+                          stVcKey.vc_id, 
+		                                                                                                    stVcKey.vc_type, 
+		                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT));
+		            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+		            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+		                                                             stVcKey.vc_type, 
+		                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT), 
+		                                                             CALL_FUNC_ERROR, 
+		                                                             "CALL_FUNC_ERROR", 
+		                                                             ucMessage));
+                }
+            }            
+        }
+        else if (ulOperUpVpn == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperUpVpn == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }  
+        
+        
+#ifdef FOR_TIME_TEST
+        if (stVcKey.vc_id == 1)
+        {
+            gettimeofday (&tvpre , NULL);
+            ulStartT = (tvpre.tv_sec)*1000+(tvpre.tv_usec)/1000;
+            printf("tvpre.tv_sec: %ld s\n",tvpre.tv_sec);
+            printf("tvpre.tv_usec:%ld us\n",tvpre.tv_usec);
+            printf("tvpre:        %ld ms\n",ulStartT);
+        }
+
+        if (stVcKey.vc_id == 30000)
+        {   
+            gettimeofday (&tvafter , NULL);
+            ulEndT = (tvafter.tv_sec)*1000+(tvafter.tv_usec)/1000;
+            printf("tvafter.tv_sec: %ld s\n",tvafter.tv_sec);
+            printf("tvafter.tv_usec:%ld us\n",tvafter.tv_usec);
+            printf("tvafter:        %ld ms\n",ulEndT);
+            
+            printf("消耗时间:%ld ms\n",(ulEndT-ulStartT));
+        }
+#endif    
+    }
+
+    //spm_snd_dci_ips((NBB_VOID*)pstSetVc, &(pstSetVc->ips_hdr) NBB_CCXT);
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+
+
+    return;
+
+}
+
+#if 	0
+/*****************************************************************************
+ 函 数 名  : spm_vpn_mod_vp_nni
+ 功能描述  : 修改一个VP(NNI)
+ 输入参数  : NBB_ULONG usVpnId     
+             SPM_VC_CB* pstVcMain  
+             SPM_VC_CB* pstVcBack  
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年10月30日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_vpn_mod_vp_nni(NBB_USHORT usVpnId, 
+                                   NBB_BYTE ucVpnType, 
+                                   ATG_DCI_VC_BASIC_DATA* pstVcBasicMain, 
+                                   ATG_DCI_VC_BASIC_DATA* pstVcBasicBack,
+                                   NBB_VOID* pstVpnNni,
+                                   SPM_VC_MOD_INFO_CB *pstVcModInfo
+                                   NBB_CCXT_T NBB_CXT)
+{
+	NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+
+    VPORT_T stNniVport;
+    NBB_INT i = 0;
+    //NBB_INT iFind = 0;
+    //NBB_INT iFrrVpnId = 0;
+    NBB_INT ret = SUCCESS;
+    NBB_BYTE ucC3Unit = 0;
+
+    //NBB_BYTE ucProtectFlag = 1;
+    FTN_KEY             stFtnKey;
+    CRTXLSP_KEY         stCrLspKey;     //最新的用这个接口
+    ATG_DCI_VC_KEY		stVcKey;
+    ATG_DCI_VC_KEY		stVcKeyBack;
+
+    NBB_ULONG           ulTunnelIndexMaster = 0;
+    NBB_ULONG           ulTunnelIndexSlave = 0;
+    NBB_ULONG           ulPortIndexMaster = 0;
+    NBB_ULONG           ulPortIndexSlave = 0;
+
+    NBB_BYTE             ucProtectFlag = 0;
+    NBB_BYTE             ucProtectType = 0;
+    NBB_USHORT           usFrrGroupId = 0;
+
+    ATG_DCI_VPWS_NNI_DATA *pstVpwsNni = NULL;
+    ATG_DCI_VPLS_NNI_DATA *pstVplsNni = NULL;
+
+    NBB_TRC_ENTRY("spm_vpn_mod_vp_nni");
+
+    //查检参数
+    if ((pstVpnNni == NULL) || (pstVcBasicMain == NULL))
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:spm_vpn_mod_vp_nni(pstVcBasicMain==NULL || pstVpnNni==NULL)"));
+
+        OS_PRINTF("***ERROR***:spm_vpn_mod_vp_nni(pstVcBasicMain==NULL || pstVpnNni==NULL)\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***:spm_vpn_mod_vp_nni(pstVcBasicMain==NULL || pstVpnNni==NULL)\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", 0, 
+                                                           0, 
+                                                           "0", 
+                                                           FUNC_IN_PARAM_IS_NULL, 
+                                                           "FUNC_IN_PARAM_IS_NULL", 
+                                                           ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+    OS_MEMSET(&stNniVport, 0, sizeof(VPORT_T));
+    OS_MEMSET(&stFtnKey, 0, sizeof(FTN_KEY));
+    OS_MEMSET(&stCrLspKey, 0, sizeof(CRTXLSP_KEY));
+    OS_MEMSET(&stVcKey, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVcKeyBack, 0, sizeof(ATG_DCI_VC_KEY));
+
+    if (ucVpnType == L2VPN_VPWS)
+    {
+        pstVpwsNni = (ATG_DCI_VPWS_NNI_DATA*)pstVpnNni;
+        
+        stNniVport.eVpType = VP_NNI;
+        stNniVport.vpIdx = pstVpwsNni->nni_no;
+
+        ucProtectFlag = pstVpwsNni->use_protect;
+        ucProtectType = pstVpwsNni->prot_type;
+
+        stVcKey.vc_id = pstVpwsNni->vc_id;
+        stVcKey.vc_type = pstVpwsNni->vc_type;
+        stVcKey.peer_ip = pstVpwsNni->peer_ip;
+
+        stVcKeyBack.vc_id = pstVpwsNni->vc_id_bak;
+        stVcKeyBack.vc_type = pstVpwsNni->vc_type_bak;
+        stVcKeyBack.peer_ip = pstVpwsNni->peer_ip_bak;
+    }
+    else if (ucVpnType == L2VPN_VPLS)
+    {
+        pstVplsNni = (ATG_DCI_VPLS_NNI_DATA*)pstVpnNni;
+        
+        stNniVport.eVpType = VP_NNI;
+        stNniVport.vpIdx = pstVplsNni->nni_no;
+
+        ucProtectFlag = pstVplsNni->use_protect;
+        ucProtectType = pstVplsNni->prot_type;
+
+        stVcKey.vc_id = pstVplsNni->vc_id;
+        stVcKey.vc_type = pstVplsNni->vc_type;
+        stVcKey.peer_ip = pstVplsNni->peer_ip;
+
+        stVcKeyBack.vc_id = pstVplsNni->vc_id_bak;
+        stVcKeyBack.vc_type = pstVplsNni->vc_type_bak;
+        stVcKeyBack.peer_ip = pstVplsNni->peer_ip_bak;
+    }
+    else
+    {
+        OS_PRINTF("***ERROR***: spm_vpn_mod_vp_nni() 参数ucVpnType既不是VPWS，也不是VPLS\n", ret);
+
+        OS_SPRINTF(ucMessage, "***ERROR***: spm_vpn_mod_vp_nni() 参数ucVpnType既不是VPWS，也不是VPLS\n", ret);
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                           stVcKey.vc_type, 
+                                                           spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT),
+                                                           VPN_NOT_VPWS_NOR_VPLS, 
+                                                           "VPN_NOT_VPWS_NOR_VPLS", 
+                                                           ucMessage));
+        ret = ERROR;
+        goto EXIT_LABEL;
+    }
+
+
+    //VLAN 接收TAG识别
+    if (pstVcBasicMain->recv_action == ATG_DCI_TAGGED_VLAN)
+    {
+        stNniVport.flags |= VPORT_PTAG_IDENTIFY_ON;
+    }
+
+    //VLAN 发送TAG行为 主用
+    switch (pstVcBasicMain->send_tag_action)
+	{
+		case ATG_DCI_ADD_VID_PRI:
+            stNniVport.tNextHop.eEgrPtagAction = EGR_ENCAP;
+			break;
+		case ATG_DCI_DEL_VID_PRI:
+            stNniVport.tNextHop.eEgrPtagAction = EGR_NO_ENCAP;
+			break;
+		//case ATG_DCI_REP_VID:
+            //stNniVport.tNextHop.eEgrPtagAction = EGR_CTAG_ACTION_REPLACE_VID;
+			//break;
+		//case ATG_DCI_REP_VID_PRI:
+            //stNniVport.tNextHop.eEgrPtagAction = EGR_CTAG_ACTION_REPLACE_VID_PRI;
+			//break;
+		//case ATG_DCI_ADD_AFTER_RECOGNIZE:
+            //stNniVport.tNextHop.eEgrPtagAction = EGR_CTAG_ACTION_CONDITION_ADD;
+			//break;
+		//case ATG_DCI_NOP:
+            //stNniVport.tNextHop.eEgrPtagAction = EGR_CTAG_ACTION_NO_ACTION;
+			//break;
+		default:
+			break;
+	}
+
+    stNniVport.tNextHop.egrPtagVlan   = pstVcBasicMain->send_vlan_id;
+    stNniVport.tNextHop.egrPtagPri    = pstVcBasicMain->send_vlan_pri;
+
+    if (pstVcBasicMain->tag_type == 0x8100)
+    {
+        stNniVport.tNextHop.eEgrPtagTpidType = TPID_0X8100;
+    }
+    else if (pstVcBasicMain->tag_type == 0x88a8)
+    {
+        stNniVport.tNextHop.eEgrPtagTpidType = TPID_0X88A8;
+    }
+
+    //主用配置
+    stNniVport.matchVcLabel = pstVcBasicMain->pw_in_label;
+    //stNniVport.globalVp     = pstVcBasicMain->vc_no;
+
+    stNniVport.tNextHop.flags |= L2_NEXT_HOP_ENCAP_TUNNEL;
+    //stNniVport.tNextHop.nhIdx = pstVcBasicMain->vc_no;
+
+    stNniVport.tNextHop.tPwLabel.label_un.tlabel.label = pstVcBasicMain->pw_out_label;
+    stNniVport.tNextHop.tPwLabel.label_un.tlabel.bottom = 1;
+    stNniVport.tNextHop.tPwLabel.label_un.tlabel.ttl = 255; //协议里面需要定义 todo
+
+    //调用dk的接口获取ftnIndex
+    if (pstVcBasicMain->lsp_option == ATG_DCI_FTN)
+    {
+        stFtnKey.fec = pstVcBasicMain->next_hop_ip;
+        stFtnKey.mask = 32;
+        stFtnKey.vrfid = 0;
+        
+        ret = spm_l3_ldpforoam(&stFtnKey, &ulPortIndexMaster, &ulTunnelIndexMaster NBB_CCXT);
+        
+        if (ret != SUCCESS)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_l3_ldpforoam() error! ret=%d", ret));
+
+            OS_PRINTF("***ERROR***: spm_l3_ldpforoam() ret=%d\n", ret);
+
+            OS_SPRINTF(ucMessage, "***ERROR***: spm_l3_ldpforoam() ret=%d\n", ret);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                           stVcKey.vc_type, 
+                                                           spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT),
+                                                           ret, 
+                                                           "CALL_FUNC_ERROR", 
+                                                           ucMessage));
+            goto EXIT_LABEL;
+        }
+    }
+    else if (pstVcBasicMain->lsp_option == ATG_DCI_CR_LSP)
+    {
+        stCrLspKey.ingress  = pstVcBasicMain->ingress;
+        stCrLspKey.egress   = pstVcBasicMain->egress;
+        stCrLspKey.tunnelid = pstVcBasicMain->tunnel_id;
+        stCrLspKey.lspid    = 0;
+
+        ret = spm_l3_rsvpforoam(&stCrLspKey, &ulPortIndexMaster, &ulTunnelIndexMaster NBB_CCXT);    //用新接口替代
+
+        if (ret != SUCCESS)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_l3_rsvpforoam() error! ret=%d", ret));
+
+            OS_PRINTF("***ERROR***: spm_l3_rsvpforoam() ret=%d\n", ret);
+
+            OS_SPRINTF(ucMessage, "***ERROR***: spm_l3_rsvpforoam() ret=%d\n", ret);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                           stVcKey.vc_type, 
+                                                           spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT),
+                                                           ret, 
+                                                           "CALL_FUNC_ERROR", 
+                                                           ucMessage));
+            goto EXIT_LABEL;
+        }
+    }
+    else
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 主用VC LSP选择 未配置"));
+
+        OS_PRINTF("***ERROR***: 主用VC LSP选择 未配置\n");
+                                                           
+        OS_SPRINTF(ucMessage, "***ERROR***: 主用VC LSP选择 未配置\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                           stVcKey.vc_type, 
+                                                           spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT),
+                                                           BASIC_CONFIG_NOT_EXIST, 
+                                                           "BASIC_CONFIG_NOT_EXIST", 
+                                                           ucMessage));
+        goto EXIT_LABEL;
+    }
+
+    pstVcModInfo->port_index_main = ulPortIndexMaster;
+    stNniVport.tNextHop.tunnelIdx = ulTunnelIndexMaster;
+    NBB_TRC_DETAIL((NBB_FORMAT "  ulFtnIndexMaster=%d ulPortIndexMaster=%d", ulTunnelIndexMaster, ulPortIndexMaster));
+
+    //VLAN 发送TAG行为 备用
+    if ((ucProtectFlag == 1) && (pstVcBasicBack != NULL))
+    {
+        switch (pstVcBasicBack->send_tag_action)
+    	{
+    		case ATG_DCI_ADD_VID_PRI:
+                stNniVport.tNextHop_p.eEgrPtagAction = EGR_ENCAP;
+    			break;
+    		case ATG_DCI_DEL_VID_PRI:
+                stNniVport.tNextHop_p.eEgrPtagAction = EGR_NO_ENCAP;
+    			break;
+    		//case ATG_DCI_REP_VID:
+                //stNniVport.tNextHop_p.eEgrPtagAction = EGR_CTAG_ACTION_REPLACE_VID;
+    			//break;
+    		//case ATG_DCI_REP_VID_PRI:
+                //stNniVport.tNextHop_p.eEgrPtagAction = EGR_CTAG_ACTION_REPLACE_VID_PRI;
+    			//break;
+    		//case ATG_DCI_ADD_AFTER_RECOGNIZE:
+                //stNniVport.tNextHop_p.eEgrPtagAction = EGR_CTAG_ACTION_CONDITION_ADD;
+    			//break;
+    		//case ATG_DCI_NOP:
+                //stNniVport.tNextHop_p.eEgrPtagAction = EGR_CTAG_ACTION_NO_ACTION;
+    			//break;
+    		default:
+    			break;
+    	}
+
+        stNniVport.tNextHop_p.egrPtagVlan = pstVcBasicBack->send_vlan_id;
+        stNniVport.tNextHop_p.egrPtagPri  = pstVcBasicBack->send_vlan_pri;
+        
+        if (pstVcBasicBack->tag_type == 0x8100)
+        {
+            stNniVport.tNextHop_p.eEgrPtagTpidType = TPID_0X8100;
+        }
+        else if (pstVcBasicBack->tag_type == 0x88a8)
+        {
+            stNniVport.tNextHop_p.eEgrPtagTpidType = TPID_0X88A8;
+        }
+
+	    //VLAN 接收TAG识别
+	    if (pstVcBasicBack->recv_action == ATG_DCI_TAGGED_VLAN)
+	    {
+	        stNniVport.flags |= VPORT_BACKUP_PTAG_IDENTIFY_ON;
+	    }
+
+        stNniVport.matchVcLabel_p = pstVcBasicBack->pw_in_label;
+
+        stNniVport.tNextHop_p.flags |= L2_NEXT_HOP_ENCAP_TUNNEL;
+        //stNniVport.tNextHop_p.nhIdx  = pstVcBasicBack->vc_no;
+
+        stNniVport.tNextHop_p.tPwLabel.label_un.tlabel.label = pstVcBasicBack->pw_out_label;
+        stNniVport.tNextHop_p.tPwLabel.label_un.tlabel.bottom = 1;
+        stNniVport.tNextHop_p.tPwLabel.label_un.tlabel.ttl = 255;   //协议里面需要定义 todo
+
+        //调用dk的接口获取ftn_index? todo
+        if (pstVcBasicBack->lsp_option == ATG_DCI_FTN)
+        {
+            stFtnKey.fec = pstVcBasicBack->next_hop_ip;
+            stFtnKey.mask = 32;
+            stFtnKey.vrfid = 0;
+            
+            ret = spm_l3_ldpforoam(&stFtnKey, &ulPortIndexSlave, &ulTunnelIndexSlave NBB_CCXT);
+            
+            if (ret != SUCCESS)
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_l3_ldpforoam() error! ret=%d", ret));
+
+                OS_PRINTF("***ERROR***: spm_l3_ldpforoam() ret=%d\n", ret);
+                                                           
+                OS_SPRINTF(ucMessage, "***ERROR***: spm_l3_ldpforoam() ret=%d\n", ret);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                
+                NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                           stVcKey.vc_type, 
+                                                           spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT),
+                                                           CALL_FUNC_ERROR, 
+                                                           "CALL_FUNC_ERROR", 
+                                                           ucMessage));                
+                goto EXIT_LABEL;
+            }
+        }
+        else if (pstVcBasicBack->lsp_option == ATG_DCI_CR_LSP)
+        {
+            //调用dk的接口获取ftn_index? todo
+            stCrLspKey.ingress  = pstVcBasicBack->ingress;
+            stCrLspKey.egress   = pstVcBasicBack->egress;
+            stCrLspKey.tunnelid = pstVcBasicBack->tunnel_id;
+            stCrLspKey.lspid    = 0;
+
+            ret = spm_l3_rsvpforoam(&stCrLspKey, &ulPortIndexSlave, &ulTunnelIndexSlave NBB_CCXT);    //用新接口替代
+
+            if (ret != SUCCESS)
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: spm_l3_rsvpforoam() error! ret=%d", ret));
+
+                OS_PRINTF("***ERROR***: spm_l3_rsvpforoam() ret=%d\n", ret);
+                                                           
+                OS_SPRINTF(ucMessage, "***ERROR***: spm_l3_rsvpforoam() ret=%d\n", ret);
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                           stVcKey.vc_type, 
+                                                           spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT),
+                                                           CALL_FUNC_ERROR, 
+                                                           "CALL_FUNC_ERROR", 
+                                                           ucMessage));
+                goto EXIT_LABEL;
+            }
+        }
+        else
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***: 备用VC LSP选择 未配置"));
+
+            OS_PRINTF("***ERROR***: 备用VC LSP选择 未配置\n");
+
+            OS_SPRINTF(ucMessage, "***ERROR***: 备用VC LSP选择 未配置\n");
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                           stVcKey.vc_type, 
+                                                           spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT),
+                                                           BASIC_CONFIG_NOT_EXIST, 
+                                                           "BASIC_CONFIG_NOT_EXIST", 
+                                                           ucMessage));
+            goto EXIT_LABEL;
+        }
+    
+        pstVcModInfo->port_index_back = ulPortIndexSlave;
+        stNniVport.tNextHop_p.tunnelIdx = ulTunnelIndexSlave;
+        NBB_TRC_DETAIL((NBB_FORMAT "  ulFtnIndexSlave=%d  ulPortIndexSlave=%d", ulTunnelIndexSlave, ulPortIndexSlave));
+
+        //如果配置PW冗余保护
+        if (ucProtectType == ATG_DCI_PW_PROT_1B1)
+        {
+            stNniVport.eProtType = VP_NHI_FRR;
+        }
+
+#ifdef SPU
+
+        ret = SUCCESS;
+        
+        for (ucC3Unit=0; ucC3Unit<SHARED.c3_num; ucC3Unit++)
+        {
+            ret += ApiC3CreateFrrGroup(ucC3Unit, &usFrrGroupId, 0, 0);
+        }
+        
+        if (ret == SUCCESS)
+        {
+            stNniVport.frrGroupId = usFrrGroupId;
+            NBB_TRC_DETAIL((NBB_FORMAT "usFrrGroupId=%d", stNniVport.frrGroupId));
+        }
+        else
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "***ERROR***: ApiC3CreateFrrGroup() error! ret=%d", ret));
+
+            OS_PRINTF("***ERROR***: ApiC3CreateFrrGroup() ret=%d\n", ret);
+
+            OS_SPRINTF(ucMessage, "***ERROR***: ApiC3CreateFrrGroup() ret=%d\n", ret);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                           stVcKey.vc_type, 
+                                                           spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT),
+                                                           ret, 
+                                                           "CALL_C3_FUNC_ERROR", 
+                                                           ucMessage));
+        }
+#endif
+        
+    }
+
+    //如果是VPLS业务，需要配置MCA学习和水平分割
+    if (ucVpnType == L2VPN_VPLS)
+    {
+        //MAC学习开关
+        if( pstVcBasicMain->mac_learning_enable == DISABLE )
+        {
+            stNniVport.flags |= VPORT_LEARN_DISABLE;
+        }
+
+        //水平分割开关
+        if( pstVcBasicMain->split_horizon_enable == ENABLE )
+        {
+            stNniVport.flags |= VPORT_NETWORK;
+        }
+    }
+
+    //控制字使能。配置了保护，使能控制字？todo
+    if (pstVcBasicMain->control_word_enable == ENABLE)
+    {
+        stNniVport.flags |= VPORT_CW_SN;
+        stNniVport.tNextHop.eCwMode = EGR_CW_SEQ;
+        stNniVport.tNextHop_p.eCwMode = EGR_CW_SEQ;
+    }
+
+
+    //设置包计数等标志
+    //stNniVport.flags            |= VPORT_COUNTER_ON;
+    //stNniVport.tNextHop.flags   |= L2_NEXT_HOP_COUNTER_ON;
+    //stNniVport.tNextHop_p.flags |= L2_NEXT_HOP_COUNTER_ON;
+
+
+#ifdef SPU
+
+    //如果是主用VC，那必须删除整个VP，再创建VP
+    if (pstVcModInfo->if_main == VC_MAIN)
+    {
+        ret = SUCCESS;
+        
+        for (ucC3Unit=0; ucC3Unit<SHARED.c3_num; ucC3Unit++)
+        {
+            //调用API函数进行配置，将VP加入到VPN中，驱动未提供修改接口，所以只能先删除再增加
+            //ret += ApiC3DelMplsPortFromVpn(ucC3Unit, ucVpnType, usVpnId, pstVcModInfo->vp_idx_main);
+            //NBB_TRC_DETAIL((NBB_FORMAT"  ApiC3DelMplsPortFromVpn[NNI]:  ret=%d", ret));
+
+            //ret += ApiC3AddMplsPortToVpn(ucC3Unit, ucVpnType, usVpnId, &stNniVport);
+            //NBB_TRC_DETAIL((NBB_FORMAT"  ApiC3AddMplsPortToVpn[NNI]:  ret=%d", ret));
+
+            ret += ApiC3ModVp(ucC3Unit, &stNniVport);
+            NBB_TRC_DETAIL((NBB_FORMAT"  ApiC3ModVp[NNI]:  ret=%d", ret));
+        }
+        
+        if (ret == SUCCESS)
+        {
+            //iFailoverGroupId = stNniVport.frrGroupId;        
+            pstVcModInfo->vp_idx_main = stNniVport.vpIdx;
+            pstVcModInfo->vp_idx_back = stNniVport.vpIdx;
+            pstVcModInfo->next_hop_counter_id_main = stNniVport.tNextHop.counterIdx;
+            pstVcModInfo->next_hop_counter_id_back = stNniVport.tNextHop_p.counterIdx;
+            pstVcModInfo->next_hop_id_main = stNniVport.tNextHop.nhIdx;
+            pstVcModInfo->next_hop_id_back = stNniVport.tNextHop_p.nhIdx;
+
+            if (pstVcBasicMain->lsp_option == ATG_DCI_FTN)
+            {
+        	    //调用dk接口，传vpid与tunnelid的对应关系
+        	    spm_l3_addvpldp(stVcKey.peer_ip, stNniVport.vpIdx, 
+        	        stNniVport.tNextHop.nhIdx, stNniVport.tNextHop.tunnelIdx NBB_CCXT);
+        	}
+        
+            if (pstVcBasicBack != NULL)
+            {
+                if (pstVcBasicBack->lsp_option == ATG_DCI_FTN)
+                {
+        		    //调用dk接口，传vpid与tunnelid的对应关系
+        		    spm_l3_addvpldp(stVcKeyBack.peer_ip, stNniVport.vpIdx, 
+        		        stNniVport.tNextHop_p.nhIdx, stNniVport.tNextHop_p.tunnelIdx NBB_CCXT);
+        		}
+            }
+        }
+        else
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT"  ***ERROR***:ApiC3ModVp[NNI]:  ret=%d", ret));
+
+            OS_PRINTF("***ERROR***:ApiC3ModVp[NNI]:  ret=%d\n", ret);
+
+            OS_SPRINTF(ucMessage, "***ERROR***:ApiC3ModVp[NNI]:  ret=%d\n", ret);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                           stVcKey.vc_type, 
+                                                           spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT),
+                                                           ret, 
+                                                           "CALL_C3_FUNC_ERROR", 
+                                                           ucMessage));
+            goto EXIT_LABEL;
+        }
+    }
+    //如果是备用VC，那可以调用单独删除备用VC的驱动接口，再调用增加备用的接口
+    else if (pstVcModInfo->if_main == VC_BACK)
+    {
+        //stNniVport.posId = pstVcModInfo->vp_pos_id_main;
+        stNniVport.frrGroupId = pstVcModInfo->frr_group_id;
+
+        ret = SUCCESS;
+        
+        for (ucC3Unit=0; ucC3Unit<SHARED.c3_num; ucC3Unit++)
+        {
+            //ret += ApiC3DelVpProt(ucC3Unit, pstVcModInfo->vp_idx_main);
+            //NBB_TRC_DETAIL((NBB_FORMAT"  ApiC3DelVpProt[NNI]:  ret=%d", ret));
+
+            //ret += ApiC3AddVpProt(ucC3Unit, &stNniVport);
+            //NBB_TRC_DETAIL((NBB_FORMAT"  ApiC3AddVpProt[NNI]:  ret=%d", ret));
+
+            ret += ApiC3ModVp(ucC3Unit, &stNniVport);
+            NBB_TRC_DETAIL((NBB_FORMAT"  ApiC3ModVp[NNI]:  ret=%d", ret));
+        }
+        
+        if (ret == SUCCESS)
+        {     
+            pstVcModInfo->vp_idx_main = stNniVport.vpIdx;
+            pstVcModInfo->vp_idx_back = stNniVport.vpIdx;
+            pstVcModInfo->next_hop_counter_id_main = stNniVport.tNextHop.counterIdx;
+            pstVcModInfo->next_hop_counter_id_back = stNniVport.tNextHop_p.counterIdx;
+            pstVcModInfo->next_hop_id_main = stNniVport.tNextHop.nhIdx;
+            pstVcModInfo->next_hop_id_back = stNniVport.tNextHop_p.nhIdx;
+
+            if (pstVcBasicMain->lsp_option == ATG_DCI_FTN)
+            {
+        	    //调用dk接口，传vpid与tunnelid的对应关系
+        	    spm_l3_addvpldp(stVcKey.peer_ip, stNniVport.vpIdx, 
+        	        stNniVport.tNextHop.nhIdx, stNniVport.tNextHop.tunnelIdx NBB_CCXT);
+        	}
+        
+            if (pstVcBasicBack != NULL)
+            {
+                if (pstVcBasicBack->lsp_option == ATG_DCI_FTN)
+                {
+        		    //调用dk接口，传vpid与tunnelid的对应关系
+        		    spm_l3_addvpldp(stVcKeyBack.peer_ip, stNniVport.vpIdx, 
+        		        stNniVport.tNextHop_p.nhIdx, stNniVport.tNextHop_p.tunnelIdx NBB_CCXT);
+        		}
+            }
+        }
+        else
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT"  ***ERROR***:ApiC3ModVp[NNI]:  ret=%d", ret));
+
+            OS_PRINTF("***ERROR***:ApiC3ModVp[NNI]:  ret=%d\n", ret);
+
+            OS_SPRINTF(ucMessage, "***ERROR***:ApiC3ModVp[NNI]:  ret=%d\n", ret);
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                           stVcKey.vc_type, 
+                                                           spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT),
+                                                           ret, 
+                                                           "CALL_C3_FUNC_ERROR", 
+                                                           ucMessage));
+            goto EXIT_LABEL;
+        }
+    }
+    else
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT"  ***ERROR***:要修改VC配置既不是主也不是备!"));
+
+        OS_PRINTF("***ERROR***:要修改VC配置既不是主也不是备!\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***:要修改VC配置既不是主也不是备!\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                           stVcKey.vc_type, 
+                                                           spm_set_ulong_to_ipv4(stVcKey.peer_ip NBB_CCXT),
+                                                           VC_NOT_MASTER_NOR_SLAVE, 
+                                                           "VC_NOT_MASTER_NOR_SLAVE", 
+                                                           ucMessage));
+        goto EXIT_LABEL;
+    }
+
+    
+#endif    
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+
+    return ret;
+    
+}
+#endif
+
+/*****************************************************************************
+ 函 数 名  : spm_vc_drvinfo_clear
+ 功能描述  : 清空VC配置的驱动返回值
+ 输入参数  : ATG_DCI_VC_KEY *pstVcKey  
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2013年4月19日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_vc_drvinfo_clear(ATG_DCI_VC_KEY *pstVcKey NBB_CCXT_T NBB_CXT)
+{
+    SPM_VC_CB *pstVc = NULL;
+    
+    if (pstVcKey == NULL)
+    {
+        OS_PRINTF("***ERROR***:pstVcKey==NULL\n");
+
+        return ERROR;
+    }
+
+    pstVc = AVLL_FIND(SHARED.vc_tree, pstVcKey);
+
+    if (pstVc != NULL)
+    {
+        OS_MEMSET(&pstVc->vc_info_cb, 0, sizeof(SPM_VC_INFO_CB));
+    }
+
+    return SUCCESS;
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_vc_drvinfo_nhi_clear
+ 功能描述  : 清空VC配置的驱动返回值，但不清空nhi
+ 输入参数  : ATG_DCI_VC_KEY *pstVcKey  
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2013年4月19日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_INT spm_vc_drvinfo_nhi_clear(ATG_DCI_VC_KEY *pstVcKey NBB_CCXT_T NBB_CXT)
+{
+    SPM_VC_CB *pstVc = NULL;
+    NBB_UINT iNhiId = 0;
+    
+    if (pstVcKey == NULL)
+    {
+        OS_PRINTF("***ERROR***:pstVcKey==NULL\n");
+
+        return ERROR;
+    }
+
+    pstVc = AVLL_FIND(SHARED.vc_tree, pstVcKey);
+
+    if (pstVc != NULL)
+    {
+    	iNhiId = pstVc->vc_info_cb.next_hop_id;
+    	
+        OS_MEMSET(&pstVc->vc_info_cb, 0, sizeof(SPM_VC_INFO_CB));
+
+        pstVc->vc_info_cb.next_hop_id = iNhiId;
+    }
+
+    return SUCCESS;
+}
+
+/*****************************************************************************
+ 函 数 名  : spm_init_vc_tree
+ 功能描述  : 初始化存储VC表配置的树
+ 输入参数  : 无
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年11月24日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_VOID spm_init_vc_tree(NBB_CXT_T NBB_CXT)
+{
+    NBB_BUF_SIZE avll_key_offset;
+
+    NBB_TRC_ENTRY("spm_init_vc_tree");
+    
+    avll_key_offset = NBB_OFFSETOF(SPM_VC_CB, vc_key);/*lint !e413 */
+
+    //NBB_TRC_DETAIL((NBB_FORMAT "Key offset set to %ld", avll_key_offset));
+
+    AVLL_INIT_TREE(SHARED.vc_tree, spm_vc_key_compare,
+                 (NBB_USHORT) avll_key_offset,
+                 (NBB_USHORT) NBB_OFFSETOF(SPM_VC_CB, spm_vc_node));
+
+    NBB_TRC_EXIT();    
+}
+
+
+/*****************************************************************************
+ 函 数 名  : spm_alloc_vc_cb
+ 功能描述  : 分配VC表结构体的内存空间
+ 输入参数  : NBB_CCXT_T NBB_CXT  
+ 输出参数  : 无
+ 返 回 值  : SPM_VC_CB
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年10月9日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+SPM_VC_CB * spm_alloc_vc_cb(NBB_CXT_T NBB_CXT)
+{
+    SPM_VC_CB *pstVcTbl = NULL;
+
+    NBB_TRC_ENTRY("spm_alloc_vc_cb");
+
+    /* 分配一个新的VC表配置条目。*/
+    pstVcTbl = (SPM_VC_CB *)NBB_MM_ALLOC(sizeof(SPM_VC_CB), NBB_NORETRY_ACT, MEM_SPM_VC_CB);
+    if (pstVcTbl == NULL)
+    {
+        goto EXIT_LABEL;
+    }
+
+    /* 初始化VC表配置条目 */
+    OS_MEMSET(pstVcTbl, 0, sizeof(SPM_VC_CB));
+    pstVcTbl->basic_cfg_cb = NULL;
+    pstVcTbl->diff_serv_cfg_cb = NULL;
+
+    /* 建立用于该VC表配置条目的句柄，作为异步消息交换的相关器。*/
+    pstVcTbl->spm_vc_handle = NBB_CREATE_HANDLE(pstVcTbl, HDL_SPM_VC_CB);
+
+    /* 成功分配一个新的接口物理配置条目。*/
+    NBB_TRC_DETAIL((NBB_FORMAT "SPM_VC_CB allocated at %p with handle %#lx",
+                   pstVcTbl, pstVcTbl->spm_vc_handle));   
+
+    /* Initialize the AVLL node. */
+    AVLL_INIT_NODE(pstVcTbl->spm_vc_node);    
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+    
+    return(pstVcTbl);
+}
+
+
+/*****************************************************************************
+ 函 数 名  : spm_free_vc_cb
+ 功能描述  : 释放VC表节点的内存空间
+ 输入参数  : SPM_VC_CB *pstVcTbl  
+             NBB_CCXT_T NBB_CXT   
+ 输出参数  : 无
+ 返 回 值  : 
+ 调用函数  : 
+ 被调函数  : 
+ 
+ 修改历史      :
+  1.日    期   : 2012年11月8日
+    作    者   : xiaoxiang
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+NBB_VOID spm_free_vc_cb(SPM_VC_CB *pstVcTbl NBB_CCXT_T NBB_CXT)
+{
+    /***************************************************************************/
+    /* Local Variables                                                         */
+    /***************************************************************************/  
+    NBB_INT i = 0;
+    
+    NBB_TRC_ENTRY("spm_free_vc_cb");
+    
+    /***************************************************************************/
+    /* 检查控制块的正确性。                                                    */
+    /***************************************************************************/  
+    NBB_ASSERT_MEMORY(pstVcTbl, sizeof(SPM_VC_CB), MEM_SPM_VC_CB); 
+
+    if (pstVcTbl == NULL)
+    {
+    	goto EXIT_LABEL;
+    }
+    
+    /***************************************************************************/
+    /* 删除单盘信息控制块。                                                    */
+    /***************************************************************************/
+    //NBB_TRC_FLOW((NBB_FORMAT "Free SPM_VC_CB at %p", pstVcTbl));  
+    NBB_TRC_FLOW((NBB_FORMAT "Free VC_ID %d  PEER_IP %s  VC_TYPE %d", pstVcTbl->vc_key.vc_id,
+                                                                      spm_set_ulong_to_ipv4(pstVcTbl->vc_key.peer_ip NBB_CCXT),
+                                                                      pstVcTbl->vc_key.vc_type));
+
+    /***************************************************************************/
+    /* 释放基本配置数据块。                                                */
+    /***************************************************************************/
+    if (pstVcTbl->basic_cfg_cb != NULL)
+    {
+        NBB_MM_FREE(pstVcTbl->basic_cfg_cb, MEM_SPM_VC_BASIC_CB);  
+        pstVcTbl->basic_cfg_cb = NULL;
+    }
+
+    /***************************************************************************/
+    /* 释放Diff-Serv配置数据块。                                                */
+    /***************************************************************************/
+    if (pstVcTbl->diff_serv_cfg_cb != NULL)
+    {
+        NBB_MM_FREE(pstVcTbl->diff_serv_cfg_cb, MEM_SPM_VC_DIFF_SERV_CB);  
+        pstVcTbl->diff_serv_cfg_cb = NULL;
+    }
+
+    /***************************************************************************/
+    /* 释放上话VPN QOS策略配置数据块。                                         */
+    /***************************************************************************/
+    if (pstVcTbl->up_vpn_cfg_cb != NULL)
+    {
+        NBB_MM_FREE(pstVcTbl->up_vpn_cfg_cb, MEM_SPM_VC_UP_VPN_CB);  
+        pstVcTbl->up_vpn_cfg_cb = NULL;
+    }
+
+    /***************************************************************************/
+    /* 删除控制块的句柄。                                                      */
+    /***************************************************************************/
+    NBB_DESTROY_HANDLE(pstVcTbl->spm_vc_handle, HDL_SPM_VC_CB);
+
+    /***************************************************************************/
+    /* 现在释放单盘信息控制块。                                                */
+    /***************************************************************************/
+    NBB_MM_FREE(pstVcTbl, MEM_SPM_VC_CB);  
+    pstVcTbl = NULL;
+
+    EXIT_LABEL: NBB_TRC_EXIT();
+
+    return;
+}
+
+/*****************************************************************************
+   函 数 名  : spm_free_all_vc_cb
+   功能描述  : 释放vc配置所有的内存空间
+   输入参数  : 无
+   输出参数  : 无
+   返 回 值  :
+   调用函数  :
+   被调函数  :
+
+   修改历史      :
+   1.日    期   : 2013年11月6日
+    作    者   : zhangzhm
+    修改内容   : 新生成函数
+
+*****************************************************************************/
+
+NBB_VOID spm_free_all_vc_cb(NBB_CXT_T NBB_CXT)
+{
+	SPM_VC_CB *pstVcTbl = NULL;
+	
+    for (pstVcTbl = (SPM_VC_CB*) AVLL_FIRST(SHARED.vc_tree);
+         pstVcTbl != NULL;
+         pstVcTbl = (SPM_VC_CB*) AVLL_FIRST(SHARED.vc_tree))
+    {
+    	
+		AVLL_DELETE(SHARED.vc_tree, pstVcTbl->spm_vc_node);     	
+    	spm_free_vc_cb(pstVcTbl NBB_CCXT);
+    }
+}
+
+
+#endif
+
+
+
+#if 0
+NBB_VOID spm_rcv_dci_set_vc(ATG_DCI_SET_VC *pstSetVc)
+{
+
+#ifdef FOR_TIME_TEST
+    time_t  now;//实例化time_t结构
+    struct tm *timenow;//实例化tm结构指针
+    
+    struct timeval tvafter,tvpre;
+    unsigned long long ulStartT = 0;
+    unsigned long long ulEndT = 0;
+    //struct timezone tz;
+#endif
+    NBB_CHAR ucMessage[SPM_MSG_INFO_LEN];
+    NBB_BYTE ucMessageLen = 0;
+    
+    NBB_INT ret = SUCCESS;
+    NBB_INT i = 0;
+    NBB_INT pos = 0;
+
+    SPM_VC_CB *pstVcTbl     = NULL;
+    SPM_VC_CB *pstVcTblMain = NULL;
+    SPM_VC_CB *pstVcTblBack = NULL;
+    SPM_VPWS_CB *pstVpws    = NULL;
+    SPM_VPLS_CB *pstVpls    = NULL;
+    SPM_VC_MOD_INFO_CB stVcModInfo;
+    CRTXLSP_KEY stCrTxLsp;
+    
+    ATG_DCI_VC_BASIC_DATA *pstBasicData        = NULL;
+    ATG_DCI_VC_DIFF_SERV_DATA *pstDiffServData = NULL;
+    ATG_DCI_VC_UP_VPN_QOS_POLICY *pstUpVpnData = NULL;
+    ATG_DCI_VPWS_NNI_DATA stVpwsNni;
+    ATG_DCI_VPLS_NNI_DATA stVplsNni;
+    
+    NBB_BYTE *pucBasicDataStart = NULL;
+    NBB_BYTE *pucDiffServStart  = NULL;
+    NBB_BYTE *pucUpVpnStart  = NULL;
+
+    NBB_ULONG ulOperBasic    = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperDiffServ = ATG_DCI_OPER_NULL;
+    NBB_ULONG ulOperUpVpn = ATG_DCI_OPER_NULL;
+    
+    ATG_DCI_VC_KEY stVcKey;
+    ATG_DCI_VC_KEY stVcKeyMain;
+    ATG_DCI_VC_KEY stVcKeyBack;
+
+    NBB_BYTE ucIfExist = ATG_DCI_EXIST;
+
+    NBB_TRC_ENTRY("spm_rcv_dci_set_vc");
+
+    /* 输入参数指针必须有效 */
+    NBB_ASSERT(pstSetVc != NULL);
+
+	if (pstSetVc == NULL)
+	{
+        NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:spm_rcv_dci_set_vc(pstSetVc==NULL)"));
+
+        OS_PRINTF("***ERROR***:spm_rcv_dci_set_vc(pstSetVc==NULL)\n");
+
+        OS_SPRINTF(ucMessage, "***ERROR***:spm_rcv_dci_set_vc(pstSetVc==NULL)\n");
+        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+        NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", 0, 
+                                                         0, 
+                                                         "", 
+                                                         FUNC_IN_PARAM_IS_NULL, 
+                                                         "FUNC_IN_PARAM_IS_NULL", 
+                                                         ucMessage));
+        
+        goto EXIT_LABEL;
+    }
+	
+    //首先将IPS消息的返回值设置为OK，如果有一个子配置失败，则置为FAIL
+    pstSetVc->return_code = ATG_DCI_RC_OK;
+
+    OS_MEMSET(&stVcKey, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVcKeyMain, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVcKeyBack, 0, sizeof(ATG_DCI_VC_KEY));
+    OS_MEMSET(&stVpwsNni, 0, sizeof(ATG_DCI_VPWS_NNI_DATA));
+    OS_MEMSET(&stVplsNni, 0, sizeof(ATG_DCI_VPLS_NNI_DATA));
+    OS_MEMSET(&stVcModInfo, 0, sizeof(SPM_VC_MOD_INFO_CB));
+    OS_MEMSET(&stCrTxLsp, 0, sizeof(CRTXLSP_KEY));
+
+    stVcKey.vc_id      = pstSetVc->key.vc_id;
+    stVcKey.vc_type    = pstSetVc->key.vc_type;
+    stVcKey.peer_ip    = pstSetVc->key.peer_ip;
+
+    pstVcTbl = AVLL_FIND(SHARED.vc_tree, &stVcKey);
+    
+    if (pstVcTbl == NULL)       /* 如果条目不存在*/
+    {
+        ucIfExist = ATG_DCI_UNEXIST;
+    }    
+    
+    /* 获取子配置操作 */
+    ulOperBasic    = pstSetVc->oper_basic;
+    ulOperDiffServ = pstSetVc->oper_diff_serv;
+    ulOperUpVpn	   = pstSetVc->oper_up_vpn_qos;
+    
+    /* 删除整个条目 */
+    if (pstSetVc->delete_struct == TRUE)
+    {
+        NBB_TRC_DETAIL((NBB_FORMAT "  删除VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置", stVcKey.vc_id, 
+                                                                                       stVcKey.vc_type, 
+                                                                                       spm_set_ulong_to_ipv4(stVcKey.peer_ip)));
+        
+        /* 如果条目不存在，不删除 */
+        if (ucIfExist == ATG_DCI_UNEXIST)
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:要删除的配置并不存在"));
+
+            OS_PRINTF("***ERROR***:要删除的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置并不存在!\n", stVcKey.vc_id, 
+                                                                                                    stVcKey.vc_type, 
+                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip));
+
+            OS_SPRINTF(ucMessage, "***ERROR***:要删除的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置并不存在!\n", stVcKey.vc_id, 
+                                                                                                    stVcKey.vc_type, 
+                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip));
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                             stVcKey.vc_type, 
+                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip), 
+                                                             DEL_UNEXIST_CONFIG_ERROR, 
+                                                             "DEL_UNEXIST_CONFIG_ERROR", 
+                                                             ucMessage));
+                                                             
+            pstSetVc->return_code = ATG_DCI_RC_OK;
+            
+            goto EXIT_LABEL;
+        }
+        /* 存在，删除 */
+        else
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "  查询到此配置，从tree中删除"));
+            spm_dbg_print_vc_head(&stVcKey, SPM_OPER_DEL);
+            spm_dbg_record_vc_head(&stVcKey, SPM_OPER_DEL);
+
+			if (pstVcTbl != NULL)
+			{
+	            AVLL_DELETE(SHARED.vc_tree, pstVcTbl->spm_vc_node);  
+
+	            //释放VC表分配的内存空间
+	            spm_free_vc_cb(pstVcTbl);
+			}
+        }
+    }
+    /* 增加或更新条目 */
+    else
+    {
+                
+        /* 如果条目不存在，新申请内存空间保存数据 */
+        if (ucIfExist == ATG_DCI_UNEXIST)
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  增加VC_ID=%ld VC_TYPE=%d PEER_IP=%s的 VC表配置", stVcKey.vc_id, stVcKey.vc_type, spm_set_ulong_to_ipv4(stVcKey.peer_ip)));
+            spm_dbg_print_vc_head(&stVcKey, SPM_OPER_ADD);
+            spm_dbg_record_vc_head(&stVcKey, SPM_OPER_ADD);
+            
+            /* 申请一个新条目的内存空间 */
+            pstVcTbl = spm_alloc_vc_cb();
+
+			if (pstVcTbl != NULL)
+			{
+	            //把条目插入到tree中
+	            OS_MEMCPY(&pstVcTbl->vc_key, &stVcKey, sizeof(ATG_DCI_VC_KEY));
+	            AVLL_INSERT(SHARED.vc_tree, pstVcTbl->spm_vc_node);
+			}
+        }
+        else
+        {
+            NBB_TRC_DETAIL((NBB_FORMAT "  更新VC_ID=%ld VC_TYPE=%d PEER_IP=%s的 VC表配置", stVcKey.vc_id, stVcKey.vc_type, spm_set_ulong_to_ipv4(stVcKey.peer_ip)));
+            spm_dbg_print_vc_head(&stVcKey, SPM_OPER_UPD);
+            spm_dbg_record_vc_head(&stVcKey, SPM_OPER_UPD);
+        }
+
+		//增加此判断，取消PC-Lint告警
+        if (pstVcTbl == NULL)
+        {
+            NBB_TRC_FLOW((NBB_FORMAT "  ***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置未能成功申请内存!", stVcKey.vc_id, 
+                                                                                                    stVcKey.vc_type, 
+                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip)));
+
+            OS_PRINTF("***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置未能成功申请内存!\n", stVcKey.vc_id, 
+                                                                                                    stVcKey.vc_type, 
+                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip));
+
+            OS_SPRINTF(ucMessage, "***ERROR***:要增加的VC_ID=%ld VC_TYPE=%d PEER_IP=%s 的VC表配置未能成功申请内存!\n", stVcKey.vc_id, 
+                                                                                                    stVcKey.vc_type, 
+                                                                                                    spm_set_ulong_to_ipv4(stVcKey.peer_ip));
+            BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+            NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                             stVcKey.vc_type, 
+                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip), 
+                                                             ALLOC_MEMORY_ERROR, 
+                                                             "ALLOC_MEMORY_ERROR", 
+                                                             ucMessage));
+                                                             
+            pstSetVc->return_code = ATG_DCI_RC_UNSUCCESSFUL;
+            
+            goto EXIT_LABEL;
+        }
+
+        /***************************************************************************/
+        /*                        获取配置，逐条处理                               */
+        /***************************************************************************/
+        /* 基本配置 */
+        if (ulOperBasic == ATG_DCI_OPER_ADD)
+        {
+
+            /* 计算第一个entry的地址。*/
+            pucBasicDataStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetVc, &pstSetVc->basic_data);    
+
+            /* 如果指针为NULL，无数据 */
+            if (pucBasicDataStart == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  VC basic_data is NULL."));  
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstBasicData = (ATG_DCI_VC_BASIC_DATA *)pucBasicDataStart;
+
+                if (vc_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    OS_PRINTF("  1）基本配置\n");
+                    spm_dbg_print_vc_basic_cfg(pstBasicData);
+                }
+
+                OS_SPRINTF(ucMessage,"  1）基本配置\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                spm_dbg_record_vc_basic_cfg(pstBasicData);
+                
+                //打印配置
+                NBB_TRC_DETAIL((NBB_FORMAT "  接收TAG行为 = %s", pstBasicData->recv_action ? "TAGGED_VLAN" : "RAW_ETH"));
+                NBB_TRC_DETAIL((NBB_FORMAT "  发送TAG行为 = %d", pstBasicData->send_tag_action));
+                NBB_TRC_DETAIL((NBB_FORMAT "  发送增加/替换VLAN ID = %d", pstBasicData->send_vlan_id));
+                NBB_TRC_DETAIL((NBB_FORMAT "  发送增加/替换VLAN PRI = %d", pstBasicData->send_vlan_pri));             
+                NBB_TRC_DETAIL((NBB_FORMAT "  LSP选择 = %s", pstBasicData->lsp_option ? "CR-LSP" : "FTN"));
+                NBB_TRC_DETAIL((NBB_FORMAT "  下一跳IP地址 = %s", spm_set_ulong_to_ipv4(pstBasicData->next_hop_ip)));
+                NBB_TRC_DETAIL((NBB_FORMAT "  下一跳出端口Index = %ld", pstBasicData->next_hop_port_index));
+                NBB_TRC_DETAIL((NBB_FORMAT "  CR-LSP INGRESS = %s", spm_set_ulong_to_ipv4(pstBasicData->ingress)));
+                NBB_TRC_DETAIL((NBB_FORMAT "  CR-LSP EGRESS = %s", spm_set_ulong_to_ipv4(pstBasicData->egress)));
+                NBB_TRC_DETAIL((NBB_FORMAT "  CR-LSP TUNNEL_ID = %ld", pstBasicData->tunnel_id));
+                NBB_TRC_DETAIL((NBB_FORMAT "  出PW标签 = %ld", pstBasicData->pw_out_label));
+                NBB_TRC_DETAIL((NBB_FORMAT "  入PW标签 = %ld", pstBasicData->pw_in_label));
+                NBB_TRC_DETAIL((NBB_FORMAT "  告警检测方式 = %d", pstBasicData->alarm_detect_type));
+                NBB_TRC_DETAIL((NBB_FORMAT "  TagType = %x", pstBasicData->tag_type));
+                NBB_TRC_DETAIL((NBB_FORMAT "  控制字使能 = %s", pstBasicData->control_word_enable ? "使能" : "不使能"));
+                NBB_TRC_DETAIL((NBB_FORMAT "  MAC学习开关 = %s", pstBasicData->mac_learning_enable? "开" : "关"));
+                NBB_TRC_DETAIL((NBB_FORMAT "  水平分割开关 = %s", pstBasicData->split_horizon_enable? "开" : "关"));
+                NBB_TRC_DETAIL((NBB_FORMAT "  VC_NO = %d", pstBasicData->vc_no));
+                
+            } 
+
+            /* 配置处理，VC存在，且VC已经加入到了VP，就做更新VP动作*/
+            if ((ucIfExist == ATG_DCI_EXIST) && (pstVcTbl->vc_info_cb.vp_idx != 0))
+            {
+                //VPWS
+                if (pstVcTbl->vc_info_cb.vpn_type == L2VPN_VPWS)
+                {
+                    pstVpws = AVLL_FIND(SHARED.vpws_tree, &pstVcTbl->vc_info_cb.vpn_id);
+                    
+                    if (pstVpws == NULL)
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>VC配置存在，但VPWS=%d配置不存在，无法修改VP", stVcKey.vc_id, 
+                                                                                                                                                 stVcKey.vc_type, 
+                                                                                                                                                 spm_set_ulong_to_ipv4(stVcKey.peer_ip), 
+                                                                                                                                                 pstVcTbl->vc_info_cb.vpn_id));
+
+                        OS_PRINTF("***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>VC配置存在，但VPWS=%d配置不存在，无法修改VP", stVcKey.vc_id, 
+                                                                                                                             stVcKey.vc_type, 
+                                                                                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip), 
+                                                                                                                             pstVcTbl->vc_info_cb.vpn_id);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>VC配置存在，但VPWS=%d配置不存在，无法修改VP", stVcKey.vc_id, 
+                                                                                                                             stVcKey.vc_type, 
+                                                                                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip), 
+                                                                                                                             pstVcTbl->vc_info_cb.vpn_id);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                             stVcKey.vc_type, 
+                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip), 
+                                                             BASIC_CONFIG_NOT_EXIST, 
+                                                             "BASIC_CONFIG_NOT_EXIST", 
+                                                             ucMessage));
+                                                             
+                        pstSetVc->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        
+                        goto EXIT_LABEL;
+                    }                    
+                    
+                    //如果是主用VC，就找到VPWS中的备用VC的配置；
+                    if (pstVcTbl->vc_info_cb.if_main == VC_MAIN)
+                    {
+                        //会有2个NNI，需要找到VC属于的那个NNI
+                        for (i=0; i<ATG_DCI_VPWS_NNI_NUM; i++)
+                        {
+                            if ((pstVpws->nni_cfg_cb[i] != NULL) 
+                              &&(pstVpws->nni_cfg_cb[i]->vc_id   == pstVcTbl->vc_key.vc_id)
+                              &&(pstVpws->nni_cfg_cb[i]->vc_type == pstVcTbl->vc_key.vc_type)
+                              &&(pstVpws->nni_cfg_cb[i]->peer_ip == pstVcTbl->vc_key.peer_ip))
+                            {
+                                pos = i;
+                                break;
+                            }
+                        }
+
+                        OS_MEMCPY(&stVpwsNni, pstVpws->nni_cfg_cb[pos], sizeof(ATG_DCI_VPWS_NNI_DATA));
+
+                        stVpwsNni.vc_id = stVcKey.vc_id;
+                        stVpwsNni.vc_type = stVcKey.vc_type;
+                        stVpwsNni.peer_ip = stVcKey.peer_ip;
+                        stVcModInfo.vp_idx_main = pstVcTbl->vc_info_cb.vp_idx;
+                        stVcModInfo.frr_group_id = pstVcTbl->vc_info_cb.frr_group_id;
+                        stVcModInfo.if_main = VC_MAIN;
+                        
+                        //如果配了保护
+                        if (pstVpws->nni_cfg_cb[pos]->use_protect == 1)
+                        {
+                            stVcKeyBack.vc_id = pstVpws->nni_cfg_cb[pos]->vc_id_bak;
+                            stVcKeyBack.vc_type = pstVpws->nni_cfg_cb[pos]->vc_type_bak;
+                            stVcKeyBack.peer_ip = pstVpws->nni_cfg_cb[pos]->peer_ip_bak;
+
+                            pstVcTblBack = AVLL_FIND(SHARED.vc_tree, &stVcKeyBack);
+                        }
+
+                        //如果备用VC存在
+                        if (pstVcTblBack != NULL)
+                        {
+                            ret = spm_vpn_mod_vp_nni(pstVcTbl->vc_info_cb.vpn_id, 
+                                                     pstVcTbl->vc_info_cb.vpn_type, 
+                                                     pstBasicData, 
+                                                     pstVcTblBack->basic_cfg_cb,
+                                                     &stVpwsNni,
+                                                     &stVcModInfo);
+                        }
+                        else
+                        {
+                            ret = spm_vpn_mod_vp_nni(pstVcTbl->vc_info_cb.vpn_id, 
+                                                     pstVcTbl->vc_info_cb.vpn_type, 
+                                                     pstBasicData, 
+                                                     NULL,
+                                                     &stVpwsNni,
+                                                     &stVcModInfo);
+                        }
+
+                        if (ret == SUCCESS)
+                        {
+                            pstVcTbl->vc_info_cb.next_hop_id = stVcModInfo.next_hop_id_main;
+							pstVcTbl->vc_info_cb.next_hop_counter_id = stVcModInfo.next_hop_counter_id_main;
+                        }
+                        else
+                        {
+                            pstSetVc->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        }
+                    }                    
+                    else if (pstVcTbl->vc_info_cb.if_main == VC_BACK)  //如果是备用VC就找到VPWS中的主用VC
+                    {
+                        //会有2个NNI，需要找到VC属于的那个NNI
+                        for (i=0; i<ATG_DCI_VPWS_NNI_NUM; i++)
+                        {
+                            if ((pstVpws->nni_cfg_cb[i] != NULL) 
+                              &&(pstVpws->nni_cfg_cb[i]->vc_id_bak   == pstVcTbl->vc_key.vc_id)
+                              &&(pstVpws->nni_cfg_cb[i]->vc_type_bak == pstVcTbl->vc_key.vc_type)
+                              &&(pstVpws->nni_cfg_cb[i]->peer_ip_bak == pstVcTbl->vc_key.peer_ip))
+                            {
+                                pos = i;
+                                break;
+                            }
+                        }
+
+                        OS_MEMCPY(&stVpwsNni, pstVpws->nni_cfg_cb[pos], sizeof(ATG_DCI_VPWS_NNI_DATA));
+
+                        stVpwsNni.vc_id_bak = stVcKey.vc_id;
+                        stVpwsNni.vc_type_bak = stVcKey.vc_type;
+                        stVpwsNni.peer_ip_bak = stVcKey.peer_ip;
+                        stVcModInfo.vp_idx_main = pstVcTbl->vc_info_cb.vp_idx;
+                        stVcModInfo.vp_idx_back = pstVcTbl->vc_info_cb.vp_idx;
+                        stVcModInfo.frr_group_id = pstVcTbl->vc_info_cb.frr_group_id;
+                        stVcModInfo.if_main = VC_BACK;
+                        
+                        stVcKeyMain.vc_id = pstVpws->nni_cfg_cb[pos]->vc_id;
+                        stVcKeyMain.vc_type = pstVpws->nni_cfg_cb[pos]->vc_type;
+                        stVcKeyMain.peer_ip = pstVpws->nni_cfg_cb[pos]->peer_ip;
+                        
+                        pstVcTblMain = AVLL_FIND(SHARED.vc_tree, &stVcKeyMain);
+
+                        ret = spm_vpn_mod_vp_nni(pstVcTbl->vc_info_cb.vpn_id, 
+                                                 pstVcTbl->vc_info_cb.vpn_type, 
+                                                 pstVcTblMain->basic_cfg_cb, 
+                                                 pstBasicData,
+                                                 &stVpwsNni,
+                                                 &stVcModInfo);
+
+                        if (ret == SUCCESS)
+                        {
+                            pstVcTbl->vc_info_cb.next_hop_id = stVcModInfo.next_hop_id_back;
+							pstVcTbl->vc_info_cb.next_hop_counter_id = stVcModInfo.next_hop_counter_id_back;
+                        }
+                        else
+                        {
+                            pstSetVc->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        }
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>要修改VC配置既不是主也不是备",stVcKey.vc_id, 
+                                                                                                                             stVcKey.vc_type, 
+                                                                                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip)));
+
+                        OS_PRINTF("***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>要修改VC配置既不是主也不是备!\n",stVcKey.vc_id, 
+                                                                                                                 stVcKey.vc_type, 
+                                                                                                                 spm_set_ulong_to_ipv4(stVcKey.peer_ip));
+
+                        OS_SPRINTF(ucMessage, "***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>要修改VC配置既不是主也不是备!\n",stVcKey.vc_id, 
+                                                                                                                 stVcKey.vc_type, 
+                                                                                                                 spm_set_ulong_to_ipv4(stVcKey.peer_ip));
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                             stVcKey.vc_type, 
+                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip), 
+                                                             VC_PD_NOT_MASTER_NOR_SLAVE, 
+                                                             "VC_PD_NOT_MASTER_NOR_SLAVE", 
+                                                             ucMessage));
+                                                             
+                        pstSetVc->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        
+                        goto EXIT_LABEL;
+                    }
+                }
+                //VPLS
+                else if (pstVcTbl->vc_info_cb.vpn_type == L2VPN_VPLS)
+                {
+                    pstVpls = AVLL_FIND(SHARED.vpls_tree, &pstVcTbl->vc_info_cb.vpn_id);
+
+                    if (pstVpls == NULL)
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>VC配置存在，但VPLS=%d配置不存在，无法修改VP",stVcKey.vc_id, 
+                                                                                                                             stVcKey.vc_type, 
+                                                                                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip),
+                                                                                                                             pstVcTbl->vc_info_cb.vpn_id));
+
+                        OS_PRINTF("***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>VC配置存在，但VPLS=%d配置不存在，无法修改VP!\n",stVcKey.vc_id, 
+                                                                                                                             stVcKey.vc_type, 
+                                                                                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip),
+                                                                                                                             pstVcTbl->vc_info_cb.vpn_id);
+
+                        OS_SPRINTF(ucMessage, "***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>VC配置存在，但VPLS=%d配置不存在，无法修改VP!\n",stVcKey.vc_id, 
+                                                                                                                             stVcKey.vc_type, 
+                                                                                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip),
+                                                                                                                             pstVcTbl->vc_info_cb.vpn_id);
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                             stVcKey.vc_type, 
+                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip), 
+                                                             BASIC_CONFIG_NOT_EXIST, 
+                                                             "BASIC_CONFIG_NOT_EXIST", 
+                                                             ucMessage));
+                                                             
+                        pstSetVc->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        
+                        goto EXIT_LABEL;
+                    }
+                    
+                    //如果是主用VC，就找到VPLS中的备用VC；
+                    if (pstVcTbl->vc_info_cb.if_main == VC_MAIN)
+                    {
+                        //VPLS业务会有多个NNI，需要找到VC属于的那个NNI
+                        for (i=0; i<ATG_DCI_VPLS_NNI_NUM; i++)
+                        {
+                            if ((pstVpls->nni_cfg_cb[i] != NULL) 
+                              &&(pstVpls->nni_cfg_cb[i]->vc_id   == pstVcTbl->vc_key.vc_id)
+                              &&(pstVpls->nni_cfg_cb[i]->vc_type == pstVcTbl->vc_key.vc_type)
+                              &&(pstVpls->nni_cfg_cb[i]->peer_ip == pstVcTbl->vc_key.peer_ip))
+                            {
+                                pos = i;
+                                break;
+                            }
+                        }
+
+                        OS_MEMCPY(&stVplsNni, pstVpls->nni_cfg_cb[pos], sizeof(ATG_DCI_VPLS_NNI_DATA));
+
+                        stVplsNni.vc_id = stVcKey.vc_id;
+                        stVplsNni.vc_type = stVcKey.vc_type;
+                        stVplsNni.peer_ip = stVcKey.peer_ip;
+                        stVcModInfo.vp_idx_main = pstVcTbl->vc_info_cb.vp_idx;
+                        stVcModInfo.frr_group_id = pstVcTbl->vc_info_cb.frr_group_id;
+                        stVcModInfo.if_main = VC_MAIN;
+                        
+                        //如果配了保护
+                        if (pstVpls->nni_cfg_cb[pos]->use_protect == 1)
+                        {
+                            stVcKeyBack.vc_id = pstVpls->nni_cfg_cb[pos]->vc_id_bak;
+                            stVcKeyBack.vc_type = pstVpls->nni_cfg_cb[pos]->vc_type_bak;
+                            stVcKeyBack.peer_ip = pstVpls->nni_cfg_cb[pos]->peer_ip_bak;
+
+                            pstVcTblBack = AVLL_FIND(SHARED.vc_tree, &stVcKeyBack);
+                        }
+
+                        if (pstVcTblBack != NULL)
+                        {
+                            ret = spm_vpn_mod_vp_nni(pstVcTbl->vc_info_cb.vpn_id, 
+                                                     pstVcTbl->vc_info_cb.vpn_type, 
+                                                     pstBasicData, 
+                                                     pstVcTblBack->basic_cfg_cb,
+                                                     &stVplsNni,
+                                                     &stVcModInfo);
+                        }
+                        else
+                        {
+                            ret = spm_vpn_mod_vp_nni(pstVcTbl->vc_info_cb.vpn_id, 
+                                                     pstVcTbl->vc_info_cb.vpn_type, 
+                                                     pstBasicData, 
+                                                     NULL,
+                                                     &stVplsNni,
+                                                     &stVcModInfo);
+                        }
+
+                        if (ret == SUCCESS)
+                        {
+                            pstVcTbl->vc_info_cb.next_hop_id = stVcModInfo.next_hop_id_main;
+							pstVcTbl->vc_info_cb.next_hop_counter_id = stVcModInfo.next_hop_counter_id_main;
+                        }
+                        else
+                        {
+                            pstSetVc->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        }                       
+                    }                    
+                    else if (pstVcTbl->vc_info_cb.if_main == VC_BACK)  //如果是备用VC就找到VPWS中的主用VC
+                    {
+                        //如果之前业务模型为NNI-NNI，会有2个NNI，需要找到VC属于的那个NNI
+                        for (i=0; i<ATG_DCI_VPLS_NNI_NUM; i++)
+                        {
+                            if ((pstVpls->nni_cfg_cb[i] != NULL) 
+                              &&(pstVpls->nni_cfg_cb[i]->vc_id_bak   == pstVcTbl->vc_key.vc_id)
+                              &&(pstVpls->nni_cfg_cb[i]->vc_type_bak == pstVcTbl->vc_key.vc_type)
+                              &&(pstVpls->nni_cfg_cb[i]->peer_ip_bak == pstVcTbl->vc_key.peer_ip))
+                            {
+                                pos = i;
+                                break;
+                            }
+                        }
+
+                        OS_MEMCPY(&stVplsNni, pstVpls->nni_cfg_cb[pos], sizeof(ATG_DCI_VPLS_NNI_DATA));
+
+                        stVplsNni.vc_id_bak = stVcKey.vc_id;
+                        stVplsNni.vc_type_bak = stVcKey.vc_type;
+                        stVplsNni.peer_ip_bak = stVcKey.peer_ip;
+                        stVcModInfo.vp_idx_main = pstVcTbl->vc_info_cb.vp_idx;
+                        stVcModInfo.vp_idx_back = pstVcTbl->vc_info_cb.vp_idx;
+                        stVcModInfo.frr_group_id = pstVcTbl->vc_info_cb.frr_group_id;
+                        stVcModInfo.if_main = VC_BACK;
+                        
+                        stVcKeyMain.vc_id = pstVpls->nni_cfg_cb[pos]->vc_id;
+                        stVcKeyMain.vc_type = pstVpls->nni_cfg_cb[pos]->vc_type;
+                        stVcKeyMain.peer_ip = pstVpls->nni_cfg_cb[pos]->peer_ip;
+                        
+                        pstVcTblMain = AVLL_FIND(SHARED.vc_tree, &stVcKeyMain);
+
+                        ret = spm_vpn_mod_vp_nni(pstVcTbl->vc_info_cb.vpn_id, 
+                                                 pstVcTbl->vc_info_cb.vpn_type, 
+                                                 pstVcTblMain->basic_cfg_cb, 
+                                                 pstBasicData,
+                                                 &stVplsNni,
+                                                 &stVcModInfo);
+
+                        if (ret == SUCCESS)
+                        {
+                            pstVcTbl->vc_info_cb.next_hop_id = stVcModInfo.next_hop_id_back;
+							pstVcTbl->vc_info_cb.next_hop_counter_id = stVcModInfo.next_hop_counter_id_back;
+                        }
+                        else
+                        {
+                            pstSetVc->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        }                       
+                    }
+                    else
+                    {
+                        NBB_TRC_DETAIL((NBB_FORMAT "  ***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>要修改VC配置既不是主也不是备",stVcKey.vc_id, 
+                                                                                                                 stVcKey.vc_type, 
+                                                                                                                 spm_set_ulong_to_ipv4(stVcKey.peer_ip)));
+
+                        OS_PRINTF("***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>要修改VC配置既不是主也不是备!\n",stVcKey.vc_id, 
+                                                                                                                 stVcKey.vc_type, 
+                                                                                                                 spm_set_ulong_to_ipv4(stVcKey.peer_ip));
+
+                        OS_SPRINTF(ucMessage, "***ERROR***:<VC_ID=%ld VC_TYPE=%d PEER_IP=%s>要修改VC配置既不是主也不是备!\n",stVcKey.vc_id, 
+                                                                                                                 stVcKey.vc_type, 
+                                                                                                                 spm_set_ulong_to_ipv4(stVcKey.peer_ip));
+                        BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+
+                        NBB_EXCEPTION((PCT_SPM | VC_PD, 0, "ld d s d s s", stVcKey.vc_id, 
+                                                             stVcKey.vc_type, 
+                                                             spm_set_ulong_to_ipv4(stVcKey.peer_ip), 
+                                                             VC_PD_NOT_MASTER_NOR_SLAVE, 
+                                                             "VC_PD_NOT_MASTER_NOR_SLAVE", 
+                                                             ucMessage));
+                                                             
+                        pstSetVc->basic_return_code = ATG_DCI_RC_UNSUCCESSFUL;
+                        
+                        goto EXIT_LABEL;
+                    }
+                }
+            }
+            else
+            {
+                NBB_TRC_DETAIL((NBB_FORMAT "  VC存在，但VC未加入到VP，只做保存动作"));
+                ret = SUCCESS;
+                //OS_PRINTF("VC存在，但VC未加入到了VP，只做保存动作\n");                
+            }
+            
+            /* VC不存在就不做增加VP动作，只做存储，在VPWS配置里面去建立完整的VPWS*/
+            /* 保存数据 */
+            if (pstVcTbl->basic_cfg_cb == NULL)
+            {
+                pstVcTbl->basic_cfg_cb = (ATG_DCI_VC_BASIC_DATA *)NBB_MM_ALLOC(sizeof(ATG_DCI_VC_BASIC_DATA),
+                                                        NBB_NORETRY_ACT,
+                                                        MEM_SPM_VC_BASIC_CB);
+            }
+
+            if (ret == SUCCESS)
+            {
+            	if ((pstVcTbl != NULL) && (pstVcTbl->basic_cfg_cb != NULL) && (pstBasicData != NULL))
+            	{
+	                OS_MEMCPY(pstVcTbl->basic_cfg_cb, pstBasicData, sizeof(ATG_DCI_VC_BASIC_DATA));
+
+	                pstVcTbl->vc_info_cb.vp_idx = stVcModInfo.vp_idx_main;
+	                //pstVcTbl->vc_info_cb.vp_api_idx = stVcModInfo.vp_api_idx_main;                
+	                pstVcTbl->vc_info_cb.frr_group_id = stVcModInfo.frr_group_id;
+            	}
+            }
+
+        }
+        else if (ulOperBasic == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperBasic == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }
+
+        /******************************** Diff-Serv配置 *********************************/
+        if (ulOperDiffServ == ATG_DCI_OPER_ADD)
+        {            
+
+            /* 计算第一个entry的地址。*/
+            pucDiffServStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetVc, &pstSetVc->diff_serv_data);    
+
+            /* 如果指针为NULL，无数据 */
+            if (pucDiffServStart == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  pucDiffServStart is NULL."));
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstDiffServData = (ATG_DCI_VC_DIFF_SERV_DATA *)pucDiffServStart;
+
+                if (vc_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    OS_PRINTF("  2）Diff-Serv配置\n");
+                    spm_dbg_print_vc_diff_serv_cfg(pstDiffServData);
+                }
+
+                OS_SPRINTF(ucMessage,"  2）Diff-Serv配置\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                spm_dbg_record_vc_diff_serv_cfg(pstDiffServData);
+                
+                /* 配置处理 */
+                NBB_TRC_DETAIL((NBB_FORMAT "  Diff-Serv模板索引 = %d", pstDiffServData->diff_serv_id));
+
+                //如果VC存在，且已经属于VP中，更新Diff-Serv
+                if ((ucIfExist == ATG_DCI_EXIST) && (pstVcTbl->vc_info_cb.vp_idx != 0))
+                {
+                    ret = spm_ds_add_vc_node(pstDiffServData->diff_serv_id, 
+                                             &stVcKey, 
+                                             pstVcTbl->vc_info_cb.vp_idx, 
+                                             pstVcTbl->vc_info_cb.if_main);
+
+                    if (ret == SUCCESS)
+                    {
+                        pstVcTbl->vc_info_cb.if_qos = ATG_DCI_USED;
+
+                        /* 保存数据 */
+                        if (pstVcTbl->diff_serv_cfg_cb == NULL)
+                        {
+                            pstVcTbl->diff_serv_cfg_cb = (ATG_DCI_VC_DIFF_SERV_DATA *)NBB_MM_ALLOC(sizeof(ATG_DCI_VC_DIFF_SERV_DATA),
+                                                                    NBB_NORETRY_ACT,
+                                                                    MEM_SPM_VC_DIFF_SERV_CB);
+                        }
+                        
+                        OS_MEMCPY(pstVcTbl->diff_serv_cfg_cb, pstDiffServData, sizeof(ATG_DCI_VC_DIFF_SERV_DATA));
+                    }
+                } 
+            }            
+        }
+        else if (ulOperDiffServ == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperDiffServ == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }  
+
+        /******************************** 上话VPN QOS策略配置 *********************************/
+        if (ulOperUpVpn == ATG_DCI_OPER_ADD)
+        {            
+
+            /* 计算第一个entry的地址。*/
+            pucUpVpnStart = (NBB_BYTE *) NTL_OFFLEN_GET_POINTER(pstSetVc, &pstSetVc->up_vpn_qos_data);    
+
+            /* 如果指针为NULL，无数据 */
+            if (pucUpVpnStart == NULL)
+            {
+                NBB_TRC_FLOW((NBB_FORMAT "  pucUpVpnStart is NULL."));
+                NBB_EXCEPTION((PCT_SPM | 7, 0, "lx", SHARED.spm_index));
+            }
+            else
+            {
+                pstUpVpnData = (ATG_DCI_VC_UP_VPN_QOS_POLICY *)pucUpVpnStart;
+
+                if (vc_cfg_print_setting == SPM_PRINT_CFG)
+                {
+                    OS_PRINTF("  3）上话VPN QOS策略配置\n");
+                    spm_dbg_print_vc_up_vpn_qos_cfg(pstUpVpnData);
+                }
+
+                OS_SPRINTF(ucMessage,"  3）上话VPN QOS策略配置\n");
+                BMU_SLOG(BMU_INFO, SPM_L2_LOG_DIR, ucMessage);
+                spm_dbg_record_vc_up_vpn_qos_cfg(pstUpVpnData);
+                
+                /* 配置处理 */
+                NBB_TRC_DETAIL((NBB_FORMAT "  NodeIndex = %ld", pstUpVpnData->node_index));
+                NBB_TRC_DETAIL((NBB_FORMAT "  QOS策略模板索引 = %ld", pstUpVpnData->qos_policy_index));
+                NBB_TRC_DETAIL((NBB_FORMAT "  流队列QOS策略模板索引 = %ld", pstUpVpnData->flow_queue_qos_policy_index));
+
+                //如果VC存在，且已经属于VP中，更新Diff-Serv
+                if ((ucIfExist == ATG_DCI_EXIST) && (pstVcTbl->vc_info_cb.vp_idx != 0))
+                {
+                    stCrTxLsp.egress   = pstVcTbl->basic_cfg_cb->egress;
+                    stCrTxLsp.ingress  = pstVcTbl->basic_cfg_cb->ingress;
+                    stCrTxLsp.tunnelid = pstVcTbl->basic_cfg_cb->tunnel_id;
+                    
+                    ret = spm_hqos_add_vc_node(pstVcTbl->vc_info_cb.slot_id, 
+                                               pstVcTbl->vc_info_cb.port_id, 
+                                               pstVcTbl->vc_info_cb.vp_idx, 
+                                               pstVcTbl->vc_info_cb.if_main,
+                                               &stCrTxLsp,
+                                               &stVcKey,
+                                               pstUpVpnData);
+
+                    if (ret == SUCCESS)
+                    {
+                        pstVcTbl->vc_info_cb.if_qos = ATG_DCI_USED;
+
+                        /* 保存数据 */
+                        if (pstVcTbl->up_vpn_cfg_cb == NULL)
+                        {
+                            pstVcTbl->up_vpn_cfg_cb = (ATG_DCI_VC_UP_VPN_QOS_POLICY *)NBB_MM_ALLOC(sizeof(ATG_DCI_VC_UP_VPN_QOS_POLICY),
+                                                                    NBB_NORETRY_ACT,
+                                                                    MEM_SPM_VC_UP_VPN_CB);
+                        }
+                        
+                        OS_MEMCPY(pstVcTbl->up_vpn_cfg_cb, pstUpVpnData, sizeof(ATG_DCI_VC_UP_VPN_QOS_POLICY));
+                    }
+                }
+            }            
+        }
+        else if (ulOperUpVpn == ATG_DCI_OPER_DEL)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 1, "lx", SHARED.spm_index));
+        }
+        else if (ulOperUpVpn == ATG_DCI_OPER_UPDATE)
+        {
+            NBB_EXCEPTION((PCT_SPM | 7, 2, "lx", SHARED.spm_index));
+        }  
+        
+        
+#ifdef FOR_TIME_TEST
+        if (stVcKey.vc_id == 1)
+        {
+            gettimeofday (&tvpre , NULL);
+            ulStartT = (tvpre.tv_sec)*1000+(tvpre.tv_usec)/1000;
+            printf("tvpre.tv_sec: %ld s\n",tvpre.tv_sec);
+            printf("tvpre.tv_usec:%ld us\n",tvpre.tv_usec);
+            printf("tvpre:        %ld ms\n",ulStartT);
+        }
+
+        if (stVcKey.vc_id == 30000)
+        {   
+            gettimeofday (&tvafter , NULL);
+            ulEndT = (tvafter.tv_sec)*1000+(tvafter.tv_usec)/1000;
+            printf("tvafter.tv_sec: %ld s\n",tvafter.tv_sec);
+            printf("tvafter.tv_usec:%ld us\n",tvafter.tv_usec);
+            printf("tvafter:        %ld ms\n",ulEndT);
+            
+            printf("消耗时间:%ld ms\n",(ulEndT-ulStartT));
+        }
+#endif    
+    }
+
+    //spm_snd_dci_ips((NBB_VOID*)pstSetVc, &(pstSetVc->ips_hdr) NBB_CCXT);
+
+    EXIT_LABEL : NBB_TRC_EXIT();
+
+
+    return;
+
+}
+#endif
+
